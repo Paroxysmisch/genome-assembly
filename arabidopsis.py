@@ -1,10 +1,11 @@
-import tarfile
 import pickle
+import tarfile
+
 import torch
 from dgl import load_graphs
+from torch.utils.data.dataset import Dataset
 from torch_geometric.data import InMemoryDataset, download_google_url
 from torch_geometric.utils import from_dgl
-from torch.utils.data.dataset import Dataset
 
 
 class ArabidopsisDataset(InMemoryDataset):
@@ -64,9 +65,11 @@ class ArabidopsisDataset(InMemoryDataset):
                 self.root = root
                 self.transform = transform
 
-                self.reads_file = self.root + "/raw/chr" + str(chromosome) + "_reads.pkl"
+                self.reads_file = (
+                    self.root + "/raw/chr" + str(chromosome) + "_reads.pkl"
+                )
 
-                with open(self.reads_file, 'rb') as f:
+                with open(self.reads_file, "rb") as f:
                     self.reads_dict = pickle.load(f)
 
             def __len__(self):
@@ -79,15 +82,17 @@ class ArabidopsisDataset(InMemoryDataset):
                 indices = []
                 for char in sample:
                     match char:
-                        case 'A':
+                        case "A":
                             indices.append(0)
-                        case 'T':
+                        case "T":
                             indices.append(1)
-                        case 'C':
+                        case "C":
                             indices.append(2)
-                        case 'G':
+                        case "G":
                             indices.append(3)
-                sample = torch.nn.functional.one_hot(torch.tensor(indices), num_classes=4)
+                sample = torch.nn.functional.one_hot(
+                    torch.tensor(indices), num_classes=4
+                )
 
                 # Transform operates on one-hot encoded tensor
                 if self.transform:
@@ -95,10 +100,45 @@ class ArabidopsisDataset(InMemoryDataset):
 
                 return sample
 
+            def gen_batch(self, read_indices):
+                # Allows passing both a list and a PyTorch tensor to read_indices
+                if torch.is_tensor(read_indices):
+                    read_indices = read_indices.tolist()
+
+                return ArabidopsisDataset.collate_reads_fn(
+                    [self.__getitem__(idx) for idx in read_indices]
+                )
+
         return ArabidopsisReadsDataset(self.root, transform)
 
+    @staticmethod
+    def collate_reads_fn(batch):
+        max_length = max(item.size(0) for item in batch)
+
+        # Pad each sequence to max_length
+        padded_batch = torch.stack(
+            [
+                torch.nn.functional.pad(
+                    item,
+                    (
+                        0,
+                        0,
+                        0,
+                        max_length - item.size(0),
+                    ),  # Pad length dimension, concatenating 0s at the bottom
+                )
+                for item in batch
+            ]
+        )
+
+        return padded_batch
 
 
 test = ArabidopsisDataset(root="./arabidopsis-dataset")
 print(test[0])
-print(test.reads_dataset_factory(3).__getitem__(0)[:10])
+reads_dataset = test.reads_dataset_factory(3)
+print(reads_dataset.__getitem__(0)[:10])
+
+test2 = reads_dataset.gen_batch(torch.tensor([0, 1, 2, 3]))
+print(test2)
+print([len(reads_dataset.__getitem__(read)) for read in [0, 1, 2, 3]])

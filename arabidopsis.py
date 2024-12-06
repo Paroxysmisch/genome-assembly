@@ -1,11 +1,9 @@
-import os
 import tarfile
 
-from dgl import load_graphs
 import torch
-from torch_geometric.data import Data, InMemoryDataset, download_google_url
+from dgl import load_graphs
+from torch_geometric.data import InMemoryDataset, download_google_url
 from torch_geometric.utils import from_dgl
-import pickle
 
 
 class ArabidopsisDataset(InMemoryDataset):
@@ -35,24 +33,27 @@ class ArabidopsisDataset(InMemoryDataset):
         )
 
     def process(self):
-        archive = tarfile.open(self.raw_dir + '/arabidopsis-data.tar')
+        archive = tarfile.open(self.raw_dir + "/arabidopsis-data.tar")
         archive.extractall(self.raw_dir)
         archive.close()
 
         # Read data into huge `Data` list.
         data_list = []
 
-        chromosomes=[3, 4, 5]
+        chromosomes = [3, 4, 5]
         dgls = [
             "chr" + str(chromosome_number) + ".dgl" for chromosome_number in chromosomes
         ]
 
         for dgl in dgls:
-            (graph,), _ = load_graphs(self.raw_dir + '/' + dgl)
+            (graph,), _ = load_graphs(self.raw_dir + "/" + dgl)
             data = from_dgl(graph)
+            data.num_nodes = len(
+                data.read_length
+            )  # Need to explicitly set as len(y) is the number of edges, which is confusing PyG
+            data.read_idx = torch.arange(data.num_nodes)
 
             data_list.append(data)
-
 
         self.save(data_list, self.processed_paths[0])
 

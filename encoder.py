@@ -1,5 +1,6 @@
 import torch.nn as nn
 
+
 class Encoder(nn.Module):
     def __init__(self, hidden_dim):
         super().__init__()
@@ -11,4 +12,3 @@ class Encoder(nn.Module):
         edge_hidden = self.edge_encoder(data.overlap_similarity)
 
         return (node_hidden, edge_hidden)
-

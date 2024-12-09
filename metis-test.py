@@ -2,7 +2,7 @@ import arabidopsis
 from torch_geometric.loader.cluster import ClusterData, ClusterLoader
 
 test = arabidopsis.ArabidopsisDataset(root="./arabidopsis-dataset")
-cluster_data = ClusterData(test[0], num_parts=10)
+cluster_data = ClusterData(test[0], num_parts=35)
 print(cluster_data)
 cluster_loader = ClusterLoader(cluster_data)
 first_subgraph = next(iter(cluster_loader))

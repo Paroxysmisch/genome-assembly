@@ -50,10 +50,18 @@ class ArabidopsisDataset(InMemoryDataset):
         for dgl in dgls:
             (graph,), _ = load_graphs(self.raw_dir + "/" + dgl)
             data = from_dgl(graph)
-            data.num_nodes = len(
-                data.read_length
-            )  # Need to explicitly set as len(y) is the number of edges, which is confusing PyG
-            data.read_idx = torch.arange(data.num_nodes)
+
+            # Explicitly set num_nodes and num_edges
+            # as PyG assume y has a node target, but here it is an edge target
+            data.num_nodes = len(data.read_length)
+            # Rename y to target to avoid further problems
+            data.target = data.y
+            del(data.y)
+
+            # Tensor of node identifier to fetch the read data
+            data.read_index = torch.arange(data.num_nodes)
+            data.edge_attr = data.overlap_similarity.unsqueeze(1)
+            del(data.overlap_similarity)
 
             data_list.append(data)
 
@@ -92,7 +100,7 @@ class ArabidopsisDataset(InMemoryDataset):
                             indices.append(3)
                 sample = torch.nn.functional.one_hot(
                     torch.tensor(indices), num_classes=4
-                )
+                ).float()
 
                 # Transform operates on one-hot encoded tensor
                 if self.transform:

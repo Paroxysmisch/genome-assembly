@@ -14,21 +14,24 @@ proc = GCN_Processor(3, hidden_dim)
 
 
 test = ArabidopsisDataset(root="./arabidopsis-dataset")
-data = test[0]
-num_edges = len(data.edge_attr)
-data.edge_idx = torch.arange(num_edges)
-print(data)
-data = ToUndirected()(data)
-print(data)
-reads_dataset = test.reads_dataset_factory(3)
-cluster_data = ClusterData(data, num_parts=256)
-cluster_loader = ClusterLoader(cluster_data)
-first_subgraph = next(iter(cluster_loader))
-first_read_data_batched = reads_dataset.gen_batch(first_subgraph.read_index)
-# print(first_subgraph.
-print(first_read_data_batched.size())
-
-print(first_subgraph)
+data_iter = iter(test.get_clustered_data_loader(3, 256))
+first_subgraph, first_read_data_batched = next(data_iter)
+for _, _ in data_iter:
+    print("Data produced")
+    continue
+# num_edges = len(data.edge_attr)
+# data.edge_idx = torch.arange(num_edges)
+# print(data)
+# data = ToUndirected()(data)
+# print(data)
+# reads_dataset = test.reads_dataset_factory(3)
+# cluster_data = ClusterData(data, num_parts=256)
+# cluster_loader = ClusterLoader(cluster_data)
+# first_subgraph = next(iter(cluster_loader))
+# first_read_data_batched = reads_dataset.gen_batch(first_subgraph.read_index)
+# print(first_read_data_batched.size())
+#
+# print(first_subgraph)
 
 encoded = enc(first_subgraph, first_read_data_batched)
 processed = proc(*encoded, first_subgraph)

@@ -6,6 +6,8 @@ from dgl import load_graphs
 from torch.utils.data.dataset import Dataset
 from torch_geometric.data import InMemoryDataset, download_google_url
 from torch_geometric.utils import from_dgl
+from torch_geometric.transforms import ToUndirected
+from torch_geometric.loader.cluster import ClusterData, ClusterLoader
 
 
 class ArabidopsisDataset(InMemoryDataset):
@@ -140,6 +142,28 @@ class ArabidopsisDataset(InMemoryDataset):
         )
 
         return padded_batch
+
+    def get_clustered_data_loader(self, chromosome, num_parts):
+        chromosomes = [3, 4, 5]
+        full_chromosome_data = self[chromosomes.index(chromosome)]
+        full_chromosome_data = ToUndirected()(full_chromosome_data)
+        reads_dataset = self.reads_dataset_factory(chromosome)
+
+        class ClusterLoaderWrapper:
+            def __init__(self, full_chromosome_data, num_parts):
+                self.cluster_data = ClusterData(full_chromosome_data, num_parts)
+                self.cluster_loader = ClusterLoader(self.cluster_data)
+                self.reads_dataset = reads_dataset
+
+            def __iter__(self):
+                self.cluster_loader_iter = iter(self.cluster_loader)
+                return self
+
+            def __next__(self):
+                subgraph = next(self.cluster_loader_iter) 
+                return (subgraph, self.reads_dataset.gen_batch(subgraph.read_index))
+
+        return ClusterLoaderWrapper(full_chromosome_data, num_parts)
 
 
 test = ArabidopsisDataset(root="./arabidopsis-dataset")

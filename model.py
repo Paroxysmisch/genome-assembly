@@ -1,39 +1,29 @@
-import torch
-from torch_geometric.loader.cluster import ClusterData, ClusterLoader
-from torch_geometric.transforms import ToUndirected
+import torch.nn as nn
 
 from arabidopsis import ArabidopsisDataset
 from decoder import Decoder
 from encoder import Encoder
 from processor import GCN_Processor
 
-hidden_dim = 32
-enc = Encoder(hidden_dim)
-dec = Decoder(hidden_dim)
-proc = GCN_Processor(3, hidden_dim)
+
+class Model(nn.Module):
+    def __init__(self, hidden_dim, num_processor_layers):
+        super().__init__()
+        self.enc = Encoder(hidden_dim)
+        self.dec = Decoder(hidden_dim)
+        self.proc = GCN_Processor(num_processor_layers, hidden_dim)
+
+    def forward(self, data, read_data_batched):
+        encoded = self.enc(data, read_data_batched)
+        processed = self.proc(*encoded, data)
+        decoded = self.dec(*processed, data)
+
+        return decoded
 
 
 test = ArabidopsisDataset(root="./arabidopsis-dataset")
 data_iter = iter(test.get_clustered_data_loader(3, 256))
 first_subgraph, first_read_data_batched = next(data_iter)
-for _, _ in data_iter:
-    print("Data produced")
-    continue
-# num_edges = len(data.edge_attr)
-# data.edge_idx = torch.arange(num_edges)
-# print(data)
-# data = ToUndirected()(data)
-# print(data)
-# reads_dataset = test.reads_dataset_factory(3)
-# cluster_data = ClusterData(data, num_parts=256)
-# cluster_loader = ClusterLoader(cluster_data)
-# first_subgraph = next(iter(cluster_loader))
-# first_read_data_batched = reads_dataset.gen_batch(first_subgraph.read_index)
-# print(first_read_data_batched.size())
-#
-# print(first_subgraph)
+model = Model(64, 6)
 
-encoded = enc(first_subgraph, first_read_data_batched)
-processed = proc(*encoded, first_subgraph)
-decoded = dec(*processed, first_subgraph)
-print(decoded)
+print(model(first_subgraph, first_read_data_batched))

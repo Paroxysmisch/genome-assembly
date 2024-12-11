@@ -1,4 +1,5 @@
 import lightning as L
+import torch
 from torch import nn, optim
 
 from arabidopsis import ArabidopsisDataset
@@ -10,10 +11,11 @@ from processor import GCN_Processor
 class Model(L.LightningModule):
     def __init__(self, hidden_dim, num_processor_layers):
         super().__init__()
+        self.save_hyperparameters()
         self.enc = Encoder(hidden_dim)
         self.dec = Decoder(hidden_dim)
         self.proc = GCN_Processor(num_processor_layers, hidden_dim)
-        self.loss = nn.BCEWithLogitsLoss()
+        self.loss = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(0.001), reduction='sum')
 
     def training_step(self, batch, batch_idx):
         data, read_data_batched = batch
@@ -22,8 +24,27 @@ class Model(L.LightningModule):
         decoded = self.dec(*processed, data)
 
         loss = self.loss(decoded.flatten(), data.target)
-        self.log("train_loss", loss)
+        self.log("train_loss", loss, prog_bar=True)
         return loss
+
+    def validation_step(self, batch, batch_idx):
+        data, read_data_batched = batch
+        encoded = self.enc(data, read_data_batched)
+        processed = self.proc(*encoded, data)
+        decoded = self.dec(*processed, data)
+
+        loss = self.loss(decoded.flatten(), data.target)
+        self.log("test_loss", loss, prog_bar=True)
+        return loss
+
+    def forward(self, batch):
+        data, read_data_batched = batch
+        encoded = self.enc(data, read_data_batched)
+        processed = self.proc(*encoded, data)
+        decoded = self.dec(*processed, data)
+
+        return decoded
+
 
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters(), lr=1e-3)

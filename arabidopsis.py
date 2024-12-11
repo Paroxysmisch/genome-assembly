@@ -155,6 +155,9 @@ class ArabidopsisDataset(InMemoryDataset):
                 self.cluster_loader = ClusterLoader(self.cluster_data)
                 self.reads_dataset = reads_dataset
 
+            def __len__(self):
+                return len(self.cluster_data)
+
             def __iter__(self):
                 self.cluster_loader_iter = iter(self.cluster_loader)
                 return self

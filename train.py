@@ -10,7 +10,7 @@ train_loader = arabidopsis_dataset.get_clustered_data_loader(
 test_loader = arabidopsis_dataset.get_clustered_data_loader(
     chromosome=4, num_parts=200
 )
-model = Model(hidden_dim=64, num_processor_layers=8)
+model = Model(hidden_dim=64, num_processor_layers=8, pos_weight=arabidopsis_dataset.get_optimal_pos_weight(3))
 
 trainer = L.Trainer(limit_test_batches=0.1, max_epochs=20, log_every_n_steps=1, limit_val_batches=0.1, check_val_every_n_epoch=1)
 trainer.fit(model=model, train_dataloaders=train_loader, val_dataloaders=test_loader)

@@ -9,13 +9,13 @@ from processor import GCN_Processor
 
 
 class Model(L.LightningModule):
-    def __init__(self, hidden_dim, num_processor_layers):
+    def __init__(self, hidden_dim, num_processor_layers, pos_weight):
         super().__init__()
         self.save_hyperparameters()
         self.enc = Encoder(hidden_dim)
         self.dec = Decoder(hidden_dim)
         self.proc = GCN_Processor(num_processor_layers, hidden_dim)
-        self.loss = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(0.001), reduction='sum')
+        self.loss = nn.BCEWithLogitsLoss(pos_weight=pos_weight, reduction='sum')
 
     def training_step(self, batch, batch_idx):
         data, read_data_batched = batch
@@ -45,15 +45,14 @@ class Model(L.LightningModule):
 
         return decoded
 
-
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters(), lr=1e-3)
         return optimizer
 
 
-test = ArabidopsisDataset(root="./arabidopsis-dataset")
-data_iter = iter(test.get_clustered_data_loader(3, 256))
-first_subgraph, first_read_data_batched = next(data_iter)
-model = Model(64, 6)
+# test = ArabidopsisDataset(root="./arabidopsis-dataset")
+# data_iter = iter(test.get_clustered_data_loader(3, 256))
+# first_subgraph, first_read_data_batched = next(data_iter)
+# model = Model(64, 6)
 
 # print(model(first_subgraph, first_read_data_batched))

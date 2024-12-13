@@ -168,6 +168,16 @@ class ArabidopsisDataset(InMemoryDataset):
 
         return ClusterLoaderWrapper(full_chromosome_data, num_parts)
 
+    def get_optimal_pos_weight(self, chromosome):
+        chromosomes = [3, 4, 5]
+        full_chromosome_data = self[chromosomes.index(chromosome)]
+        num_positive_edges = torch.count_nonzero(full_chromosome_data.target) 
+        num_negative_edges = len(full_chromosome_data.target) - num_positive_edges
+        print(num_positive_edges)
+        print(num_negative_edges)
+
+        return num_negative_edges / num_positive_edges
+
 
 test = ArabidopsisDataset(root="./arabidopsis-dataset")
 print(test[0])

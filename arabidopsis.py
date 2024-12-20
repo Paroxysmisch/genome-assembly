@@ -4,10 +4,11 @@ import tarfile
 import torch
 from dgl import load_graphs
 from torch.utils.data.dataset import Dataset
-from torch_geometric.data import InMemoryDataset, download_google_url
-from torch_geometric.utils import from_dgl
-from torch_geometric.transforms import ToUndirected
+from torch_geometric.data import (Data, GraphSAINTEdgeSampler, InMemoryDataset,
+                                  download_google_url)
 from torch_geometric.loader.cluster import ClusterData, ClusterLoader
+from torch_geometric.transforms import ToUndirected
+from torch_geometric.utils import from_dgl
 
 
 class ArabidopsisDataset(InMemoryDataset):
@@ -44,7 +45,7 @@ class ArabidopsisDataset(InMemoryDataset):
         # Read data into huge `Data` list.
         data_list = []
 
-        chromosomes = [3, 4, 5]
+        chromosomes = [3, 4, 5, 19, 20]
         dgls = [
             "chr" + str(chromosome_number) + ".dgl" for chromosome_number in chromosomes
         ]
@@ -58,12 +59,16 @@ class ArabidopsisDataset(InMemoryDataset):
             data.num_nodes = len(data.read_length)
             # Rename y to target to avoid further problems
             data.target = data.y
-            del(data.y)
+            del data.y
 
             # Tensor of node identifier to fetch the read data
             data.read_index = torch.arange(data.num_nodes)
             data.edge_attr = data.overlap_similarity.unsqueeze(1)
-            del(data.overlap_similarity)
+            # data.edge_attr = data.target.unsqueeze(-1)
+            data.edge_transposed = torch.transpose(data.edge_index, 1, 0)
+            data.random_feature = data.edge_transposed
+            # data.random_feature = torch.randn((data.edge_index.shape()[0] ,4))
+            del data.overlap_similarity
 
             data_list.append(data)
 
@@ -143,9 +148,36 @@ class ArabidopsisDataset(InMemoryDataset):
 
         return padded_batch
 
-    def get_clustered_data_loader(self, chromosome, num_parts):
-        chromosomes = [3, 4, 5]
+    def get_graphsaint_data_loader(self, chromosome, batch_size, walk_length=2):
+        chromosomes = [3, 4, 5, 19, 20]
         full_chromosome_data = self[chromosomes.index(chromosome)]
+        reads_dataset = self.reads_dataset_factory(chromosome)
+
+        return map(
+            lambda subgraph: (subgraph, reads_dataset.gen_batch(subgraph.read_index)),
+            GraphSAINTEdgeSampler(full_chromosome_data, batch_size, walk_length),
+        )
+
+    def get_clustered_data_loader(self, chromosome, num_parts):
+        chromosomes = [3, 4, 5, 19, 20]
+        full_chromosome_data = self[chromosomes.index(chromosome)]
+
+        # current_index = full_chromosome_data.edge_index
+        # orig_num_edges = full_chromosome_data.num_edges
+        # new_data = Data(
+        #     read_index=full_chromosome_data.read_index,
+        #     edge_index=torch.concatenate(
+        #         [current_index, torch.stack([current_index[1], current_index[0]])]
+        #     ),
+        #     edge_attr=torch.concatenate(
+        #         [full_chromosome_data.edge_attr, full_chromosome_data.edge_attr]
+        #     ),
+        #     original_edge = torch.concatenate(
+        #         [torch.ones(orig_num_edges), torch.zeros(orig_num_edges)]
+        #     ),
+        #     num_nodes=full_chromosome_data.num_nodes,
+        # )
+
         full_chromosome_data = ToUndirected()(full_chromosome_data)
         reads_dataset = self.reads_dataset_factory(chromosome)
 
@@ -163,15 +195,15 @@ class ArabidopsisDataset(InMemoryDataset):
                 return self
 
             def __next__(self):
-                subgraph = next(self.cluster_loader_iter) 
+                subgraph = next(self.cluster_loader_iter)
                 return (subgraph, self.reads_dataset.gen_batch(subgraph.read_index))
 
         return ClusterLoaderWrapper(full_chromosome_data, num_parts)
 
     def get_optimal_pos_weight(self, chromosome):
-        chromosomes = [3, 4, 5]
+        chromosomes = [3, 4, 5, 19, 20]
         full_chromosome_data = self[chromosomes.index(chromosome)]
-        num_positive_edges = torch.count_nonzero(full_chromosome_data.target) 
+        num_positive_edges = torch.count_nonzero(full_chromosome_data.target)
         num_negative_edges = len(full_chromosome_data.target) - num_positive_edges
         print(num_positive_edges)
         print(num_negative_edges)
@@ -179,11 +211,16 @@ class ArabidopsisDataset(InMemoryDataset):
         return num_negative_edges / num_positive_edges
 
 
-test = ArabidopsisDataset(root="./arabidopsis-dataset")
-print(test[0])
-reads_dataset = test.reads_dataset_factory(3)
-print(reads_dataset.__getitem__(0)[:10])
+# test = ArabidopsisDataset(root="./arabidopsis-dataset")
+# print(test[0])
+# loader = test.get_graphsaint_data_loader(20, 200, 5)
+# for subgraph in loader:
+#     print(subgraph)
 
-test2 = reads_dataset.gen_batch(torch.tensor([0, 1, 2, 3]))
-print(test2)
-print([len(reads_dataset.__getitem__(read)) for read in [0, 1, 2, 3]])
+# print(test[0])
+# reads_dataset = test.reads_dataset_factory(3)
+# print(reads_dataset.__getitem__(0)[:10])
+#
+# test2 = reads_dataset.gen_batch(torch.tensor([0, 1, 2, 3]))
+# print(test2)
+# print([len(reads_dataset.__getitem__(read)) for read in [0, 1, 2, 3]])

@@ -5,7 +5,7 @@ from dataset import Dataset, load_partitioned_dataset
 from lightning_modules import Model
 
 model = Model.load_from_checkpoint(
-    "lightning_logs/version_95/checkpoints/epoch=99-step=12800.ckpt",
+    "lightning_logs/version_96/checkpoints/epoch=99-step=12800.ckpt",
 )
 model.cpu()
 model.eval()
@@ -25,8 +25,10 @@ print("Model output:")
 print(post_processed)
 
 print("Model predictions:")
-print((post_processed < 0.5).nonzero().flatten())
+print((post_processed < 0.1).nonzero().flatten())
+print("Model prediction probabilities:")
+print(post_processed[post_processed < 0.1])
 print("True target:")
 print((subgraph.edata["y"] == 0).nonzero().flatten())
-print("Model output for 0-edges:")
+print("Model prediction for true 0-edges:")
 print(prediction[(subgraph.edata["y"] == 0).nonzero().flatten()])

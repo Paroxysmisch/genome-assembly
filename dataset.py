@@ -105,5 +105,6 @@ def load_partitioned_dataset(dataset: Dataset, chromosome: int, partition_list=N
     return subgraphs
 
 
-subgraphs = load_partitioned_dataset(Dataset.CHM13, 19, [10])
-print(subgraphs[0].ndata["read_data"])
+# subgraphs = load_partitioned_dataset(Dataset.CHM13, 19, [10])
+# print(subgraphs[0])
+# breakpoint()

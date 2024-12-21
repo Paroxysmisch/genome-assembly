@@ -66,14 +66,15 @@ class Model(L.LightningModule):
 
     def forward(self, batch):
         sub_g = batch
-        x = sub_g.ndata["x"]
-        e = sub_g.ndata["e"]
-        pe_in = sub_g.ndata["in_deg"].unsqueeze(1)
+        ol_len = sub_g.edata['overlap_length'].float()
+        ol_len = (ol_len - ol_len.mean()) / ol_len.std()
+        e = ol_len.unsqueeze(-1)
+        pe_in = sub_g.in_degrees().float().unsqueeze(1)
         pe_in = (pe_in - pe_in.mean()) / pe_in.std()
-        pe_out = sub_g.ndata["out_deg"].unsqueeze(1)
+        pe_out = sub_g.out_degrees().float().unsqueeze(1)
         pe_out = (pe_out - pe_out.mean()) / pe_out.std()
         pe = torch.cat((pe_in, pe_out), dim=1)
-        return self.model(sub_g, x, e, pe).squeeze(-1)
+        return self.model(sub_g, pe, e).squeeze(-1)
 
     def configure_optimizers(self):
         optimizer = Adam(self.parameters(), lr=1e-4)

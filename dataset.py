@@ -5,6 +5,7 @@ from enum import Enum
 import dgl
 import torch
 from dgl import load_graphs
+from torch.utils import data
 from tqdm import tqdm
 
 
@@ -102,9 +103,24 @@ def load_partitioned_dataset(dataset: Dataset, chromosome: int, partition_list=N
     subgraphs, _ = load_graphs(
         partitioned_dir + "p_chr" + str(chromosome) + ".dgl", idx_list=partition_list
     )
-    return subgraphs
+
+    class SubgraphDataset(data.Dataset):
+        def __init__(self, subgraphs):
+            self.subgraphs = subgraphs
+
+        def __len__(self):
+            return len(self.subgraphs)
+
+        def __getitem__(self, idx):
+            return self.subgraphs[idx]
+
+    return SubgraphDataset(subgraphs)
 
 
-# subgraphs = load_partitioned_dataset(Dataset.CHM13, 19, [10])
-# print(subgraphs[0])
+# subgraphs = load_partitioned_dataset(Dataset.CHM13, 19)
+# for idx in range(len(subgraphs)):
+#     subgraph = subgraphs[idx]
+#     if len((subgraph.edata['y'] == 0).nonzero()) > 3:
+#         print(idx)
+#         break
 # breakpoint()

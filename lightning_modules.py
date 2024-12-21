@@ -5,7 +5,7 @@ from torch import nn
 from torch.optim.adam import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-from models import SymGatedGCNModel
+from models import SymGatedGCNModel, SymGatedGCNWithReadsModel
 
 
 def symmetry_loss(org_scores, rev_scores, labels, pos_weight=1.0, alpha=1.0):
@@ -24,13 +24,22 @@ class Model(L.LightningModule):
     def __init__(self, pos_weight):
         super().__init__()
         self.save_hyperparameters()
-        self.model = SymGatedGCNModel(
-            node_features=2,
-            edge_features=1,
-            hidden_features=64,
-            hidden_edge_features=16,
+        # self.model = SymGatedGCNModel(
+        #     node_features=2,
+        #     edge_features=1,
+        #     hidden_features=64,
+        #     hidden_edge_features=16,
+        #     num_layers=8,
+        #     hidden_edge_scores=64,
+        #     batch_norm=True,
+        # )
+        self.model = SymGatedGCNWithReadsModel(
+            num_node_features=2,
+            num_edge_features=1,
+            num_intermediate_hidden_features=16,
+            num_hidden_features=64,
             num_layers=8,
-            hidden_edge_scores=64,
+            num_hidden_edge_scores=64,
             batch_norm=True,
         )
         self.pos_weight = pos_weight

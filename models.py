@@ -26,3 +26,17 @@ class SymGatedGCNModel(nn.Module):
         x, e = self.gnn(graph, x, e)
         scores = self.predictor(graph, x, e)
         return scores
+
+class SymGatedGCNWithReadsModel(nn.Module):
+    def __init__(self, num_node_features, num_edge_features, num_intermediate_hidden_features, num_hidden_features, num_layers, num_hidden_edge_scores, batch_norm, dropout=None):
+        super().__init__()
+        self.encoder = layers.NodeEdgeReadsEncoder(num_node_features, num_edge_features, num_intermediate_hidden_features, num_hidden_features, num_gru_features=8)
+        self.gnn = layers.SymGatedGCN_processor(num_layers, num_hidden_features, batch_norm, dropout=dropout)
+        self.predictor = layers.ScorePredictor(num_hidden_features, num_hidden_edge_scores)
+
+    def forward(self, graph, x, e):
+        x, e = self.encoder(graph, x, e)
+        x, e = self.gnn(graph, x, e)
+        scores = self.predictor(graph, x, e)
+
+        return scores

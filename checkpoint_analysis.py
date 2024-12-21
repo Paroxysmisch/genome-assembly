@@ -5,7 +5,7 @@ from dataset import Dataset, load_partitioned_dataset
 from lightning_modules import Model
 
 model = Model.load_from_checkpoint(
-    "lightning_logs/version_92/checkpoints/epoch=99-step=12800.ckpt",
+    "lightning_logs/version_95/checkpoints/epoch=99-step=12800.ckpt",
 )
 model.cpu()
 model.eval()

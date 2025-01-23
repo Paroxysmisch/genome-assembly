@@ -15,5 +15,5 @@ train_loader = DataLoader(
 )
 model = Model(TrainingConfig())
 
-trainer = L.Trainer(max_epochs=100, log_every_n_steps=1, deterministic=True)
+trainer = L.Trainer(max_epochs=20, log_every_n_steps=1, deterministic=True)
 trainer.fit(model=model, train_dataloaders=train_loader)

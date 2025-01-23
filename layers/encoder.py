@@ -50,16 +50,20 @@ class NodeEdgeReadsEncoder(nn.Module):
         read_hidden = torch.zeros(
             (1, num_nodes, self.num_gru_features), device=x.device
         )
-        for i in range(0, seq_len, chunk_size):
-            chunk = read_data[:, i : i + chunk_size, :]
-            (_, read_hidden_residual) = self.gru(chunk, read_hidden)
-            read_hidden = read_hidden_residual + read_hidden
+        read_data_padds = read_data.sum(-1)
+        read_data_lens = read_data_padds.sum(-1).long()-1
+        arranged = torch.arange(read_data_lens.shape[0], device=read_data_lens.device)
+        (rh, rho) = self.gru(read_data, read_hidden)
+        # for i in range(0, seq_len, chunk_size):
+        #     chunk = read_data[:, i : i + chunk_size, :]
+        #     (_, read_hidden_residual) = self.gru(chunk, read_hidden)
+        #     read_hidden = read_hidden_residual + read_hidden
 
         # Remove GRU's D * num_layers dimension
         # https://pytorch.org/docs/stable/generated/torch.nn.GRU.html#torch.nn.GRU
-        read_hidden = torch.squeeze(read_hidden)
+        # read_hidden = torch.squeeze(read_hidden)
+        read_hidden = rh[arranged, read_data_lens, :]
         read_hidden = self.gru_expander(read_hidden)
-        breakpoint()
 
         x = torch.concatenate([x, read_hidden], dim=-1)
 

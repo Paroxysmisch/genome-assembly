@@ -36,6 +36,8 @@ class SymGatedGCN(nn.Module):
         self.B_3 = nn.Linear(in_channels, out_channels, dtype=dtype)
 
         if batch_norm: # batch normalization
+            # self.bn_h = nn.BatchNorm1d(out_channels, track_running_stats=True)
+            # self.bn_e = nn.BatchNorm1d(out_channels, track_running_stats=True)
             self.bn_h = nn.BatchNorm1d(out_channels, track_running_stats=True)
             self.bn_e = nn.BatchNorm1d(out_channels, track_running_stats=True)
         else: # layer normalization
@@ -104,7 +106,7 @@ class SymGatedGCN(nn.Module):
             # Forward-message passing
             g.apply_edges(fn.u_add_v('B1h', 'B2h', 'B12h'))
             e_ji = g.edata['B12h'] + g.edata['B3e']
-            e_ji = self.bn_e(e_ji)
+            # e_ji = self.bn_e(e_ji)
             e_ji = F.relu(e_ji)
             if self.residual:
                 e_ji = e_ji + e_in
@@ -117,7 +119,7 @@ class SymGatedGCN(nn.Module):
             # Backward-message passing
             g_reverse.apply_edges(fn.u_add_v('B2h', 'B1h', 'B21h'))
             e_ik = g_reverse.edata['B21h'] + g_reverse.edata['B3e']
-            e_ik = self.bn_e(e_ik)
+            # e_ik = self.bn_e(e_ik)
             e_ik = F.relu(e_ik)
             if self.residual:
                 e_ik = e_ik + e_in
@@ -173,8 +175,10 @@ class GatedGCN(nn.Module):
         self.B_3 = nn.Linear(in_channels, out_channels, dtype=dtype)
 
         if batch_norm: # batch normalization
-            self.bn_h = nn.BatchNorm1d(out_channels, track_running_stats=True)
-            self.bn_e = nn.BatchNorm1d(out_channels, track_running_stats=True)
+            # self.bn_h = nn.BatchNorm1d(out_channels, track_running_stats=True)
+            # self.bn_e = nn.BatchNorm1d(out_channels, track_running_stats=True)
+            self.bn_h = nn.Identity(out_channels, track_running_stats=True)
+            self.bn_e = nn.Identity(out_channels, track_running_stats=True)
         else: # layer normalization
             self.bn_h = nn.LayerNorm(out_channels) 
             self.bn_e = nn.LayerNorm(out_channels) 
@@ -223,7 +227,7 @@ class GatedGCN(nn.Module):
             if self.residual:
                 h = h + h_in
 
-            h = F.dropout(h, self.dropout, training=self.training)
+            # h = F.dropout(h, self.dropout, training=self.training)
             e = g.edata['e_ji']
 
             return h, e

@@ -21,15 +21,15 @@ class TrainingConfig:
     num_layers = 8
     num_hidden_edge_scores = 64
     batch_norm = True
-    pos_weight = 0.008
+    pos_weight = 1/0.008
 
 
 def symmetry_loss(org_scores, rev_scores, labels, pos_weight=1.0, alpha=1.0):
     BCE = torch.nn.BCEWithLogitsLoss(
         pos_weight=torch.tensor(pos_weight), reduction="none"
     )
-    BCE_org = BCE(org_scores, labels)
-    BCE_rev = BCE(rev_scores, labels)
+    BCE_org = BCE(-org_scores, 1-labels)
+    BCE_rev = BCE(-rev_scores, 1-labels)
     abs_diff = torch.abs(org_scores - rev_scores)
     loss = BCE_org + BCE_rev + alpha * abs_diff
     loss = loss.mean()
@@ -82,12 +82,15 @@ class Model(L.LightningModule):
             edge_predictions=org_scores, edge_labels=labels
         )
         accuracy, precision, recall, f1 = utils.calculate_metrics(TP, TN, FP, FN)
+        if (labels == 0).any():
+            print(org_scores[labels == 0])
+            print(rev_scores[labels == 0])
 
         self.log("train_loss", loss, prog_bar=True)
 
-        self.log("train_accuracy", accuracy, prog_bar=True)
-        self.log("train_precision", precision, prog_bar=True)
-        self.log("train_recall", recall, prog_bar=True)
+        # self.log("train_accuracy", accuracy, prog_bar=True)
+        # self.log("train_precision", precision, prog_bar=True)
+        # self.log("train_recall", recall, prog_bar=True)
         self.log("train_f1", f1, prog_bar=True)
 
         self.log("TP", TP, prog_bar=True)

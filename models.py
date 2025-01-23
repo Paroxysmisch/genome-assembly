@@ -71,7 +71,7 @@ class SymGatedGCNWithReadsModel(nn.Module):
             num_edge_features,
             num_intermediate_hidden_features,
             num_hidden_features,
-            num_gru_features=8,
+            num_gru_features=32,
         )
         self.gnn = layers.SymGatedGCN_processor(
             num_layers, num_hidden_features, batch_norm, dropout=dropout

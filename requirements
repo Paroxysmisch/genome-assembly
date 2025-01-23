@@ -6,5 +6,6 @@ torch_sparse
 torch_cluster
 torch_spline_conv
 lightning
+mamba-ssm
 -f https://data.dgl.ai/wheels/torch-2.4/cu124/repo.html
 dgl

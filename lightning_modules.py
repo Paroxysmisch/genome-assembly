@@ -13,7 +13,7 @@ from models import ModelType
 
 @dataclass
 class TrainingConfig:
-    model_type = ModelType.SymGatedGCN
+    model_type = ModelType.SymGatedGCNMamba
     num_node_features = 2
     num_edge_features = 1
     num_intermediate_hidden_features = 16
@@ -55,13 +55,13 @@ class Model(L.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.model = TrainingConfig.model_type.value(
-            TrainingConfig.num_node_features,
-            TrainingConfig.num_edge_features,
-            TrainingConfig.num_intermediate_hidden_features,
-            TrainingConfig.num_hidden_features,
-            TrainingConfig.num_layers,
-            TrainingConfig.num_hidden_edge_scores,
-            TrainingConfig.batch_norm,
+            training_config.num_node_features,
+            training_config.num_edge_features,
+            training_config.num_intermediate_hidden_features,
+            training_config.num_hidden_features,
+            training_config.num_layers,
+            training_config.num_hidden_edge_scores,
+            training_config.batch_norm,
         )
         self.pos_weight = training_config.pos_weight
 

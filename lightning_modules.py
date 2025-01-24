@@ -13,7 +13,7 @@ from models import ModelType
 
 @dataclass
 class TrainingConfig:
-    model_type = ModelType.SymGatedGCNMamba
+    model_type = ModelType.SymGatedGCNMambaOnly
     num_node_features = 2
     num_edge_features = 1
     num_intermediate_hidden_features = 16
@@ -82,15 +82,15 @@ class Model(L.LightningModule):
             edge_predictions=org_scores, edge_labels=labels
         )
         accuracy, precision, recall, f1 = utils.calculate_metrics(TP, TN, FP, FN)
-        if (labels == 0).any():
-            print(org_scores[labels == 0])
-            print(rev_scores[labels == 0])
+        # if (labels == 0).any():
+        #     print(org_scores[labels == 0])
+        #     print(rev_scores[labels == 0])
 
         self.log("train_loss", loss, prog_bar=True)
 
-        # self.log("train_accuracy", accuracy, prog_bar=True)
-        # self.log("train_precision", precision, prog_bar=True)
-        # self.log("train_recall", recall, prog_bar=True)
+        self.log("train_accuracy", accuracy, prog_bar=True)
+        self.log("train_precision", precision, prog_bar=True)
+        self.log("train_recall", recall, prog_bar=True)
         self.log("train_f1", f1, prog_bar=True)
 
         self.log("TP", TP, prog_bar=True)

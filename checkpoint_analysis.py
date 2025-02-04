@@ -1,8 +1,9 @@
 import torch
 from torch.utils.data import DataLoader
 
+import utils
 from dataset import Dataset, load_partitioned_dataset
-from lightning_modules import Model
+from lightning_modules import Model, calculate_node_and_edge_features
 
 model = Model.load_from_checkpoint(
     # "lightning_logs/version_112/checkpoints/epoch=19-step=2560.ckpt",
@@ -10,6 +11,8 @@ model = Model.load_from_checkpoint(
 )
 # model.cpu()
 # model.eval()
+torch.set_printoptions(threshold=10_000)
+
 
 def test_fn(subgraph):
     print(model.device, subgraph.device)
@@ -34,34 +37,54 @@ def test_fn(subgraph):
     if len((subgraph.edata["y"] == 0).nonzero().flatten()):
         breakpoint()
 
+
+chromosome = 18
 test_loader = DataLoader(
-    load_partitioned_dataset(Dataset.CHM13, 19, [21]), # 21, 80
+    load_partitioned_dataset(Dataset.CHM13, chromosome, [21]),  # 21, 80
     batch_size=1,
     collate_fn=lambda single_graph_in_list: single_graph_in_list[0],
 )
-torch.set_printoptions(threshold=10_000)
 subgraph = next(iter(test_loader))
 subgraph = subgraph.to(model.device)
 test_fn(subgraph)
 breakpoint()
 
 test_loader = DataLoader(
-    load_partitioned_dataset(Dataset.CHM13, 19, [80]), # 21, 80
+    load_partitioned_dataset(Dataset.CHM13, chromosome, [80]),  # 21, 80
     batch_size=1,
     collate_fn=lambda single_graph_in_list: single_graph_in_list[0],
 )
-torch.set_printoptions(threshold=10_000)
 subgraph = next(iter(test_loader))
 subgraph = subgraph.to(model.device)
 test_fn(subgraph)
+breakpoint()
 
-for i in range(32):
-    test_loader = DataLoader(
-        load_partitioned_dataset(Dataset.CHM13, 19, [i]),
-        batch_size=1,
-        collate_fn=lambda single_graph_in_list: single_graph_in_list[0],
+test_loader = DataLoader(
+    load_partitioned_dataset(Dataset.CHM13, chromosome),
+    batch_size=1,
+    collate_fn=lambda single_graph_in_list: single_graph_in_list[0],
+)
+total_f1 = 0
+for subgraph in test_loader:
+    subgraph = subgraph.to(model.device)
+
+    org_scores = model(subgraph).squeeze(-1)
+    labels = subgraph.edata["y"]
+
+    TP, TN, FP, FN = utils.calculate_tfpn(
+        edge_predictions=org_scores, edge_labels=labels
     )
-    for subgraph in test_loader:
-        print(f"Testing i={i}:")
-        subgraph = subgraph.to(model.device)
-        test_fn(subgraph)
+    accuracy, precision, recall, f1 = utils.calculate_metrics(TP, TN, FP, FN)
+    total_f1 += f1
+print(f"F1 score: {total_f1}")
+
+# for i in range(32):
+#     test_loader = DataLoader(
+#         load_partitioned_dataset(Dataset.CHM13, chromosome, [i]),
+#         batch_size=1,
+#         collate_fn=lambda single_graph_in_list: single_graph_in_list[0],
+#     )
+#     for subgraph in test_loader:
+#         print(f"Testing i={i}:")
+#         subgraph = subgraph.to(model.device)
+#         test_fn(subgraph)

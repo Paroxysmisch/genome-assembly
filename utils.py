@@ -25,3 +25,9 @@ def calculate_metrics(TP, TN, FP, FN):
         f1 = 0
     accuracy = (TP + TN) / (TP + TN + FP + FN)
     return accuracy, precision, recall, f1
+
+
+def timedelta_to_str(delta):
+    hours, remainder = divmod(delta.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f'{hours}h {minutes}m {seconds}s'

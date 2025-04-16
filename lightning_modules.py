@@ -13,7 +13,7 @@ from models import ModelType
 
 @dataclass
 class TrainingConfig:
-    model_type = ModelType.SymGatedGCNMambaOnly
+    model_type = ModelType.SymGatedGCN
     num_node_features = 2
     num_edge_features = 1
     num_intermediate_hidden_features = 16

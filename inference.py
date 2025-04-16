@@ -14,6 +14,7 @@ from multiprocessing import Manager
 from dgl import load_graphs
 from lightning_modules import TrainingConfig, calculate_node_and_edge_features, Model
 import dataset as my_dataset
+import evaluate
 
 import torch
 import torch.nn.functional as F
@@ -44,7 +45,7 @@ def get_subgraph(g, visited, device):
     keep_node_idx[remove_node_idx] = 0
     keep_node_idx = list_node_idx[keep_node_idx==1].int().to(device)
 
-    sub_g = dgl.node_subgraph(g, keep_node_idx, store_ids=True)
+    sub_g = dgl.node_subgraph(g, keep_node_idx.to(torch.int64), store_ids=True)
     sub_g.ndata['idx_nodes'] = torch.arange(sub_g.num_nodes()).to(device)
     map_subg_to_g = sub_g.ndata[dgl.NID]
     return sub_g, map_subg_to_g
@@ -375,7 +376,7 @@ def inference(data_path, model_path, assembler, savedir, device='cpu', dropout=N
 
 
     dataset = my_dataset.Dataset.CHM13
-    chromosome = 19
+    chromosome = 18
     raw_dir = dataset.value + "/raw/"
     graph_path = raw_dir + "chr" + str(chromosome) + ".dgl"
     reads_path = raw_dir + "chr" + str(chromosome) + "_reads.pkl"
@@ -435,7 +436,8 @@ def inference(data_path, model_path, assembler, savedir, device='cpu', dropout=N
                     )
                     # pe, e = calculate_node_and_edge_features(g) # Should be handled automatically by the lightning module
                     model = Model.load_from_checkpoint(
-                        "lightning_logs/version_115/checkpoints/epoch=19-step=2560.ckpt",
+                        "lightning_logs/version_116/checkpoints/epoch=19-step=2560.ckpt",
+                        # "lightning_logs/version_115/checkpoints/epoch=19-step=2560.ckpt",
                     )
                     model.eval()
                     model.to(device)
@@ -447,7 +449,6 @@ def inference(data_path, model_path, assembler, savedir, device='cpu', dropout=N
 
             elapsed = utils.timedelta_to_str(datetime.now() - time_start_get_scores)
             print(f'elapsed time (get_scores): {elapsed}')
-            breakpoint()
 
         # Load info data
         print(f'Loading successors...')
@@ -495,6 +496,9 @@ def inference(data_path, model_path, assembler, savedir, device='cpu', dropout=N
         walks_per_graph.append(walks)
         contigs_per_graph.append(contigs)
 
+        num_contigs, longest_contig, reconstructed, n50, ng50 = evaluate.quick_evaluation(contigs, "chr18")
+        print(num_contigs, longest_contig, reconstructed, n50, ng50)
+
     elapsed = utils.timedelta_to_str(datetime.now() - time_start)
     print(f'elapsed time (total): {elapsed}')
     
@@ -514,11 +518,12 @@ if __name__ == '__main__':
     parser.add_argument('--model', type=str, default=None, help='Path to the model')
     args = parser.parse_args()
 
-    data = args.data
-    asm = args.asm
+    # data = args.data
+    data = "chr18"
+    asm = "hifiasm"
     out = args.out
     model = args.model
     if not model:
         model = 'weights/weights.pt'
 
-    inference(data_path=data, assembler=asm, model_path=model, savedir='test_save_dir')
+    inference(data_path=data, assembler=asm, model_path=model, savedir='test_save_dir_18')

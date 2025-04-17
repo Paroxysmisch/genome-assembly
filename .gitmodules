@@ -1,0 +1,3 @@
+[submodule "quast"]
+	path = quast
+	url = git@github.com:ablab/quast.git

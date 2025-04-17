@@ -496,8 +496,12 @@ def inference(data_path, model_path, assembler, savedir, device='cpu', dropout=N
         walks_per_graph.append(walks)
         contigs_per_graph.append(contigs)
 
-        num_contigs, longest_contig, reconstructed, n50, ng50 = evaluate.quick_evaluation(contigs, "chr18")
+        num_contigs, longest_contig, reconstructed, n50, ng50 = evaluate.quick_evaluation(contigs, f"chr{chromosome}")
         print(num_contigs, longest_contig, reconstructed, n50, ng50)
+
+        print('Running quast...')
+        quast_process = evaluate.run_quast(ref=f'evaluation-chromosomes/chr{chromosome}.fasta', asm=os.path.join(assembly_dir, f'{idx}_assembly.fasta'), out=os.path.join(assembly_dir, f'{idx}_quast') )
+        quast_process.wait()
 
     elapsed = utils.timedelta_to_str(datetime.now() - time_start)
     print(f'elapsed time (total): {elapsed}')

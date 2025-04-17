@@ -127,6 +127,13 @@ def run_minigraph(ref, asm, paf):
     return p
 
 
+def run_quast(ref, asm, out):
+    quast = f'./quast/quast.py'
+    cmd = f'{quast} {asm} -r {ref} -o {out}'.split(' ')
+    process = subprocess.Popen(cmd)
+    return process
+
+
 def parse_pafs(idx, report, paf):
     paftools = f'/home/vrcekl/minimap2/paftools.js'
     # paf = os.path.join(save_path, f'asm.paf')

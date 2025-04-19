@@ -4,3 +4,6 @@
 [submodule "mamba-minimal"]
 	path = mamba-minimal
 	url = git@github.com:johnma2006/mamba-minimal.git
+[submodule "mamba_pytorch"]
+	path = mamba_pytorch
+	url = git@github.com:alxndrTL/mamba.py.git

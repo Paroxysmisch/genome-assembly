@@ -1,3 +1,6 @@
 [submodule "quast"]
 	path = quast
 	url = git@github.com:ablab/quast.git
+[submodule "mamba-minimal"]
+	path = mamba-minimal
+	url = git@github.com:johnma2006/mamba-minimal.git

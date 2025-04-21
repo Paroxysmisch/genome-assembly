@@ -13,7 +13,7 @@ from models import ModelType
 
 @dataclass
 class TrainingConfig:
-    model_type = ModelType.SymGatedGCN
+    model_type = ModelType.SymGatedGCNMamba
     num_node_features = 2
     num_edge_features = 1
     num_intermediate_hidden_features = 16
@@ -21,6 +21,7 @@ class TrainingConfig:
     num_layers = 8
     num_hidden_edge_scores = 64
     batch_norm = True
+    use_cuda = True # Setting use_cuda to False uses an alternative PyTorch-based parallel scan implementation, rather than CUDA
     pos_weight = 1/0.008
 
 
@@ -62,6 +63,7 @@ class Model(L.LightningModule):
             training_config.num_layers,
             training_config.num_hidden_edge_scores,
             training_config.batch_norm,
+            training_config.use_cuda,
         )
         self.pos_weight = training_config.pos_weight
 

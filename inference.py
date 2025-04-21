@@ -433,10 +433,12 @@ def inference(data_path, model_path, assembler, savedir, device='cpu', dropout=N
                         training_config.num_layers,
                         training_config.num_hidden_edge_scores,
                         training_config.batch_norm,
+                        False, # We do not want use_cuda for the Mamba models, since we are performing inference on the CPU
                     )
                     # pe, e = calculate_node_and_edge_features(g) # Should be handled automatically by the lightning module
                     model = Model.load_from_checkpoint(
-                        "lightning_logs/version_116/checkpoints/epoch=19-step=2560.ckpt",
+                        "lightning_logs/version_119/checkpoints/epoch=19-step=2560.ckpt",
+                        # "lightning_logs/version_116/checkpoints/epoch=19-step=2560.ckpt",
                         # "lightning_logs/version_115/checkpoints/epoch=19-step=2560.ckpt",
                     )
                     model.eval()

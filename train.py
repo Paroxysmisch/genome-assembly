@@ -12,6 +12,7 @@ train_loader = DataLoader(
     batch_size=1,
     collate_fn=lambda single_graph_in_list: single_graph_in_list[0],
     num_workers=16,
+    shuffle=True,
 )
 model = Model(TrainingConfig())
 

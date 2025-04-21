@@ -6,6 +6,12 @@ from torch import nn
 
 import layers
 
+import sys
+import os
+submodule_path = os.path.abspath(os.path.join(os.path.dirname(__file__), './mamba_pytorch/'))
+sys.path.insert(0, submodule_path)
+from mambapy.mamba import Mamba as MambaPytorch, MambaConfig
+
 
 class SymGatedGCNModel(nn.Module):
     def __init__(
@@ -18,6 +24,7 @@ class SymGatedGCNModel(nn.Module):
         num_hidden_edge_scores,
         batch_norm,
         dropout=None,
+        use_cuda=True,
     ):
         super().__init__()
         self.linear1_node = nn.Linear(
@@ -64,6 +71,7 @@ class SymGatedGCNWithReadsModel(nn.Module):
         num_hidden_edge_scores,
         batch_norm,
         dropout=None,
+        use_cuda=True,
     ):
         super().__init__()
         self.encoder = layers.NodeEdgeReadsEncoder(
@@ -99,6 +107,7 @@ class SymGatedGCNMambaModel(nn.Module):
         num_hidden_edge_scores,
         batch_norm,
         dropout=None,
+        use_cuda=True,
     ):
         super().__init__()
         self.linear1_node = nn.Linear(
@@ -116,13 +125,9 @@ class SymGatedGCNMambaModel(nn.Module):
         self.gnn = layers.SymGatedGCN_processor(
             num_layers, num_hidden_features, batch_norm, dropout=dropout
         )
-        self.mamba = Mamba(
-            # This module uses roughly 3 * expand * d_model^2 parameters
-            d_model=4,  # Model dimension d_model
-            d_state=32,  # SSM state expansion factor
-            d_conv=4,  # Local convolution width
-            expand=2,  # Block expansion factor
-        )
+        self.use_cuda = use_cuda
+        self.mamba_config = MambaConfig(d_model=4, n_layers=1, d_state=32, use_cuda=use_cuda)
+        self.mamba = MambaPytorch(self.mamba_config) # This module uses roughly 3 * expand * d_model^2 parameters
         self.linear_base = nn.Linear(4, num_hidden_features)
         self.predictor = layers.ScorePredictor(
             num_hidden_features, num_hidden_edge_scores
@@ -161,6 +166,7 @@ class SymGatedGCNMambaOnlyModel(nn.Module):
         num_hidden_edge_scores,
         batch_norm,
         dropout=None,
+        use_cuda=True,
     ):
         super().__init__()
         self.linear1_node = nn.Linear(
@@ -178,13 +184,9 @@ class SymGatedGCNMambaOnlyModel(nn.Module):
         self.gnn = layers.SymGatedGCN_processor(
             num_layers, num_hidden_features, batch_norm, dropout=dropout
         )
-        self.mamba = Mamba(
-            # This module uses roughly 3 * expand * d_model^2 parameters
-            d_model=4,  # Model dimension d_model
-            d_state=32,  # SSM state expansion factor
-            d_conv=4,  # Local convolution width
-            expand=2,  # Block expansion factor
-        )
+        self.use_cuda = use_cuda
+        self.mamba_config = MambaConfig(d_model=4, n_layers=1, d_state=32, use_cuda=use_cuda)
+        self.mamba = MambaPytorch(self.mamba_config) # This module uses roughly 3 * expand * d_model^2 parameters
         self.linear_base = nn.Linear(4, num_hidden_features)
         self.predictor = layers.ScorePredictor(
             num_hidden_features, num_hidden_edge_scores

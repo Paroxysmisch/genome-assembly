@@ -32,7 +32,7 @@ print(model_cpu.state_dict().keys())
 model_cpu.load_state_dict(model.state_dict())
 
 # Create PyTorch model and transfer weights to it
-use_cuda = True
+use_cuda = False
 config = MambaConfig(d_model=4, n_layers=1, d_state=64, use_cuda=use_cuda)
 model_pytorch = MambaPytorch(config)
 model_pytorch = model_pytorch.layers[0].mixer
@@ -54,7 +54,7 @@ print(y.dtype, y_cpu.dtype)
 # Needed to increase tolerance to pass the test
 assert torch.allclose(y, y_cpu, atol=1e-6, rtol=1e-5)
 
-# Check Mamba on the GPU produces the same result as Mamba on the CPU
+# Check Mamba PyTorch produces the same result as Mamba on the CPU
 y = y.to(y_pytorch.device)
 diff = torch.abs(y - y_pytorch)
 print("Max diff:", diff.max())

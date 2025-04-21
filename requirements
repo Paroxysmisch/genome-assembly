@@ -9,5 +9,9 @@ lightning
 mamba-ssm
 biopython
 matplotlib
+pydantic
+hydra-core
+omegaconf
+wandb
 -f https://data.dgl.ai/wheels/torch-2.4/cu124/repo.html
 dgl

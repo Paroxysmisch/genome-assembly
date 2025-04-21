@@ -9,20 +9,20 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 import utils
 from models import ModelType
+from pydantic import BaseModel
 
 
-@dataclass
-class TrainingConfig:
-    model_type = ModelType.SymGatedGCNMamba
-    num_node_features = 2
-    num_edge_features = 1
-    num_intermediate_hidden_features = 16
-    num_hidden_features = 64
-    num_layers = 8
-    num_hidden_edge_scores = 64
-    batch_norm = True
-    use_cuda = True # Setting use_cuda to False uses an alternative PyTorch-based parallel scan implementation, rather than CUDA
-    pos_weight = 1/0.008
+class TrainingConfig(BaseModel):
+    model_type: ModelType = ModelType.SymGatedGCNMamba
+    num_node_features: int = 2
+    num_edge_features: int = 1
+    num_intermediate_hidden_features: int = 16
+    num_hidden_features: int = 64
+    num_layers: int = 8
+    num_hidden_edge_scores: int = 64
+    batch_norm: bool = True
+    use_cuda: bool = True # Setting use_cuda to False uses an alternative PyTorch-based parallel scan implementation, rather than CUDA
+    pos_weight: float = 1/0.008
 
 
 def symmetry_loss(org_scores, rev_scores, labels, pos_weight=1.0, alpha=1.0):
@@ -55,7 +55,7 @@ class Model(L.LightningModule):
     def __init__(self, training_config: TrainingConfig):
         super().__init__()
         self.save_hyperparameters()
-        self.model = TrainingConfig.model_type.value(
+        self.model = training_config.model_type.value(
             training_config.num_node_features,
             training_config.num_edge_features,
             training_config.num_intermediate_hidden_features,
@@ -88,17 +88,49 @@ class Model(L.LightningModule):
         #     print(org_scores[labels == 0])
         #     print(rev_scores[labels == 0])
 
-        self.log("train_loss", loss, prog_bar=True)
+        self.log("train_loss", loss, prog_bar=True, batch_size=1)
 
         self.log("train_accuracy", accuracy, prog_bar=True)
         self.log("train_precision", precision, prog_bar=True)
         self.log("train_recall", recall, prog_bar=True)
         self.log("train_f1", f1, prog_bar=True)
 
-        self.log("TP", TP, prog_bar=True)
-        self.log("TN", TN, prog_bar=True)
-        self.log("FP", FP, prog_bar=True)
-        self.log("FN", FN, prog_bar=True)
+        self.log("train_TP", TP, prog_bar=True)
+        self.log("train_TN", TN, prog_bar=True)
+        self.log("train_FP", FP, prog_bar=True)
+        self.log("train_FN", FN, prog_bar=True)
+
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        sub_g = batch
+
+        pe, e = calculate_node_and_edge_features(sub_g)
+        org_scores = self.model(sub_g, pe, e).squeeze(-1)
+
+        labels = sub_g.edata["y"]
+
+        sub_g = dgl.reverse(sub_g, True, True)
+        pe, e = calculate_node_and_edge_features(sub_g)
+        rev_scores = self.model(sub_g, pe, e).squeeze(-1)
+
+        loss = symmetry_loss(org_scores, rev_scores, labels, self.pos_weight, alpha=0.1)
+        TP, TN, FP, FN = utils.calculate_tfpn(
+            edge_predictions=org_scores, edge_labels=labels
+        )
+        accuracy, precision, recall, f1 = utils.calculate_metrics(TP, TN, FP, FN)
+
+        self.log("validation_loss", loss, prog_bar=True, batch_size=1)
+
+        self.log("validation_accuracy", accuracy, prog_bar=True, batch_size=1)
+        self.log("validation_precision", precision, prog_bar=True, batch_size=1)
+        self.log("validation_recall", recall, prog_bar=True, batch_size=1)
+        self.log("validation_f1", f1, prog_bar=True, batch_size=1)
+
+        self.log("validation_TP", TP, prog_bar=True, batch_size=1)
+        self.log("validation_TN", TN, prog_bar=True, batch_size=1)
+        self.log("validation_FP", FP, prog_bar=True, batch_size=1)
+        self.log("validation_FN", FN, prog_bar=True, batch_size=1)
 
         return loss
 

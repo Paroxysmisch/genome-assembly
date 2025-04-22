@@ -35,14 +35,14 @@ def main(cfg):
     seed_everything(cfg.seed, workers=True)
 
     train_loader = DataLoader(
-        load_partitioned_dataset(Dataset.CHM13htert, 19),
+        load_partitioned_dataset(Dataset.CHM13htert, cfg.training_chromosomes),
         batch_size=1,
         collate_fn=lambda single_graph_in_list: single_graph_in_list[0],
         num_workers=16,
         shuffle=True,
     )
     validation_loader = DataLoader(
-        load_partitioned_dataset(Dataset.CHM13htert, 21),
+        load_partitioned_dataset(Dataset.CHM13htert, cfg.validation_chromosomes),
         batch_size=1,
         collate_fn=lambda single_graph_in_list: single_graph_in_list[0],
         num_workers=16,

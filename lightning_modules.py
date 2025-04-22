@@ -26,8 +26,9 @@ class TrainingConfig(BaseModel):
     use_cuda: bool = True # Setting use_cuda to False uses an alternative PyTorch-based parallel scan implementation, rather than CUDA
 
     # Training hyperparameters
-    pos_weight: float = 1/0.008
     seed: int = 42
+    training_chromosomes: list[int] = [19, 21]
+    validation_chromosomes: list[int] = [9]
 
 
 def symmetry_loss(org_scores, rev_scores, labels, pos_weight=1.0, alpha=1.0):
@@ -70,13 +71,33 @@ class Model(L.LightningModule):
             training_config.batch_norm,
             training_config.use_cuda,
         )
-        # self.pos_weight = training_config.pos_weight
+
+        # Compute the training and validation pos_weight
         dataset = Dataset.CHM13htert
         raw_dir = dataset.value + "/raw/"
-        graph_path = raw_dir + "chr" + str(19) + ".dgl"
-        (graph,), _ = load_graphs(graph_path)
-        self.pos_weight = (1 - graph.edata['y']).count_nonzero() / len(graph.edata['y'])
-        print(self.pos_weight)
+
+        training_zeros = 0
+        total_training_edges = 0
+        for chromosome in training_config.training_chromosomes:
+            print(f"Calculating pos_weight for chromosome {chromosome}")
+            graph_path = raw_dir + "chr" + str(chromosome) + ".dgl"
+            (graph,), _ = load_graphs(graph_path)
+            training_zeros += (1 - graph.edata['y']).count_nonzero()
+            total_training_edges += len(graph.edata['y'])
+        self.training_pos_weight = training_zeros / total_training_edges
+
+        validation_zeros = 0
+        total_validation_edges = 0
+        for chromosome in training_config.validation_chromosomes:
+            print(f"Calculating pos_weight for chromosome {chromosome}")
+            graph_path = raw_dir + "chr" + str(chromosome) + ".dgl"
+            (graph,), _ = load_graphs(graph_path)
+            validation_zeros += (1 - graph.edata['y']).count_nonzero()
+            total_validation_edges += len(graph.edata['y'])
+        self.validation_pos_weight = validation_zeros / total_validation_edges
+
+        print(f"Computed training_pos_weight as {self.training_pos_weight}, and validation_pos_weight as {self.validation_pos_weight}")
+
 
     def training_step(self, batch, batch_idx):
         sub_g = batch
@@ -90,7 +111,7 @@ class Model(L.LightningModule):
         pe, e = calculate_node_and_edge_features(sub_g)
         rev_scores = self.model(sub_g, pe, e).squeeze(-1)
 
-        loss = symmetry_loss(org_scores, rev_scores, labels, self.pos_weight, alpha=0.1)
+        loss = symmetry_loss(org_scores, rev_scores, labels, self.training_pos_weight, alpha=0.1)
         TP, TN, FP, FN = utils.calculate_tfpn(
             edge_predictions=org_scores, edge_labels=labels
         )
@@ -125,7 +146,7 @@ class Model(L.LightningModule):
         pe, e = calculate_node_and_edge_features(sub_g)
         rev_scores = self.model(sub_g, pe, e).squeeze(-1)
 
-        loss = symmetry_loss(org_scores, rev_scores, labels, self.pos_weight, alpha=0.1)
+        loss = symmetry_loss(org_scores, rev_scores, labels, self.validation_pos_weight, alpha=0.1)
         TP, TN, FP, FN = utils.calculate_tfpn(
             edge_predictions=org_scores, edge_labels=labels
         )

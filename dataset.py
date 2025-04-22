@@ -99,11 +99,15 @@ def gen_partitioned_dataset(dataset: Dataset, chromosome: int, num_parts: int = 
     )
 
 
-def load_partitioned_dataset(dataset: Dataset, chromosome: int, partition_list=None):
+def load_partitioned_dataset(dataset: Dataset, chromosomes: list[int], partition_list=None):
     partitioned_dir = dataset.value + "/partitioned/"
-    subgraphs, _ = load_graphs(
-        partitioned_dir + "p_chr" + str(chromosome) + ".dgl", idx_list=partition_list
-    )
+    subgraphs = []
+    for chromosome in chromosomes:
+        print(f"Loading partitioned dataset {dataset.value}, chromosome {chromosome}")
+        subgraphs_for_chr, _ = load_graphs(
+            partitioned_dir + "p_chr" + str(chromosome) + ".dgl", idx_list=partition_list
+        )
+        subgraphs += subgraphs_for_chr
 
     class SubgraphDataset(data.Dataset):
         def __init__(self, subgraphs):

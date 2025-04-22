@@ -11,6 +11,7 @@ from tqdm import tqdm
 
 class Dataset(Enum):
     CHM13 = "chm13-dataset"
+    CHM13htert = "chm13htert-dataset"
 
 
 def encode_read(reads_dict, read_index):
@@ -124,3 +125,10 @@ def load_partitioned_dataset(dataset: Dataset, chromosome: int, partition_list=N
 #         print(idx)
 #         break
 # breakpoint()
+
+# gen_partitioned_dataset(Dataset.CHM13htert, 19, 128)
+# gen_partitioned_dataset(Dataset.CHM13htert, 21, 128)
+# gen_partitioned_dataset(Dataset.CHM13htert, 22, 128)
+# gen_partitioned_dataset(Dataset.CHM13htert, 9, 256)
+# gen_partitioned_dataset(Dataset.CHM13htert, 11, 128)
+# gen_partitioned_dataset(Dataset.CHM13htert, 15, 128)

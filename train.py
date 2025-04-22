@@ -32,17 +32,17 @@ def main(cfg):
     cfg = omega_to_pydantic(cfg, TrainingConfig)
     wandb_logger = WandbLogger(project="genome-assembly", name=cfg.model_type.value.__name__)
 
-    seed_everything(42, workers=True)
+    seed_everything(cfg.seed, workers=True)
 
     train_loader = DataLoader(
-        load_partitioned_dataset(Dataset.CHM13, 19),
+        load_partitioned_dataset(Dataset.CHM13htert, 19),
         batch_size=1,
         collate_fn=lambda single_graph_in_list: single_graph_in_list[0],
         num_workers=16,
         shuffle=True,
     )
     validation_loader = DataLoader(
-        load_partitioned_dataset(Dataset.CHM13, 18),
+        load_partitioned_dataset(Dataset.CHM13htert, 21),
         batch_size=1,
         collate_fn=lambda single_graph_in_list: single_graph_in_list[0],
         num_workers=16,

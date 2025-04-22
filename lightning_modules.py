@@ -6,10 +6,12 @@ import torch
 from torch import nn
 from torch.optim.adam import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from dgl import load_graphs
 
 import utils
 from models import ModelType
 from pydantic import BaseModel
+from dataset import Dataset
 
 
 class TrainingConfig(BaseModel):
@@ -22,15 +24,18 @@ class TrainingConfig(BaseModel):
     num_hidden_edge_scores: int = 64
     batch_norm: bool = True
     use_cuda: bool = True # Setting use_cuda to False uses an alternative PyTorch-based parallel scan implementation, rather than CUDA
+
+    # Training hyperparameters
     pos_weight: float = 1/0.008
+    seed: int = 42
 
 
 def symmetry_loss(org_scores, rev_scores, labels, pos_weight=1.0, alpha=1.0):
     BCE = torch.nn.BCEWithLogitsLoss(
         pos_weight=torch.tensor(pos_weight), reduction="none"
     )
-    BCE_org = BCE(-org_scores, 1-labels)
-    BCE_rev = BCE(-rev_scores, 1-labels)
+    BCE_org = BCE(org_scores, labels)
+    BCE_rev = BCE(rev_scores, labels)
     abs_diff = torch.abs(org_scores - rev_scores)
     loss = BCE_org + BCE_rev + alpha * abs_diff
     loss = loss.mean()
@@ -65,7 +70,13 @@ class Model(L.LightningModule):
             training_config.batch_norm,
             training_config.use_cuda,
         )
-        self.pos_weight = training_config.pos_weight
+        # self.pos_weight = training_config.pos_weight
+        dataset = Dataset.CHM13htert
+        raw_dir = dataset.value + "/raw/"
+        graph_path = raw_dir + "chr" + str(19) + ".dgl"
+        (graph,), _ = load_graphs(graph_path)
+        self.pos_weight = (1 - graph.edata['y']).count_nonzero() / len(graph.edata['y'])
+        print(self.pos_weight)
 
     def training_step(self, batch, batch_idx):
         sub_g = batch

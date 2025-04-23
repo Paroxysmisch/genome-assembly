@@ -7,7 +7,8 @@ from lightning_modules import Model, calculate_node_and_edge_features, TrainingC
 
 training_config = TrainingConfig()
 model = Model.load_from_checkpoint(
-    "genome-assembly/q7lpeps6/checkpoints/epoch=249-step=1250.ckpt",
+    # "genome-assembly/q7lpeps6/checkpoints/epoch=249-step=1250.ckpt",
+    "genome-assembly/m44zkhhv/checkpoints/epoch=23-step=3072.ckpt",
     training_config=training_config
     # "lightning_logs/version_112/checkpoints/epoch=19-step=2560.ckpt",
     # "lightning_logs/version_115/checkpoints/epoch=19-step=2560.ckpt",

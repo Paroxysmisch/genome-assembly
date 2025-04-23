@@ -76,6 +76,8 @@ def calculate_node_and_edge_features(graph, sub_g):
     pe_in = (pe_in - pe_in.mean()) / pe_in.std()
     pe_out = graph.out_degrees()[sub_g.ndata[dgl.NID]].float().unsqueeze(1)
     pe_out = (pe_out - pe_out.mean()) / pe_out.std()
+
+    # y = graph.edata["y"][sub_g.edata[dgl.EID]].float().unsqueeze(-1)
     pe = torch.cat((pe_in, pe_out), dim=1)
 
     return pe, e
@@ -137,7 +139,7 @@ def gen_partitioned_dataset(dataset: Dataset, chromosome: int, num_parts: int = 
     # )
 
 
-def load_partitioned_dataset(dataset: Dataset, chromosomes: list[int], partition_list=None, num_subgraphs_per_epoch=5):
+def load_partitioned_dataset(dataset: Dataset, chromosomes: list[int], partition_list=None, num_subgraphs_per_epoch=8):
     # partitioned_dir = dataset.value + "/partitioned/"
     # subgraphs = []
     # for chromosome in chromosomes:

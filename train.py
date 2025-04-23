@@ -52,7 +52,8 @@ def main(cfg):
         shuffle=False,
     )
 
-    trainer = L.Trainer(max_epochs=250, log_every_n_steps=1, deterministic=True, logger=wandb_logger, check_val_every_n_epoch=5)
+    # trainer = L.Trainer(max_epochs=250, log_every_n_steps=1, deterministic=True, logger=wandb_logger, check_val_every_n_epoch=5)
+    trainer = L.Trainer(max_epochs=250, log_every_n_steps=1, deterministic=True, logger=wandb_logger)
     trainer.fit(model=model, train_dataloaders=train_loader, val_dataloaders=validation_loader)
 
     wandb.finish()

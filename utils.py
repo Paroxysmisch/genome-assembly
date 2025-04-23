@@ -27,6 +27,25 @@ def calculate_metrics(TP, TN, FP, FN):
     return accuracy, precision, recall, f1
 
 
+def calculate_metrics_inverse(TP, TN, FP, FN): 
+    TP, TN = TN, TP
+    FP, FN = FN, FP
+    try: 
+        precision = TP / (TP + FP)
+    except ZeroDivisionError:
+        precision = 0
+    try:
+        recall = TP / (TP + FN)
+    except ZeroDivisionError:
+        recall = 0
+    try:
+        f1 = TP / (TP + 0.5 * (FP + FN) )
+    except ZeroDivisionError:
+        f1 = 0
+    accuracy = (TP + TN) / (TP + TN + FP + FN)
+    return accuracy, precision, recall, f1
+
+
 def timedelta_to_str(delta):
     hours, remainder = divmod(delta.seconds, 3600)
     minutes, seconds = divmod(remainder, 60)

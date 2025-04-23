@@ -78,28 +78,32 @@ class Model(L.LightningModule):
         raw_dir = dataset.value + "/raw/"
 
         training_zeros = 0
+        training_ones = 0
         total_training_edges = 0
         for chromosome in training_config.training_chromosomes:
             print(f"Calculating pos_weight for chromosome {chromosome}")
             graph_path = raw_dir + "chr" + str(chromosome) + ".dgl"
             (graph,), _ = load_graphs(graph_path)
             training_zeros += (1 - graph.edata['y']).count_nonzero()
+            training_ones += graph.edata['y'].count_nonzero()
             total_training_edges += len(graph.edata['y'])
-        self.training_pos_weight = training_zeros / total_training_edges
+        self.training_pos_weight = training_zeros / training_ones
 
         # graph_path = raw_dir + "chr" + str(training_config.training_chromosomes[0]) + ".dgl"
         # (graph,), _ = load_graphs(graph_path)
         # self.training_graph = graph
 
         validation_zeros = 0
+        validation_ones = 0
         total_validation_edges = 0
         for chromosome in training_config.validation_chromosomes:
             print(f"Calculating pos_weight for chromosome {chromosome}")
             graph_path = raw_dir + "chr" + str(chromosome) + ".dgl"
             (graph,), _ = load_graphs(graph_path)
             validation_zeros += (1 - graph.edata['y']).count_nonzero()
+            validation_ones += graph.edata['y'].count_nonzero()
             total_validation_edges += len(graph.edata['y'])
-        self.validation_pos_weight = validation_zeros / total_validation_edges
+        self.validation_pos_weight = validation_zeros / validation_ones
 
         # graph_path = raw_dir + "chr" + str(training_config.validation_chromosomes[0]) + ".dgl"
         # (graph,), _ = load_graphs(graph_path)

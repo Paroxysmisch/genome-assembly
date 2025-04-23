@@ -3,14 +3,10 @@ import torch
 
 def calculate_tfpn(edge_predictions, edge_labels):
     edge_predictions = torch.round(torch.sigmoid(edge_predictions))
-    # TP = torch.sum(torch.logical_and(edge_predictions == 1, edge_labels == 1)).item()
-    # TN = torch.sum(torch.logical_and(edge_predictions == 0, edge_labels == 0)).item()
-    # FP = torch.sum(torch.logical_and(edge_predictions == 1, edge_labels == 0)).item()
-    # FN = torch.sum(torch.logical_and(edge_predictions == 0, edge_labels == 1)).item()
-    TN = torch.sum(torch.logical_and(edge_predictions == 1, edge_labels == 1)).item()
-    TP = torch.sum(torch.logical_and(edge_predictions == 0, edge_labels == 0)).item()
-    FN = torch.sum(torch.logical_and(edge_predictions == 1, edge_labels == 0)).item()
-    FP = torch.sum(torch.logical_and(edge_predictions == 0, edge_labels == 1)).item()
+    TP = torch.sum(torch.logical_and(edge_predictions == 1, edge_labels == 1)).item()
+    TN = torch.sum(torch.logical_and(edge_predictions == 0, edge_labels == 0)).item()
+    FP = torch.sum(torch.logical_and(edge_predictions == 1, edge_labels == 0)).item()
+    FN = torch.sum(torch.logical_and(edge_predictions == 0, edge_labels == 1)).item()
     return TP, TN, FP, FN
 
 

@@ -3,11 +3,14 @@ from torch.utils.data import DataLoader
 
 import utils
 from dataset import Dataset, load_partitioned_dataset
-from lightning_modules import Model, calculate_node_and_edge_features
+from lightning_modules import Model, calculate_node_and_edge_features, TrainingConfig
 
+training_config = TrainingConfig()
 model = Model.load_from_checkpoint(
+    "genome-assembly/q7lpeps6/checkpoints/epoch=249-step=1250.ckpt",
+    training_config=training_config
     # "lightning_logs/version_112/checkpoints/epoch=19-step=2560.ckpt",
-    "lightning_logs/version_115/checkpoints/epoch=19-step=2560.ckpt",
+    # "lightning_logs/version_115/checkpoints/epoch=19-step=2560.ckpt",
 )
 # model.cpu()
 # model.eval()
@@ -40,7 +43,7 @@ def test_fn(subgraph):
 
 chromosome = 18
 test_loader = DataLoader(
-    load_partitioned_dataset(Dataset.CHM13, chromosome, [21]),  # 21, 80
+    load_partitioned_dataset(Dataset.CHM13, [chromosome], [21]),  # 21, 80
     batch_size=1,
     collate_fn=lambda single_graph_in_list: single_graph_in_list[0],
 )
@@ -50,7 +53,7 @@ test_fn(subgraph)
 breakpoint()
 
 test_loader = DataLoader(
-    load_partitioned_dataset(Dataset.CHM13, chromosome, [80]),  # 21, 80
+    load_partitioned_dataset(Dataset.CHM13, [chromosome], [80]),  # 21, 80
     batch_size=1,
     collate_fn=lambda single_graph_in_list: single_graph_in_list[0],
 )
@@ -60,7 +63,7 @@ test_fn(subgraph)
 breakpoint()
 
 test_loader = DataLoader(
-    load_partitioned_dataset(Dataset.CHM13, chromosome),
+    load_partitioned_dataset(Dataset.CHM13, [chromosome]),
     batch_size=1,
     collate_fn=lambda single_graph_in_list: single_graph_in_list[0],
 )

@@ -375,6 +375,7 @@ def inference(data_path, model_path, assembler, savedir, device='cpu', dropout=N
     time_start = datetime.now()
 
 
+    # dataset = my_dataset.Dataset.CHM13htert
     dataset = my_dataset.Dataset.CHM13
     chromosome = 18
     raw_dir = dataset.value + "/raw/"
@@ -424,20 +425,21 @@ def inference(data_path, model_path, assembler, savedir, device='cpu', dropout=N
                     g.edata['score'] = torch.ones_like(g.edata['prefix_length']) * 10
                 else:
                     print(f'Loading model parameters from: {model_path}')
-                    training_config = TrainingConfig()
-                    model = TrainingConfig.model_type.value(
-                        training_config.num_node_features,
-                        training_config.num_edge_features,
-                        training_config.num_intermediate_hidden_features,
-                        training_config.num_hidden_features,
-                        training_config.num_layers,
-                        training_config.num_hidden_edge_scores,
-                        training_config.batch_norm,
-                        False, # We do not want use_cuda for the Mamba models, since we are performing inference on the CPU
-                    )
+                    # training_config = TrainingConfig()
+                    # model = TrainingConfig.model_type.value(
+                    #     training_config.num_node_features,
+                    #     training_config.num_edge_features,
+                    #     training_config.num_intermediate_hidden_features,
+                    #     training_config.num_hidden_features,
+                    #     training_config.num_layers,
+                    #     training_config.num_hidden_edge_scores,
+                    #     training_config.batch_norm,
+                    #     False, # We do not want use_cuda for the Mamba models, since we are performing inference on the CPU
+                    # )
                     # pe, e = calculate_node_and_edge_features(g) # Should be handled automatically by the lightning module
                     model = Model.load_from_checkpoint(
-                        "lightning_logs/version_119/checkpoints/epoch=19-step=2560.ckpt",
+                        "genome-assembly/9yo6tvta/checkpoints/epoch=49-step=6400.ckpt"
+                        # "lightning_logs/version_119/checkpoints/epoch=19-step=2560.ckpt",
                         # "lightning_logs/version_116/checkpoints/epoch=19-step=2560.ckpt",
                         # "lightning_logs/version_115/checkpoints/epoch=19-step=2560.ckpt",
                     )
@@ -525,6 +527,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # data = args.data
+    # data = "chm13htert-data/chr19"
     data = "chr18"
     asm = "hifiasm"
     out = args.out

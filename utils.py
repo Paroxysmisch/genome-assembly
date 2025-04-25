@@ -1,4 +1,30 @@
 import torch
+import dgl
+import random
+import numpy as np
+
+
+def set_seed(seed=42):
+    """Set random seed to enable reproducibility.
+    
+    Parameters
+    ----------
+    seed : int, optional
+        A number used to set the random seed
+
+    Returns
+    -------
+    None
+    """
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    # torch.use_deterministic_algorithms(True)
+    torch.backends.cudnn.benchmark = False
+    dgl.seed(seed)
 
 
 def calculate_tfpn(edge_predictions, edge_labels):

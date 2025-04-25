@@ -43,19 +43,19 @@ def symmetry_loss(org_scores, rev_scores, labels, pos_weight=1.0, alpha=1.0):
     return loss
 
 
-def calculate_node_and_edge_features(graph, sub_g):
-    # graph.edata["overlap_length"].to(sub_g.device)
-    ol_len = graph.edata["overlap_length"][sub_g.edata[dgl.EID]].float()
-    ol_len = (ol_len - ol_len.mean()) / ol_len.std()
-    e = ol_len.unsqueeze(-1)
-
-    pe_in = graph.in_degrees()[sub_g.ndata[dgl.NID]].float().unsqueeze(1)
-    pe_in = (pe_in - pe_in.mean()) / pe_in.std()
-    pe_out = graph.out_degrees()[sub_g.ndata[dgl.NID]].float().unsqueeze(1)
-    pe_out = (pe_out - pe_out.mean()) / pe_out.std()
-    pe = torch.cat((pe_in, pe_out), dim=1)
-
-    return pe, e
+# def calculate_node_and_edge_features(graph, sub_g):
+#     # graph.edata["overlap_length"].to(sub_g.device)
+#     ol_len = graph.edata["overlap_length"][sub_g.edata[dgl.EID]].float()
+#     ol_len = (ol_len - ol_len.mean()) / ol_len.std()
+#     e = ol_len.unsqueeze(-1)
+#
+#     pe_in = graph.in_degrees()[sub_g.ndata[dgl.NID]].float().unsqueeze(1)
+#     pe_in = (pe_in - pe_in.mean()) / pe_in.std()
+#     pe_out = graph.out_degrees()[sub_g.ndata[dgl.NID]].float().unsqueeze(1)
+#     pe_out = (pe_out - pe_out.mean()) / pe_out.std()
+#     pe = torch.cat((pe_in, pe_out), dim=1)
+#
+#     return pe, e
 
 
 class Model(L.LightningModule):
@@ -123,7 +123,7 @@ class Model(L.LightningModule):
 
         sub_g = dgl.reverse(sub_g, True, True)
         # pe, e = calculate_node_and_edge_features(self.training_graph, sub_g)
-        pe, e = sub_g.ndata['pe'], sub_g.edata['e']
+        pe, e = sub_g.ndata['pe_rev'], sub_g.edata['e']
         rev_scores = self.model(sub_g, pe, e).squeeze(-1)
 
         loss = symmetry_loss(org_scores, rev_scores, labels, self.training_pos_weight, alpha=0.1)

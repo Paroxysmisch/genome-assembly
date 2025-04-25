@@ -79,8 +79,10 @@ def calculate_node_and_edge_features(graph, sub_g):
 
     # y = graph.edata["y"][sub_g.edata[dgl.EID]].float().unsqueeze(-1)
     pe = torch.cat((pe_in, pe_out), dim=1)
+    pe_rev = torch.cat((pe_out, pe_in), dim=1)
 
-    return pe, e
+
+    return pe, pe_rev, e
 
 
 def gen_partitioned_dataset(dataset: Dataset, chromosome: int, num_parts: int = 128, mask_frac_low=80, mask_frac_high=100):
@@ -125,8 +127,9 @@ def gen_partitioned_dataset(dataset: Dataset, chromosome: int, num_parts: int = 
         for e_feature_name, e_feature in graph.edata.items():
             subgraph.edata[e_feature_name] = e_feature[edge_ids]
         # breakpoint()
-        pe, e = calculate_node_and_edge_features(graph, subgraph)
+        pe, pe_rev, e = calculate_node_and_edge_features(graph, subgraph)
         subgraph.ndata['pe'] = pe
+        subgraph.ndata['pe_rev'] = pe_rev
         subgraph.edata['e'] = e
     #     subgraph.ndata["read_data"] = gen_batch(reads_dict, node_ids)
 

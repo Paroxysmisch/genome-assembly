@@ -8,6 +8,7 @@ import torch
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import dgl
 import wandb
+from torch.utils import data
 
 import models
 import utils
@@ -59,7 +60,7 @@ def get_hyperparameters():
         # 'dropout': 0.08,
 
         # Training
-        'num_epochs': 200,
+        'num_epochs': 250,
         'lr': 1e-4,
         'use_symmetry_loss': True,
         'alpha': 0.1,
@@ -158,6 +159,90 @@ def symmetry_loss(org_scores, rev_scores, labels, pos_weight=1.0, alpha=1.0):
     return loss
 
 
+class SubgraphDataset(data.Dataset):
+    def mask_graph_strandwise(self, g, fraction):
+        keep_node_idx_half = torch.rand(g.num_nodes() // 2) < fraction
+        keep_node_idx = torch.empty(keep_node_idx_half.size(0) * 2, dtype=keep_node_idx_half.dtype)
+        keep_node_idx[0::2] = keep_node_idx_half
+        keep_node_idx[1::2] = keep_node_idx_half
+        sub_g = dgl.node_subgraph(g, keep_node_idx, store_ids=True)
+        print(f'Masking fraction: {fraction}')
+        print(f'Original graph: N={g.num_nodes()}, E={g.num_edges()}')
+        print(f'Subsampled graph: N={sub_g.num_nodes()}, E={sub_g.num_edges()}')
+        return sub_g
+
+    def repartition(self):
+        self.num_subgraphs_accessed = 0
+        self.subgraphs = []
+
+        for graph in self.graphs:
+            fraction = random.randint(self.mask_frac_low, self.mask_frac_high) / 100  # Fraction of nodes to be left in the graph (.85 -> ~30x, 1.0 -> 60x)
+            graph = self.mask_graph_strandwise(graph, fraction)
+
+            # Number of clusters dependant on graph size!
+            num_nodes_per_cluster_min = int(self.num_nodes_per_cluster * self.npc_lower_bound)
+            num_nodes_per_cluster_max = int(self.num_nodes_per_cluster * self.npc_upper_bound) + 1
+            num_nodes_for_g = torch.LongTensor(1).random_(num_nodes_per_cluster_min, num_nodes_per_cluster_max).item()
+            num_clusters = graph.num_nodes() // num_nodes_for_g + 1
+
+            graph = graph.long()
+            d = dgl.metis_partition(graph, num_clusters, extra_cached_hops=1)
+            sub_gs = list(d.values())
+            transformed_sub_gs = []
+
+            for sub_g in sub_gs:
+                e = graph.edata['e'][sub_g.edata[dgl.EID]]
+                pe_in = graph.ndata['in_deg'][sub_g.ndata[dgl.NID]].unsqueeze(1)
+                pe_in = (pe_in - pe_in.mean()) / pe_in.std()
+                pe_out = graph.ndata['out_deg'][sub_g.ndata[dgl.NID]].unsqueeze(1)
+                pe_out = (pe_out - pe_out.mean()) / pe_out.std()
+                pe = torch.cat((pe_in, pe_out), dim=1)
+                labels = graph.edata['y'][sub_g.edata[dgl.EID]]
+
+                rev_sub_g = dgl.reverse(sub_g, True, True)
+                rev_e = graph.edata['e'][rev_sub_g.edata[dgl.EID]]
+                pe_out = graph.ndata['in_deg'][rev_sub_g.ndata[dgl.NID]].unsqueeze(1)
+                pe_out = (pe_out - pe_out.mean()) / pe_out.std()
+                pe_in = graph.ndata['out_deg'][rev_sub_g.ndata[dgl.NID]].unsqueeze(1)  # Reversed edges, in/out-deg also reversed
+                pe_in = (pe_in - pe_in.mean()) / pe_in.std()
+                rev_pe = torch.cat((pe_in, pe_out), dim=1)
+
+                transformed_sub_gs.append((sub_g, pe, e, rev_sub_g, rev_pe, rev_e, labels))
+
+            self.subgraphs += transformed_sub_gs
+
+        if self.shuffle:
+            random.shuffle(self.subgraphs)
+
+    def __init__(self, mask_frac_low=80, mask_frac_high=100, num_nodes_per_cluster=2000, npc_lower_bound=1, npc_upper_bound=1, shuffle=True):
+        self.mask_frac_low = mask_frac_low
+        self.mask_frac_high = mask_frac_high
+        self.num_nodes_per_cluster = num_nodes_per_cluster
+        self.npc_lower_bound = npc_lower_bound
+        self.npc_upper_bound = npc_upper_bound
+        self.shuffle = shuffle
+
+        (loaded_graph,), _ = dgl.load_graphs(os.path.join('chm13htert-data/chr19/', 'hifiasm/processed/0.dgl'))
+        loaded_graph = preprocess_graph(loaded_graph)
+        loaded_graph = add_positional_encoding(loaded_graph)
+        self.graphs = [loaded_graph]
+        self.subgraphs = []
+
+        self.pos_to_neg_ratio = sum([((torch.round(g.edata['y'])==1).sum() / (torch.round(g.edata['y'])==0).sum()).item() for g in self.graphs]) / len(self.graphs)
+
+        self.num_subgraphs_accessed = 0
+        self.repartition()
+
+    def __len__(self):
+        return len(self.subgraphs)
+
+    def __getitem__(self, idx):
+        if self.num_subgraphs_accessed > len(self.subgraphs):
+            self.repartition()
+        self.num_subgraphs_accessed += 1
+        return self.subgraphs[idx]
+
+
 def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, seed=None, resume=False, finetune=False, ft_model=None):
     hyperparameters = get_hyperparameters()
     if seed is None:
@@ -215,12 +300,14 @@ def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, s
     # else:
     #     ds_train = ds_valid = AssemblyGraphDataset(train_path, assembler=assembler)
 
-    (loaded_graph,), _ = dgl.load_graphs(os.path.join(train_path, 'hifiasm/processed/0.dgl'))
-    loaded_graph = preprocess_graph(loaded_graph)
-    loaded_graph = add_positional_encoding(loaded_graph)
-    ds_train = ds_valid = [(0, loaded_graph)]
+    # (loaded_graph,), _ = dgl.load_graphs(os.path.join(train_path, 'hifiasm/processed/0.dgl'))
+    # loaded_graph = preprocess_graph(loaded_graph)
+    # loaded_graph = add_positional_encoding(loaded_graph)
+    # ds_train = ds_valid = [(0, loaded_graph)]
+    ds_train = SubgraphDataset()
 
-    pos_to_neg_ratio = sum([((torch.round(g.edata['y'])==1).sum() / (torch.round(g.edata['y'])==0).sum()).item() for idx, g in ds_train]) / len(ds_train)
+    # pos_to_neg_ratio = sum([((torch.round(g.edata['y'])==1).sum() / (torch.round(g.edata['y'])==0).sum()).item() for idx, g in ds_train]) / len(ds_train)
+    pos_to_neg_ratio = ds_train.pos_to_neg_ratio
 
     # model = my_models.SymGatedGCNModel(node_features, edge_features, hidden_features, hidden_edge_features, num_gnn_layers, hidden_edge_scores, batch_norm, nb_pos_enc, dropout=dropout)
     model = models.SymGatedGCNModel(node_features, edge_features, hidden_edge_features, hidden_features, num_gnn_layers, hidden_edge_scores, batch_norm, dropout=dropout)
@@ -271,58 +358,44 @@ def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, s
 
                 print('\n===> TRAINING\n')
                 # random.shuffle(ds_train.graph_list)
-                for data in ds_train:
+                # for data in ds_train:
+                for data in range(1):
                     model.train()
-                    idx, g = data
+                    # idx, g = data
                     # breakpoint()
                     
-                    print(f'\n(TRAIN: Epoch = {epoch:3}) NEW GRAPH: index = {idx}')
+                    # print(f'\n(TRAIN: Epoch = {epoch:3}) NEW GRAPH: index = {idx}')
+                    print(f'\n(TRAIN: Epoch = {epoch:3}) NEW GRAPH: index = {-1}')
 
-                    if masking:
-                        fraction = random.randint(mask_frac_low, mask_frac_high) / 100  # Fraction of nodes to be left in the graph (.85 -> ~30x, 1.0 -> 60x)
-                        g = mask_graph_strandwise(g, fraction, device)
+                    # if masking:
+                    #     fraction = random.randint(mask_frac_low, mask_frac_high) / 100  # Fraction of nodes to be left in the graph (.85 -> ~30x, 1.0 -> 60x)
+                    #     g = mask_graph_strandwise(g, fraction, device)
 
-                    # Number of clusters dependant on graph size!
-                    num_nodes_per_cluster_min = int(num_nodes_per_cluster * npc_lower_bound)
-                    num_nodes_per_cluster_max = int(num_nodes_per_cluster * npc_upper_bound) + 1
-                    num_nodes_for_g = torch.LongTensor(1).random_(num_nodes_per_cluster_min, num_nodes_per_cluster_max).item()
-                    num_clusters = g.num_nodes() // num_nodes_for_g + 1
+                    # # Number of clusters dependant on graph size!
+                    # num_nodes_per_cluster_min = int(num_nodes_per_cluster * npc_lower_bound)
+                    # num_nodes_per_cluster_max = int(num_nodes_per_cluster * npc_upper_bound) + 1
+                    # num_nodes_for_g = torch.LongTensor(1).random_(num_nodes_per_cluster_min, num_nodes_per_cluster_max).item()
+                    # num_clusters = g.num_nodes() // num_nodes_for_g + 1
 
 
                     print(f'\nUse METIS: True')
-                    print(f'Number of clusters:', num_clusters)
-                    g = g.long()
-                    d = dgl.metis_partition(g, num_clusters, extra_cached_hops=k_extra_hops)
-                    sub_gs = list(d.values())
-                    random.shuffle(sub_gs)
+                    # print(f'Number of clusters:', num_clusters)
+                    # g = g.long()
+                    # d = dgl.metis_partition(g, num_clusters, extra_cached_hops=k_extra_hops)
+                    # sub_gs = list(d.values())
+                    # random.shuffle(sub_gs)
                     
                     # Loop over all mini-batch in the graph
                     running_loss, running_fp_rate, running_fn_rate = [], [], []
                     running_acc, running_precision, running_recall, running_f1 = [], [], [], []
 
-                    for sub_g in sub_gs:
-                        sub_g = sub_g.to(device)
-                        x = g.ndata['x'].to(device)[sub_g.ndata['_ID']].to(device)
-                        e = g.edata['e'].to(device)[sub_g.edata['_ID']].to(device)
-                        pe_in = g.ndata['in_deg'].to(device)[sub_g.ndata['_ID']].unsqueeze(1).to(device)
-                        pe_in = (pe_in - pe_in.mean()) / pe_in.std()
-                        pe_out = g.ndata['out_deg'].to(device)[sub_g.ndata['_ID']].unsqueeze(1).to(device)
-                        pe_out = (pe_out - pe_out.mean()) / pe_out.std()
-                        pe = torch.cat((pe_in, pe_out), dim=1)
-                        # org_scores = model(sub_g, x, e, pe).squeeze(-1)
+                    # for sub_g in sub_gs:
+                    for batch in ds_train:
+                        sub_g, pe, e, rev_sub_g, rev_pe, rev_e, labels = batch
+                        sub_g, pe, e, rev_sub_g, rev_pe, rev_e, labels = sub_g.to('cuda'), pe.to('cuda'), e.to('cuda'), rev_sub_g.to('cuda'), rev_pe.to('cuda'), rev_e.to('cuda'), labels.to('cuda')
                         org_scores = model(sub_g, pe, e).squeeze(-1)
-                        labels = g.edata['y'].to(device)[sub_g.edata['_ID']].to(device)
                         
-                        sub_g = dgl.reverse(sub_g, True, True)
-                        x = g.ndata['x'].to(device)[sub_g.ndata['_ID']].to(device)
-                        e = g.edata['e'].to(device)[sub_g.edata['_ID']].to(device)
-                        pe_out = g.ndata['in_deg'].to(device)[sub_g.ndata['_ID']].unsqueeze(1).to(device)  # Reversed edges, in/out-deg also reversed
-                        pe_out = (pe_out - pe_out.mean()) / pe_out.std()
-                        pe_in = g.ndata['out_deg'].to(device)[sub_g.ndata['_ID']].unsqueeze(1).to(device)  # Reversed edges, in/out-deg also reversed
-                        pe_in = (pe_in - pe_in.mean()) / pe_in.std()
-                        pe = torch.cat((pe_in, pe_out), dim=1)
-                        # rev_scores = model(sub_g, x, e, pe).squeeze(-1)
-                        rev_scores = model(sub_g, pe, e).squeeze(-1)
+                        rev_scores = model(rev_sub_g, rev_pe, rev_e).squeeze(-1)
                         
                         loss = symmetry_loss(org_scores, rev_scores, labels, pos_weight, alpha=alpha)
                         edge_predictions = org_scores

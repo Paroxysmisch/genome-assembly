@@ -126,9 +126,9 @@ class SymGatedGCNMambaModel(nn.Module):
             num_layers, num_hidden_features, batch_norm, dropout=dropout
         )
         self.use_cuda = use_cuda
-        self.mamba_config = MambaConfig(d_model=4, n_layers=1, d_state=32, use_cuda=use_cuda)
+        self.mamba_config = MambaConfig(d_model=5, n_layers=1, d_state=32, use_cuda=use_cuda)
         self.mamba = MambaPytorch(self.mamba_config) # This module uses roughly 3 * expand * d_model^2 parameters
-        self.linear_base = nn.Linear(4, num_hidden_features)
+        self.linear_base = nn.Linear(5, num_hidden_features)
         self.predictor = layers.ScorePredictor(
             num_hidden_features, num_hidden_edge_scores
         )

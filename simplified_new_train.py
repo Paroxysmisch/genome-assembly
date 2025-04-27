@@ -3,6 +3,7 @@ from datetime import datetime
 import os
 import random
 import statistics
+import pickle
 
 import numpy as np
 import torch
@@ -162,7 +163,7 @@ class SubgraphDataset(data.Dataset):
         self.num_subgraphs_accessed = 0
         self.subgraphs = []
 
-        for graph in self.graphs:
+        for graph, graph_reads in zip(self.graphs, self.reads):
             fraction = random.uniform(self.mask_frac_low, self.mask_frac_high)  # Fraction of nodes to be left in the graph (.85 -> ~30x, 1.0 -> 60x)
             graph = self.mask_graph_strandwise(graph, fraction)
 
@@ -194,6 +195,11 @@ class SubgraphDataset(data.Dataset):
                 pe_in = (pe_in - pe_in.mean()) / pe_in.std()
                 rev_pe = torch.cat((pe_in, pe_out), dim=1)
 
+                # Add the read data
+                sub_g.ndata['read_length'] = graph.ndata['read_length'][sub_g.ndata[dgl.NID]]
+                rev_sub_g.ndata['read_length'] = graph.ndata['read_length'][rev_sub_g.ndata[dgl.NID]]
+                sub_g.ndata['read_data'] = graph_reads[sub_g.ndata[dgl.NID]]
+                rev_sub_g.ndata['read_data'] = graph_reads[rev_sub_g.ndata[dgl.NID]]
                 transformed_sub_gs.append((sub_g, pe, e, rev_sub_g, rev_pe, rev_e, labels))
 
             self.subgraphs += transformed_sub_gs
@@ -216,6 +222,35 @@ class SubgraphDataset(data.Dataset):
         self.subgraphs = []
 
         self.pos_to_neg_ratio = sum([((torch.round(g.edata['y'])==1).sum() / (torch.round(g.edata['y'])==0).sum()).item() for g in self.graphs]) / len(self.graphs)
+
+        self.reads = []
+        for graph in self.graphs:
+            reads_path = os.path.join('chm13htert-data/chr19/', 'hifiasm/info/0_reads.pkl')
+            with open(reads_path, "rb") as f:
+                reads_dict = pickle.load(f)
+
+                # Find maximum read length
+                max_length = max(len(read) for read in reads_dict.values())
+
+                # Pad reads with 'N' to max_length
+                padded_reads = [read.ljust(max_length, 'N') for read in reads_dict.values()]
+
+                # Create ASCII mapping
+                mapping = torch.full((128,), -1, dtype=torch.long)  # default -1 for unknowns
+                mapping[ord('A')] = 0
+                mapping[ord('C')] = 1
+                mapping[ord('G')] = 2
+                mapping[ord('T')] = 3
+                mapping[ord('N')] = 4  # Special padding token
+
+                # Convert characters to integers
+                reads_ascii = torch.tensor([list(map(ord, read)) for read in padded_reads])
+                reads_int = mapping[reads_ascii]
+
+                # One-hot encode
+                one_hot = torch.nn.functional.one_hot(reads_int, num_classes=5)  # 5 because A,C,G,T,N
+
+                self.reads.append(one_hot.float())  # shape: (num_reads, max_length, 5)
 
         self.num_subgraphs_accessed = 0
         self.repartition()
@@ -308,7 +343,7 @@ def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, s
 
     pos_to_neg_ratio = ds_train.pos_to_neg_ratio
 
-    model = models.SymGatedGCNModel(node_features, edge_features, hidden_edge_features, hidden_features, num_gnn_layers, hidden_edge_scores, batch_norm, dropout=dropout)
+    model = models.SymGatedGCNMambaModel(node_features, edge_features, hidden_edge_features, hidden_features, num_gnn_layers, hidden_edge_scores, batch_norm, dropout=dropout)
     model.to(device)
     if not os.path.exists(models_path):
         print(models_path)

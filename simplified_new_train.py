@@ -165,17 +165,24 @@ class SubgraphDataset(data.Dataset):
         self.subgraphs = []
 
         for graph, graph_reads in zip(self.graphs, self.reads):
-            fraction = random.uniform(self.mask_frac_low, self.mask_frac_high)  # Fraction of nodes to be left in the graph (.85 -> ~30x, 1.0 -> 60x)
-            graph = self.mask_graph_strandwise(graph, fraction)
+            if self.is_train:
+                fraction = random.uniform(self.mask_frac_low, self.mask_frac_high)  # Fraction of nodes to be left in the graph (.85 -> ~30x, 1.0 -> 60x)
+                graph = self.mask_graph_strandwise(graph, fraction)
 
-            # Number of clusters dependant on graph size!
-            num_nodes_per_cluster_min = int(self.num_nodes_per_cluster * self.npc_lower_bound)
-            num_nodes_per_cluster_max = int(self.num_nodes_per_cluster * self.npc_upper_bound) + 1
-            num_nodes_for_g = torch.LongTensor(1).random_(num_nodes_per_cluster_min, num_nodes_per_cluster_max).item()
-            num_clusters = graph.num_nodes() // num_nodes_for_g + 1
+                # Number of clusters dependant on graph size!
+                num_nodes_per_cluster_min = int(self.num_nodes_per_cluster * self.npc_lower_bound)
+                num_nodes_per_cluster_max = int(self.num_nodes_per_cluster * self.npc_upper_bound) + 1
+                num_nodes_for_g = torch.LongTensor(1).random_(num_nodes_per_cluster_min, num_nodes_per_cluster_max).item()
+                num_clusters = graph.num_nodes() // num_nodes_for_g + 1
 
-            graph = graph.long()
-            d = dgl.metis_partition(graph, num_clusters, extra_cached_hops=1)
+                graph = graph.long()
+                d = dgl.metis_partition(graph, num_clusters, extra_cached_hops=1)
+            else:
+                num_clusters = graph.num_nodes() // self.num_nodes_per_cluster + 1
+
+                graph = graph.long()
+                d = dgl.metis_partition(graph, num_clusters, extra_cached_hops=1)
+
             sub_gs = list(d.values())
             transformed_sub_gs = []
 
@@ -197,8 +204,8 @@ class SubgraphDataset(data.Dataset):
                 rev_pe = torch.cat((pe_in, pe_out), dim=1)
 
                 # Add the read data
-                sub_g.ndata['read_length'] = torch.min(torch.tensor(2000), graph.ndata['read_length'][sub_g.ndata[dgl.NID]])
-                rev_sub_g.ndata['read_length'] = torch.min(torch.tensor(2000), graph.ndata['read_length'][rev_sub_g.ndata[dgl.NID]])
+                sub_g.ndata['read_length'] = torch.min(torch.tensor(self.max_length), graph.ndata['read_length'][sub_g.ndata[dgl.NID]])
+                rev_sub_g.ndata['read_length'] = torch.min(torch.tensor(self.max_length), graph.ndata['read_length'][rev_sub_g.ndata[dgl.NID]])
                 sub_g.ndata['read_data'] = graph_reads[sub_g.ndata[dgl.NID]]
                 rev_sub_g.ndata['read_data'] = graph_reads[rev_sub_g.ndata[dgl.NID]]
                 transformed_sub_gs.append((sub_g, pe, e, rev_sub_g, rev_pe, rev_e, labels))
@@ -208,34 +215,42 @@ class SubgraphDataset(data.Dataset):
         if self.shuffle:
             random.shuffle(self.subgraphs)
 
-    def __init__(self, mask_frac_low=80, mask_frac_high=100, num_nodes_per_cluster=2000, npc_lower_bound=1, npc_upper_bound=1, shuffle=True):
+    def __init__(self, cfg, is_train=True, mask_frac_low=80, mask_frac_high=100, num_nodes_per_cluster=2000, npc_lower_bound=1, npc_upper_bound=1, shuffle=True):
         self.mask_frac_low = mask_frac_low
         self.mask_frac_high = mask_frac_high
         self.num_nodes_per_cluster = num_nodes_per_cluster
         self.npc_lower_bound = npc_lower_bound
         self.npc_upper_bound = npc_upper_bound
         self.shuffle = shuffle
+        self.is_train = is_train
 
-        (loaded_graph,), _ = dgl.load_graphs(os.path.join('chm13htert-data/chr19/', 'hifiasm/processed/0.dgl'))
-        loaded_graph = preprocess_graph(loaded_graph)
-        loaded_graph = add_positional_encoding(loaded_graph)
-        self.graphs = [loaded_graph]
+        self.graphs = []
         self.subgraphs = []
+        if self.is_train:
+            for chromosome in cfg.training_chromosomes:
+                (loaded_graph,), _ = dgl.load_graphs(os.path.join(cfg.data_dir, f'chr{str(chromosome)}/', 'hifiasm/processed/0.dgl'))
+                loaded_graph = preprocess_graph(loaded_graph)
+                loaded_graph = add_positional_encoding(loaded_graph)
+                self.graphs.append(loaded_graph)
+        else:
+            for chromosome in cfg.validation_chromosomes:
+                (loaded_graph,), _ = dgl.load_graphs(os.path.join(cfg.data_dir, f'chr{str(chromosome)}/', 'hifiasm/processed/0.dgl'))
+                loaded_graph = preprocess_graph(loaded_graph)
+                loaded_graph = add_positional_encoding(loaded_graph)
+                self.graphs.append(loaded_graph)
 
         self.pos_to_neg_ratio = sum([((torch.round(g.edata['y'])==1).sum() / (torch.round(g.edata['y'])==0).sum()).item() for g in self.graphs]) / len(self.graphs)
 
+        self.max_length = 6000
         self.reads = []
-        for graph in self.graphs:
-            reads_path = os.path.join('chm13htert-data/chr19/', 'hifiasm/info/0_reads.pkl')
+        chromosomes = cfg.training_chromosomes if self.is_train else cfg.validation_chromosomes
+        for chromosome in chromosomes:
+            reads_path = os.path.join(cfg.data_dir, f'chr{str(chromosome)}/', 'hifiasm/info/0_reads.pkl')
             with open(reads_path, "rb") as f:
                 reads_dict = pickle.load(f)
 
-                # Find maximum read length
-                # max_length = max(len(read) for read in reads_dict.values())
-                max_length = 2000
-
                 # Pad reads with 'N' to max_length
-                padded_reads = [read.ljust(max_length, 'N')[:max_length] for read in reads_dict.values()]
+                padded_reads = [read.ljust(self.max_length, 'N')[:self.max_length] for read in reads_dict.values()]
 
                 # Create ASCII mapping
                 mapping = torch.full((128,), -1, dtype=torch.long)  # default -1 for unknowns
@@ -261,7 +276,7 @@ class SubgraphDataset(data.Dataset):
         return len(self.subgraphs)
 
     def __getitem__(self, idx):
-        if self.num_subgraphs_accessed > len(self.subgraphs):
+        if self.num_subgraphs_accessed > len(self.subgraphs) and self.is_train:
             self.repartition()
         self.num_subgraphs_accessed += 1
         return self.subgraphs[idx]
@@ -279,6 +294,7 @@ class TrainingConfig(BaseModel):
     use_cuda: bool = True # Setting use_cuda to False uses an alternative PyTorch-based parallel scan implementation, rather than CUDA
 
     # Training hyperparameters
+    data_dir: str = "chm13htert-data/"
     training_chromosomes: list[int] = [21]
     validation_chromosomes: list[int] = [19]
     seed: int = 42
@@ -332,8 +348,6 @@ def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, s
 
     if out is None:
         out = timestamp
-    assert train_path is not None, "train_path not specified!"
-    assert valid_path is not None, "valid_path not specified!"
 
     # if not overfit:
     #     ds_train = AssemblyGraphDataset(train_path, assembler=assembler)
@@ -341,9 +355,11 @@ def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, s
     # else:
     #     ds_train = ds_valid = AssemblyGraphDataset(train_path, assembler=assembler)
 
-    ds_train = SubgraphDataset(mask_frac_low, mask_frac_high, num_nodes_per_cluster)
+    ds_train = SubgraphDataset(cfg, True, mask_frac_low, mask_frac_high, num_nodes_per_cluster)
+    ds_valid = SubgraphDataset(cfg, False, mask_frac_low, mask_frac_high, num_nodes_per_cluster)
 
     pos_to_neg_ratio = ds_train.pos_to_neg_ratio
+    validation_pos_to_neg_ratio = ds_valid.pos_to_neg_ratio
 
     model = cfg.model_type.value(node_features, edge_features, hidden_edge_features, hidden_features, num_gnn_layers, hidden_edge_scores, batch_norm, dropout=dropout)
     model.to(device)
@@ -363,6 +379,7 @@ def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, s
     print(f'Normalization type : Batch Normalization\n') if batch_norm else print(f'Normalization type : Layer Normalization\n')
 
     pos_weight = torch.tensor([1 / pos_to_neg_ratio], device=device)
+    validation_pos_weight = torch.tensor([1 / validation_pos_to_neg_ratio], device=device)
     criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=decay, patience=patience, verbose=True)
@@ -392,6 +409,8 @@ def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, s
                 for batch in ds_train:
                     sub_g, pe, e, rev_sub_g, rev_pe, rev_e, labels = batch
                     sub_g, pe, e, rev_sub_g, rev_pe, rev_e, labels = sub_g.to(device), pe.to(device), e.to(device), rev_sub_g.to(device), rev_pe.to(device), rev_e.to(device), labels.to(device)
+                    # Runs the forward pass with autocasting.
+                    # with torch.autocast(device_type=cfg.device, dtype=torch.bfloat16):
                     org_scores = model(sub_g, pe, e).squeeze(-1)
 
                     rev_scores = model(rev_sub_g, rev_pe, rev_e).squeeze(-1)
@@ -468,6 +487,82 @@ def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, s
                     scheduler.step(train_loss_epoch)
 
                     continue  # This will entirely skip the validation
+
+                if epoch % 5 == 0:
+                    model.eval()
+
+                    validation_loss_epoch, validation_fp_rate_epoch, validation_fn_rate_epoch = [], [], []
+
+                    for batch in ds_valid:
+                        sub_g, pe, e, rev_sub_g, rev_pe, rev_e, labels = batch
+                        sub_g, pe, e, rev_sub_g, rev_pe, rev_e, labels = sub_g.to(device), pe.to(device), e.to(device), rev_sub_g.to(device), rev_pe.to(device), rev_e.to(device), labels.to(device)
+                        # Runs the forward pass with autocasting.
+                        with torch.autocast(device_type=cfg.device, dtype=torch.bfloat16):
+                            org_scores = model(sub_g, pe, e).squeeze(-1)
+
+                            rev_scores = model(rev_sub_g, rev_pe, rev_e).squeeze(-1)
+
+                            loss = symmetry_loss(org_scores, rev_scores, labels, validation_pos_weight, alpha=alpha)
+                        edge_predictions = org_scores
+                        edge_labels = labels
+
+                        TP, TN, FP, FN = utils.calculate_tfpn(edge_predictions, edge_labels)
+                        acc, precision, recall, f1 =  utils.calculate_metrics(TP, TN, FP, FN)
+                        acc_inv, precision_inv, recall_inv, f1_inv =  utils.calculate_metrics_inverse(TP, TN, FP, FN)
+
+                        try:
+                            fp_rate = FP / (FP + TN)
+                        except ZeroDivisionError:
+                            fp_rate = 0.0
+                        try:
+                            fn_rate = FN / (FN + TP)
+                        except ZeroDivisionError:
+                            fn_rate = 0.0
+
+                        # Append results of a single mini-batch / METIS partition
+                        wandb.log(
+                            {
+                                "validation_loss": loss.item(),
+                                "validation_fp_rate": fp_rate,
+                                "validation_fn_rate": fn_rate,
+                                "validation_acc": acc,
+                                "validation_precision": precision,
+                                "validation_recall": recall,
+                                "validation_f1": f1,
+                                "validation_acc_inv": acc_inv,
+                                "validation_precision_inv": precision_inv,
+                                "validation_recall_inv": recall_inv,
+                                "validation_f1_inv": f1_inv,
+                                "validation_epoch": epoch,
+                            }
+                        )
+
+                        validation_loss_epoch.append(loss.item())
+                        validation_fp_rate_epoch.append(fp_rate)
+                        validation_fn_rate_epoch.append(fn_rate)
+
+                        # After finishing the batch, delete the subgraphs
+                        del sub_g
+                        del rev_sub_g
+
+                        # Run garbage collection to clear any leftover references
+                        gc.collect()
+
+                        # Clear CUDA cache (useful after deletion)
+                        torch.cuda.empty_cache()
+
+                    validation_loss_epoch = statistics.mean(validation_loss_epoch)
+                    validation_fp_rate_epoch = statistics.mean(validation_fp_rate_epoch)
+                    validation_fn_rate_epoch = statistics.mean(validation_fn_rate_epoch)
+                    loss_per_epoch_valid.append(validation_loss_epoch)
+
+                    print(f'\n==> VALIDATION (all validation graphs): Epoch = {epoch}')
+                    print(f'Loss: {validation_loss_epoch:.4f}, fp_rate(GT=0): {validation_fp_rate_epoch:.4f}, fn_rate(GT=1): {validation_fn_rate_epoch:.4f}')
+
+                    if len(loss_per_epoch_valid) == 1 or len(loss_per_epoch_valid) > 1 and loss_per_epoch_valid[-1] < min(loss_per_epoch_valid[:-1]):
+                        torch.save(model.state_dict(), model_path)
+                        print(f'Epoch {epoch}: Model saved!')
+                    save_checkpoint(epoch, model, optimizer, loss_per_epoch_valid[-1], 0.0, out, ckpt_path)
 
     except KeyboardInterrupt:
         torch.cuda.empty_cache()

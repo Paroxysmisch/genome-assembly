@@ -250,9 +250,9 @@ class SubgraphDataset(data.Dataset):
                 reads_int = mapping[reads_ascii]
 
                 # One-hot encode
-                one_hot = torch.nn.functional.one_hot(reads_int, num_classes=4)  # 5 because A,C,G,T,N
+                one_hot = torch.nn.functional.one_hot(reads_int, num_classes=4)  # 4 because N takes the same representation as A---fine as we truncate the Mamba output according to read_length
 
-                self.reads.append(one_hot.float())  # shape: (num_reads, max_length, 5)
+                self.reads.append(one_hot.float())  # shape: (num_reads, max_length, 4)
 
         self.num_subgraphs_accessed = 0
         self.repartition()
@@ -283,10 +283,10 @@ class TrainingConfig(BaseModel):
     validation_chromosomes: list[int] = [19]
     seed: int = 42
     num_epochs: int = 250
-    patience: int = 2
+    patience: int = 10
     learning_rate: float = 1e-4
     device: str = "cuda:0"
-    decay: float = 0.95
+    decay: float = 0.75
     alpha: float = 0.1
     mask_frac_low: float = 0.8
     mask_frac_high: float = 1.0
@@ -345,7 +345,7 @@ def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, s
 
     pos_to_neg_ratio = ds_train.pos_to_neg_ratio
 
-    model = models.SymGatedGCNMambaModel(node_features, edge_features, hidden_edge_features, hidden_features, num_gnn_layers, hidden_edge_scores, batch_norm, dropout=dropout)
+    model = cfg.model_type.value(node_features, edge_features, hidden_edge_features, hidden_features, num_gnn_layers, hidden_edge_scores, batch_norm, dropout=dropout)
     model.to(device)
     if not os.path.exists(models_path):
         print(models_path)

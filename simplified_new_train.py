@@ -4,6 +4,7 @@ import os
 import random
 import statistics
 import pickle
+import gc
 
 import numpy as np
 import torch
@@ -196,8 +197,8 @@ class SubgraphDataset(data.Dataset):
                 rev_pe = torch.cat((pe_in, pe_out), dim=1)
 
                 # Add the read data
-                sub_g.ndata['read_length'] = graph.ndata['read_length'][sub_g.ndata[dgl.NID]]
-                rev_sub_g.ndata['read_length'] = graph.ndata['read_length'][rev_sub_g.ndata[dgl.NID]]
+                sub_g.ndata['read_length'] = torch.min(torch.tensor(2000), graph.ndata['read_length'][sub_g.ndata[dgl.NID]])
+                rev_sub_g.ndata['read_length'] = torch.min(torch.tensor(2000), graph.ndata['read_length'][rev_sub_g.ndata[dgl.NID]])
                 sub_g.ndata['read_data'] = graph_reads[sub_g.ndata[dgl.NID]]
                 rev_sub_g.ndata['read_data'] = graph_reads[rev_sub_g.ndata[dgl.NID]]
                 transformed_sub_gs.append((sub_g, pe, e, rev_sub_g, rev_pe, rev_e, labels))
@@ -230,10 +231,11 @@ class SubgraphDataset(data.Dataset):
                 reads_dict = pickle.load(f)
 
                 # Find maximum read length
-                max_length = max(len(read) for read in reads_dict.values())
+                # max_length = max(len(read) for read in reads_dict.values())
+                max_length = 2000
 
                 # Pad reads with 'N' to max_length
-                padded_reads = [read.ljust(max_length, 'N') for read in reads_dict.values()]
+                padded_reads = [read.ljust(max_length, 'N')[:max_length] for read in reads_dict.values()]
 
                 # Create ASCII mapping
                 mapping = torch.full((128,), -1, dtype=torch.long)  # default -1 for unknowns
@@ -241,14 +243,14 @@ class SubgraphDataset(data.Dataset):
                 mapping[ord('C')] = 1
                 mapping[ord('G')] = 2
                 mapping[ord('T')] = 3
-                mapping[ord('N')] = 4  # Special padding token
+                mapping[ord('N')] = 0  # Special padding token
 
                 # Convert characters to integers
                 reads_ascii = torch.tensor([list(map(ord, read)) for read in padded_reads])
                 reads_int = mapping[reads_ascii]
 
                 # One-hot encode
-                one_hot = torch.nn.functional.one_hot(reads_int, num_classes=5)  # 5 because A,C,G,T,N
+                one_hot = torch.nn.functional.one_hot(reads_int, num_classes=4)  # 5 because A,C,G,T,N
 
                 self.reads.append(one_hot.float())  # shape: (num_reads, max_length, 5)
 
@@ -437,6 +439,16 @@ def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, s
                     train_loss_epoch.append(loss.item())
                     train_fp_rate_epoch.append(fp_rate)
                     train_fn_rate_epoch.append(fn_rate)
+
+                    # After finishing the batch, delete the subgraphs
+                    del sub_g
+                    del rev_sub_g
+
+                    # Run garbage collection to clear any leftover references
+                    gc.collect()
+
+                    # Clear CUDA cache (useful after deletion)
+                    torch.cuda.empty_cache()
 
                 train_loss_epoch = statistics.mean(train_loss_epoch)
                 train_fp_rate_epoch = statistics.mean(train_fp_rate_epoch)

@@ -5,7 +5,7 @@ import torch.nn as nn
 class ScorePredictor(nn.Module):
     def __init__(self, in_features, hidden_edge_scores):
         super().__init__()
-        self.W1 = nn.Linear(3 * in_features, hidden_edge_scores) 
+        self.W1 = nn.Linear(in_features, hidden_edge_scores) 
         self.W2 = nn.Linear(hidden_edge_scores, 32)
         self.W3 = nn.Linear(32, 1)
 

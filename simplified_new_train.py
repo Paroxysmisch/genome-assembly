@@ -14,8 +14,12 @@ import wandb
 from torch.utils import data
 from pydantic import BaseModel
 from models import ModelType
+import hydra
+from omegaconf import DictConfig, OmegaConf
+from pydantic import BaseModel
+from typing import Type
+from enum import Enum
 
-import models
 import utils
 
 
@@ -309,8 +313,27 @@ class TrainingConfig(BaseModel):
     num_nodes_per_cluster: int = 600
     overfit: bool = False
 
-def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, seed=None, resume=False, finetune=False, ft_model=None):
-    cfg = TrainingConfig()
+
+def omega_to_pydantic(cfg: DictConfig, config_cls: Type[BaseModel]) -> BaseModel:
+    config_dict = OmegaConf.to_container(cfg, resolve=True)
+    fields = config_cls.model_fields
+
+    for key, field in fields.items():
+        if (
+            key in config_dict
+            and isinstance(config_dict[key], str)
+            and isinstance(field.annotation, type)
+            and issubclass(field.annotation, Enum)
+        ):
+            config_dict[key] = field.annotation[config_dict[key]]
+
+    return config_cls(**config_dict)
+
+
+@hydra.main(version_base=None, config_path="conf", config_name="config")
+def train(cfg):
+    cfg = omega_to_pydantic(cfg, TrainingConfig)
+
     seed = cfg.seed
     num_epochs = cfg.num_epochs
     num_gnn_layers = cfg.num_layers
@@ -330,6 +353,7 @@ def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, s
     mask_frac_low = cfg.mask_frac_low
     mask_frac_high = cfg.mask_frac_high
     num_nodes_per_cluster = cfg.num_nodes_per_cluster
+    dropout = None
 
     checkpoints_path = os.path.abspath("artifacts/checkpoints")
     models_path = os.path.abspath("artifacts/models")
@@ -347,8 +371,7 @@ def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, s
     time_start = datetime.now()
     timestamp = time_start.strftime('%Y-%b-%d-%H-%M-%S')
 
-    if out is None:
-        out = timestamp
+    out = timestamp
 
     ds_train = SubgraphDataset(cfg, True, mask_frac_low, mask_frac_high, num_nodes_per_cluster)
     ds_valid = SubgraphDataset(cfg, False, mask_frac_low, mask_frac_high, num_nodes_per_cluster)
@@ -362,7 +385,7 @@ def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, s
         print(models_path)
         os.makedirs(models_path)
 
-    out = out + f'_seed{seed}'
+    out = out + f'_model={cfg.model_type.value.__name__}_seed={seed}'
 
     model_path = os.path.join(models_path, f'model_{out}.pt')    
     print(f'MODEL PATH: {model_path}')
@@ -566,20 +589,5 @@ def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, s
         torch.cuda.empty_cache()
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--train', type=str, help='Path to the dataset')
-    parser.add_argument('--valid', type=str, help='Path to the dataset')
-    parser.add_argument('--asm', type=str, help='Assembler used')
-    parser.add_argument('--name', type=str, default=None, help='Name for the model')
-    parser.add_argument('--overfit', action='store_true', help='Overfit on the training data')
-    parser.add_argument('--resume', action='store_true', help='Resume in case training failed')
-    parser.add_argument('--finetune', action='store_true', help='Finetune a trained model')
-    parser.add_argument('--ft_model', type=str, help='Path to the model for fine-tuning')
-    parser.add_argument('--dropout', type=float, default=None, help='Dropout rate for the model')
-    parser.add_argument('--seed', type=int, default=None, help='Random seed')
-    # parser.add_argument('--savedir', type=str, default=None, help='Directory to save the model and the checkpoints')
-    args = parser.parse_args()
-
-    train(train_path=args.train, valid_path=args.valid, assembler=args.asm, out=args.name, overfit=args.overfit, \
-          dropout=args.dropout, seed=args.seed, resume=args.resume, finetune=args.finetune, ft_model=args.ft_model)
+if __name__ == "__main__":
+    train()

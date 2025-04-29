@@ -411,6 +411,9 @@ def train(cfg):
     elapsed = utils.timedelta_to_str(datetime.now() - time_start)
     print(f'Loading data done. Elapsed time: {elapsed}')
 
+    training_step = 0
+    validation_step = 0
+
     try:
         with wandb.init(project=wandb_project, config=cfg.model_dump(), mode=wandb_mode, name=out):
             wandb.watch(model, criterion, log='all', log_freq=1000)
@@ -467,23 +470,14 @@ def train(cfg):
                             "recall_inv": recall_inv,
                             "f1_inv": f1_inv,
                             "lr_value": optimizer.param_groups[0]['lr'],
-                            "epoch": epoch,
+                            "training_step": training_step,
                         }
                     )
+                    training_step += 1
 
                     train_loss_epoch.append(loss.item())
                     train_fp_rate_epoch.append(fp_rate)
                     train_fn_rate_epoch.append(fn_rate)
-
-                    # # After finishing the batch, delete the subgraphs
-                    # del sub_g
-                    # del rev_sub_g
-                    #
-                    # # Run garbage collection to clear any leftover references
-                    # gc.collect()
-                    #
-                    # # Clear CUDA cache (useful after deletion)
-                    # torch.cuda.empty_cache()
 
                 train_loss_epoch = statistics.mean(train_loss_epoch)
                 train_fp_rate_epoch = statistics.mean(train_fp_rate_epoch)
@@ -494,6 +488,14 @@ def train(cfg):
                 print(f'\n==> TRAINING (all training graphs): Epoch = {epoch}')
                 print(f'Loss: {train_loss_epoch:.4f}, fp_rate(GT=0): {train_fp_rate_epoch:.4f}, fn_rate(GT=1): {train_fn_rate_epoch:.4f}')
                 print(f'Elapsed time: {elapsed}\n\n')
+                wandb.log(
+                    {
+                        "train_loss_epoch": train_loss_epoch,
+                        "train_fp_rate_epoch": train_fp_rate_epoch,
+                        "train_fn_rate_epoch": train_fn_rate_epoch,
+                        "epoch": epoch,
+                    },
+                )
 
                 if cfg.overfit:
                     if len(loss_per_epoch_valid) == 1 or len(loss_per_epoch_train) > 1 and loss_per_epoch_train[-1] < min(loss_per_epoch_train[:-1]):
@@ -501,84 +503,81 @@ def train(cfg):
                         print(f'Epoch {epoch}: Model saved!')
                     save_checkpoint(epoch, model, optimizer, loss_per_epoch_train[-1], 0.0, out, ckpt_path)
                     scheduler.step(train_loss_epoch)
+                else:
+                    model.eval()
 
-                    continue  # This will entirely skip the validation
+                    validation_loss_epoch, validation_fp_rate_epoch, validation_fn_rate_epoch = [], [], []
 
-                model.eval()
+                    for batch in ds_valid:
+                        sub_g, pe, e, rev_sub_g, rev_pe, rev_e, labels = batch
+                        sub_g, pe, e, rev_sub_g, rev_pe, rev_e, labels = sub_g.to(device), pe.to(device), e.to(device), rev_sub_g.to(device), rev_pe.to(device), rev_e.to(device), labels.to(device)
+                        # Runs the forward pass with autocasting.
+                        with torch.autocast(device_type=cfg.device, dtype=torch.bfloat16):
+                            org_scores = model(sub_g, pe, e).squeeze(-1)
 
-                validation_loss_epoch, validation_fp_rate_epoch, validation_fn_rate_epoch = [], [], []
+                            rev_scores = model(rev_sub_g, rev_pe, rev_e).squeeze(-1)
 
-                for batch in ds_valid:
-                    sub_g, pe, e, rev_sub_g, rev_pe, rev_e, labels = batch
-                    sub_g, pe, e, rev_sub_g, rev_pe, rev_e, labels = sub_g.to(device), pe.to(device), e.to(device), rev_sub_g.to(device), rev_pe.to(device), rev_e.to(device), labels.to(device)
-                    # Runs the forward pass with autocasting.
-                    with torch.autocast(device_type=cfg.device, dtype=torch.bfloat16):
-                        org_scores = model(sub_g, pe, e).squeeze(-1)
+                            loss = symmetry_loss(org_scores, rev_scores, labels, validation_pos_weight, alpha=alpha)
+                        edge_predictions = org_scores
+                        edge_labels = labels
 
-                        rev_scores = model(rev_sub_g, rev_pe, rev_e).squeeze(-1)
+                        TP, TN, FP, FN = utils.calculate_tfpn(edge_predictions, edge_labels)
+                        acc, precision, recall, f1 =  utils.calculate_metrics(TP, TN, FP, FN)
+                        acc_inv, precision_inv, recall_inv, f1_inv =  utils.calculate_metrics_inverse(TP, TN, FP, FN)
 
-                        loss = symmetry_loss(org_scores, rev_scores, labels, validation_pos_weight, alpha=alpha)
-                    edge_predictions = org_scores
-                    edge_labels = labels
+                        try:
+                            fp_rate = FP / (FP + TN)
+                        except ZeroDivisionError:
+                            fp_rate = 0.0
+                        try:
+                            fn_rate = FN / (FN + TP)
+                        except ZeroDivisionError:
+                            fn_rate = 0.0
 
-                    TP, TN, FP, FN = utils.calculate_tfpn(edge_predictions, edge_labels)
-                    acc, precision, recall, f1 =  utils.calculate_metrics(TP, TN, FP, FN)
-                    acc_inv, precision_inv, recall_inv, f1_inv =  utils.calculate_metrics_inverse(TP, TN, FP, FN)
+                        # Append results of a single mini-batch / METIS partition
+                        wandb.log(
+                            {
+                                "validation_loss": loss.item(),
+                                "validation_fp_rate": fp_rate,
+                                "validation_fn_rate": fn_rate,
+                                "validation_acc": acc,
+                                "validation_precision": precision,
+                                "validation_recall": recall,
+                                "validation_f1": f1,
+                                "validation_acc_inv": acc_inv,
+                                "validation_precision_inv": precision_inv,
+                                "validation_recall_inv": recall_inv,
+                                "validation_f1_inv": f1_inv,
+                                "validation_step": validation_step,
+                            }
+                        )
+                        validation_step += 1
 
-                    try:
-                        fp_rate = FP / (FP + TN)
-                    except ZeroDivisionError:
-                        fp_rate = 0.0
-                    try:
-                        fn_rate = FN / (FN + TP)
-                    except ZeroDivisionError:
-                        fn_rate = 0.0
+                        validation_loss_epoch.append(loss.item())
+                        validation_fp_rate_epoch.append(fp_rate)
+                        validation_fn_rate_epoch.append(fn_rate)
 
-                    # Append results of a single mini-batch / METIS partition
+                    validation_loss_epoch = statistics.mean(validation_loss_epoch)
+                    validation_fp_rate_epoch = statistics.mean(validation_fp_rate_epoch)
+                    validation_fn_rate_epoch = statistics.mean(validation_fn_rate_epoch)
+                    loss_per_epoch_valid.append(validation_loss_epoch)
+
+                    print(f'\n==> VALIDATION (all validation graphs): Epoch = {epoch}')
+                    print(f'Loss: {validation_loss_epoch:.4f}, fp_rate(GT=0): {validation_fp_rate_epoch:.4f}, fn_rate(GT=1): {validation_fn_rate_epoch:.4f}')
                     wandb.log(
                         {
-                            "validation_loss": loss.item(),
-                            "validation_fp_rate": fp_rate,
-                            "validation_fn_rate": fn_rate,
-                            "validation_acc": acc,
-                            "validation_precision": precision,
-                            "validation_recall": recall,
-                            "validation_f1": f1,
-                            "validation_acc_inv": acc_inv,
-                            "validation_precision_inv": precision_inv,
-                            "validation_recall_inv": recall_inv,
-                            "validation_f1_inv": f1_inv,
-                            "validation_epoch": epoch,
-                        }
+                            "validation_loss_epoch": validation_loss_epoch,
+                            "validation_fp_rate_epoch": validation_fp_rate_epoch,
+                            "validation_fn_rate_epoch": validation_fn_rate_epoch,
+                            "epoch": epoch,
+                        },
                     )
 
-                    validation_loss_epoch.append(loss.item())
-                    validation_fp_rate_epoch.append(fp_rate)
-                    validation_fn_rate_epoch.append(fn_rate)
-
-                    # # After finishing the batch, delete the subgraphs
-                    # del sub_g
-                    # del rev_sub_g
-                    #
-                    # # Run garbage collection to clear any leftover references
-                    # gc.collect()
-                    #
-                    # # Clear CUDA cache (useful after deletion)
-                    # torch.cuda.empty_cache()
-
-                validation_loss_epoch = statistics.mean(validation_loss_epoch)
-                validation_fp_rate_epoch = statistics.mean(validation_fp_rate_epoch)
-                validation_fn_rate_epoch = statistics.mean(validation_fn_rate_epoch)
-                loss_per_epoch_valid.append(validation_loss_epoch)
-
-                print(f'\n==> VALIDATION (all validation graphs): Epoch = {epoch}')
-                print(f'Loss: {validation_loss_epoch:.4f}, fp_rate(GT=0): {validation_fp_rate_epoch:.4f}, fn_rate(GT=1): {validation_fn_rate_epoch:.4f}')
-
-                if len(loss_per_epoch_valid) == 1 or len(loss_per_epoch_valid) > 1 and loss_per_epoch_valid[-1] < min(loss_per_epoch_valid[:-1]):
-                    torch.save(model.state_dict(), model_path)
-                    print(f'Epoch {epoch}: Model saved!')
-                save_checkpoint(epoch, model, optimizer, loss_per_epoch_valid[-1], 0.0, out, ckpt_path)
-                scheduler.step(validation_loss_epoch)
+                    if len(loss_per_epoch_valid) == 1 or len(loss_per_epoch_valid) > 1 and loss_per_epoch_valid[-1] < min(loss_per_epoch_valid[:-1]):
+                        torch.save(model.state_dict(), model_path)
+                        print(f'Epoch {epoch}: Model saved!')
+                    save_checkpoint(epoch, model, optimizer, loss_per_epoch_valid[-1], 0.0, out, ckpt_path)
+                    scheduler.step(validation_loss_epoch)
 
     except KeyboardInterrupt:
         torch.cuda.empty_cache()

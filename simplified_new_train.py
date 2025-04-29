@@ -241,7 +241,7 @@ class SubgraphDataset(data.Dataset):
 
         self.pos_to_neg_ratio = sum([((torch.round(g.edata['y'])==1).sum() / (torch.round(g.edata['y'])==0).sum()).item() for g in self.graphs]) / len(self.graphs)
 
-        self.max_length = 6000
+        self.max_length = 4000
         self.reads = []
         chromosomes = cfg.training_chromosomes if self.is_train else cfg.validation_chromosomes
         for chromosome in chromosomes:
@@ -283,7 +283,7 @@ class SubgraphDataset(data.Dataset):
 
 
 class TrainingConfig(BaseModel):
-    model_type: ModelType = ModelType.SymGatedGCN
+    model_type: ModelType = ModelType.SymGatedGCNMamba
     num_node_features: int = 2
     num_edge_features: int = 2
     num_intermediate_hidden_features: int = 16
@@ -295,8 +295,8 @@ class TrainingConfig(BaseModel):
 
     # Training hyperparameters
     data_dir: str = "chm13htert-data/"
-    training_chromosomes: list[int] = [21]
-    validation_chromosomes: list[int] = [19]
+    training_chromosomes: list[int] = [19]
+    validation_chromosomes: list[int] = [21]
     seed: int = 42
     num_epochs: int = 250
     patience: int = 10
@@ -306,7 +306,8 @@ class TrainingConfig(BaseModel):
     alpha: float = 0.1
     mask_frac_low: float = 0.8
     mask_frac_high: float = 1.0
-    num_nodes_per_cluster: int = 2000
+    num_nodes_per_cluster: int = 600
+    overfit: bool = False
 
 def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, seed=None, resume=False, finetune=False, ft_model=None):
     cfg = TrainingConfig()
@@ -348,12 +349,6 @@ def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, s
 
     if out is None:
         out = timestamp
-
-    # if not overfit:
-    #     ds_train = AssemblyGraphDataset(train_path, assembler=assembler)
-    #     ds_valid = AssemblyGraphDataset(valid_path, assembler=assembler)
-    # else:
-    #     ds_train = ds_valid = AssemblyGraphDataset(train_path, assembler=assembler)
 
     ds_train = SubgraphDataset(cfg, True, mask_frac_low, mask_frac_high, num_nodes_per_cluster)
     ds_valid = SubgraphDataset(cfg, False, mask_frac_low, mask_frac_high, num_nodes_per_cluster)
@@ -400,10 +395,8 @@ def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, s
             for epoch in range(start_epoch, num_epochs):
                 train_loss_epoch, train_fp_rate_epoch, train_fn_rate_epoch = [], [], []
 
-                print('\n===> TRAINING\n')
                 model.train()
 
-                print(f'\n(TRAIN: Epoch = {epoch:3})')
 
                 # Loop over all mini-batch i.e. subgraphs in the collection of graphs
                 for batch in ds_train:
@@ -459,15 +452,15 @@ def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, s
                     train_fp_rate_epoch.append(fp_rate)
                     train_fn_rate_epoch.append(fn_rate)
 
-                    # After finishing the batch, delete the subgraphs
-                    del sub_g
-                    del rev_sub_g
-
-                    # Run garbage collection to clear any leftover references
-                    gc.collect()
-
-                    # Clear CUDA cache (useful after deletion)
-                    torch.cuda.empty_cache()
+                    # # After finishing the batch, delete the subgraphs
+                    # del sub_g
+                    # del rev_sub_g
+                    #
+                    # # Run garbage collection to clear any leftover references
+                    # gc.collect()
+                    #
+                    # # Clear CUDA cache (useful after deletion)
+                    # torch.cuda.empty_cache()
 
                 train_loss_epoch = statistics.mean(train_loss_epoch)
                 train_fp_rate_epoch = statistics.mean(train_fp_rate_epoch)
@@ -479,7 +472,7 @@ def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, s
                 print(f'Loss: {train_loss_epoch:.4f}, fp_rate(GT=0): {train_fp_rate_epoch:.4f}, fn_rate(GT=1): {train_fn_rate_epoch:.4f}')
                 print(f'Elapsed time: {elapsed}\n\n')
 
-                if overfit:
+                if cfg.overfit:
                     if len(loss_per_epoch_valid) == 1 or len(loss_per_epoch_train) > 1 and loss_per_epoch_train[-1] < min(loss_per_epoch_train[:-1]):
                         torch.save(model.state_dict(), model_path)
                         print(f'Epoch {epoch}: Model saved!')
@@ -488,81 +481,81 @@ def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, s
 
                     continue  # This will entirely skip the validation
 
-                if epoch % 5 == 0:
-                    model.eval()
+                model.eval()
 
-                    validation_loss_epoch, validation_fp_rate_epoch, validation_fn_rate_epoch = [], [], []
+                validation_loss_epoch, validation_fp_rate_epoch, validation_fn_rate_epoch = [], [], []
 
-                    for batch in ds_valid:
-                        sub_g, pe, e, rev_sub_g, rev_pe, rev_e, labels = batch
-                        sub_g, pe, e, rev_sub_g, rev_pe, rev_e, labels = sub_g.to(device), pe.to(device), e.to(device), rev_sub_g.to(device), rev_pe.to(device), rev_e.to(device), labels.to(device)
-                        # Runs the forward pass with autocasting.
-                        with torch.autocast(device_type=cfg.device, dtype=torch.bfloat16):
-                            org_scores = model(sub_g, pe, e).squeeze(-1)
+                for batch in ds_valid:
+                    sub_g, pe, e, rev_sub_g, rev_pe, rev_e, labels = batch
+                    sub_g, pe, e, rev_sub_g, rev_pe, rev_e, labels = sub_g.to(device), pe.to(device), e.to(device), rev_sub_g.to(device), rev_pe.to(device), rev_e.to(device), labels.to(device)
+                    # Runs the forward pass with autocasting.
+                    with torch.autocast(device_type=cfg.device, dtype=torch.bfloat16):
+                        org_scores = model(sub_g, pe, e).squeeze(-1)
 
-                            rev_scores = model(rev_sub_g, rev_pe, rev_e).squeeze(-1)
+                        rev_scores = model(rev_sub_g, rev_pe, rev_e).squeeze(-1)
 
-                            loss = symmetry_loss(org_scores, rev_scores, labels, validation_pos_weight, alpha=alpha)
-                        edge_predictions = org_scores
-                        edge_labels = labels
+                        loss = symmetry_loss(org_scores, rev_scores, labels, validation_pos_weight, alpha=alpha)
+                    edge_predictions = org_scores
+                    edge_labels = labels
 
-                        TP, TN, FP, FN = utils.calculate_tfpn(edge_predictions, edge_labels)
-                        acc, precision, recall, f1 =  utils.calculate_metrics(TP, TN, FP, FN)
-                        acc_inv, precision_inv, recall_inv, f1_inv =  utils.calculate_metrics_inverse(TP, TN, FP, FN)
+                    TP, TN, FP, FN = utils.calculate_tfpn(edge_predictions, edge_labels)
+                    acc, precision, recall, f1 =  utils.calculate_metrics(TP, TN, FP, FN)
+                    acc_inv, precision_inv, recall_inv, f1_inv =  utils.calculate_metrics_inverse(TP, TN, FP, FN)
 
-                        try:
-                            fp_rate = FP / (FP + TN)
-                        except ZeroDivisionError:
-                            fp_rate = 0.0
-                        try:
-                            fn_rate = FN / (FN + TP)
-                        except ZeroDivisionError:
-                            fn_rate = 0.0
+                    try:
+                        fp_rate = FP / (FP + TN)
+                    except ZeroDivisionError:
+                        fp_rate = 0.0
+                    try:
+                        fn_rate = FN / (FN + TP)
+                    except ZeroDivisionError:
+                        fn_rate = 0.0
 
-                        # Append results of a single mini-batch / METIS partition
-                        wandb.log(
-                            {
-                                "validation_loss": loss.item(),
-                                "validation_fp_rate": fp_rate,
-                                "validation_fn_rate": fn_rate,
-                                "validation_acc": acc,
-                                "validation_precision": precision,
-                                "validation_recall": recall,
-                                "validation_f1": f1,
-                                "validation_acc_inv": acc_inv,
-                                "validation_precision_inv": precision_inv,
-                                "validation_recall_inv": recall_inv,
-                                "validation_f1_inv": f1_inv,
-                                "validation_epoch": epoch,
-                            }
-                        )
+                    # Append results of a single mini-batch / METIS partition
+                    wandb.log(
+                        {
+                            "validation_loss": loss.item(),
+                            "validation_fp_rate": fp_rate,
+                            "validation_fn_rate": fn_rate,
+                            "validation_acc": acc,
+                            "validation_precision": precision,
+                            "validation_recall": recall,
+                            "validation_f1": f1,
+                            "validation_acc_inv": acc_inv,
+                            "validation_precision_inv": precision_inv,
+                            "validation_recall_inv": recall_inv,
+                            "validation_f1_inv": f1_inv,
+                            "validation_epoch": epoch,
+                        }
+                    )
 
-                        validation_loss_epoch.append(loss.item())
-                        validation_fp_rate_epoch.append(fp_rate)
-                        validation_fn_rate_epoch.append(fn_rate)
+                    validation_loss_epoch.append(loss.item())
+                    validation_fp_rate_epoch.append(fp_rate)
+                    validation_fn_rate_epoch.append(fn_rate)
 
-                        # After finishing the batch, delete the subgraphs
-                        del sub_g
-                        del rev_sub_g
+                    # # After finishing the batch, delete the subgraphs
+                    # del sub_g
+                    # del rev_sub_g
+                    #
+                    # # Run garbage collection to clear any leftover references
+                    # gc.collect()
+                    #
+                    # # Clear CUDA cache (useful after deletion)
+                    # torch.cuda.empty_cache()
 
-                        # Run garbage collection to clear any leftover references
-                        gc.collect()
+                validation_loss_epoch = statistics.mean(validation_loss_epoch)
+                validation_fp_rate_epoch = statistics.mean(validation_fp_rate_epoch)
+                validation_fn_rate_epoch = statistics.mean(validation_fn_rate_epoch)
+                loss_per_epoch_valid.append(validation_loss_epoch)
 
-                        # Clear CUDA cache (useful after deletion)
-                        torch.cuda.empty_cache()
+                print(f'\n==> VALIDATION (all validation graphs): Epoch = {epoch}')
+                print(f'Loss: {validation_loss_epoch:.4f}, fp_rate(GT=0): {validation_fp_rate_epoch:.4f}, fn_rate(GT=1): {validation_fn_rate_epoch:.4f}')
 
-                    validation_loss_epoch = statistics.mean(validation_loss_epoch)
-                    validation_fp_rate_epoch = statistics.mean(validation_fp_rate_epoch)
-                    validation_fn_rate_epoch = statistics.mean(validation_fn_rate_epoch)
-                    loss_per_epoch_valid.append(validation_loss_epoch)
-
-                    print(f'\n==> VALIDATION (all validation graphs): Epoch = {epoch}')
-                    print(f'Loss: {validation_loss_epoch:.4f}, fp_rate(GT=0): {validation_fp_rate_epoch:.4f}, fn_rate(GT=1): {validation_fn_rate_epoch:.4f}')
-
-                    if len(loss_per_epoch_valid) == 1 or len(loss_per_epoch_valid) > 1 and loss_per_epoch_valid[-1] < min(loss_per_epoch_valid[:-1]):
-                        torch.save(model.state_dict(), model_path)
-                        print(f'Epoch {epoch}: Model saved!')
-                    save_checkpoint(epoch, model, optimizer, loss_per_epoch_valid[-1], 0.0, out, ckpt_path)
+                if len(loss_per_epoch_valid) == 1 or len(loss_per_epoch_valid) > 1 and loss_per_epoch_valid[-1] < min(loss_per_epoch_valid[:-1]):
+                    torch.save(model.state_dict(), model_path)
+                    print(f'Epoch {epoch}: Model saved!')
+                save_checkpoint(epoch, model, optimizer, loss_per_epoch_valid[-1], 0.0, out, ckpt_path)
+                scheduler.step(validation_loss_epoch)
 
     except KeyboardInterrupt:
         torch.cuda.empty_cache()
@@ -574,8 +567,6 @@ def train(train_path, valid_path, out, assembler, overfit=False, dropout=None, s
 
 
 if __name__ == '__main__':
-    # python3 train.py --train chm13-data/chr19/ --valid chm13-data/chr19/ --overfit --asm hifiasm > hq-training
-    # python3 train.py --train chm13htert-data/chr19/ --valid chm13htert-data/chr19/ --overfit --asm hifiasm > test-training
     parser = argparse.ArgumentParser()
     parser.add_argument('--train', type=str, help='Path to the dataset')
     parser.add_argument('--valid', type=str, help='Path to the dataset')

@@ -300,17 +300,17 @@ class TrainingConfig(BaseModel):
     # Training hyperparameters
     data_dir: str = "chm13htert-data/"
     training_chromosomes: list[int] = [19]
-    validation_chromosomes: list[int] = [21]
+    validation_chromosomes: list[int] = [11]
     seed: int = 42
-    num_epochs: int = 250
+    num_epochs: int = 100
     patience: int = 10
     learning_rate: float = 1e-4
     device: str = "cuda:0"
     decay: float = 0.75
     alpha: float = 0.1
-    mask_frac_low: float = 0.8
+    mask_frac_low: float = 0.6
     mask_frac_high: float = 1.0
-    num_nodes_per_cluster: int = 600
+    num_nodes_per_cluster: int = 500
     overfit: bool = False
 
 

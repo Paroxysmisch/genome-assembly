@@ -5,6 +5,96 @@ import dgl
 import dgl.function as fn
 
 
+class GAT(nn.Module):
+    def __init__(self, in_channels, out_channels, batch_norm, dropout=None, residual=True):
+        super().__init__()
+        if dropout:
+            self.dropout = dropout
+        else:
+            self.dropout = 0.0
+        self.batch_norm = batch_norm
+        self.residual = residual
+
+        if in_channels != out_channels:
+            self.residual = False
+
+        self.fc = nn.Linear(in_channels, out_channels, bias=False)
+        self.fc_e = nn.Linear(in_channels, out_channels, bias=False)
+        self.attn_fc = nn.Linear(3 * out_channels, 1, bias=False)
+        self.attn_fc_e = nn.Linear(3 * out_channels, 1, bias=False)
+
+        dtype=torch.float32
+        self.B_1 = nn.Linear(in_channels, out_channels, dtype=dtype)
+        self.B_2 = nn.Linear(in_channels, out_channels, dtype=dtype)
+        self.B_3 = nn.Linear(in_channels, out_channels, dtype=dtype)
+
+        self.mix_node_edge_info = nn.Linear(2 * out_channels, out_channels)
+
+        self.reset_parameters()
+
+        if batch_norm: # batch normalization
+            # self.bn_h = nn.BatchNorm1d(out_channels, track_running_stats=True)
+            # self.bn_e = nn.BatchNorm1d(out_channels, track_running_stats=True)
+            self.bn_h = nn.BatchNorm1d(out_channels, track_running_stats=True)
+            self.bn_e = nn.BatchNorm1d(out_channels, track_running_stats=True)
+        else: # layer normalization
+            self.bn_h = nn.LayerNorm(out_channels)
+            self.bn_e = nn.LayerNorm(out_channels)
+
+    def reset_parameters(self):
+        """Reinitialize learnable parameters."""
+        gain = nn.init.calculate_gain("relu")
+        nn.init.xavier_normal_(self.fc.weight, gain=gain)
+        nn.init.xavier_normal_(self.attn_fc.weight, gain=gain)
+
+    def edge_attention(self, edges):
+        z2 = torch.cat([edges.src["z"], edges.data["z_e"], edges.dst["z"]], dim=1)
+        a = self.attn_fc(z2)
+        a_e = self.attn_fc_e(z2)
+        return {"e": F.leaky_relu(a), "e_e": F.leaky_relu(a_e)}
+
+    def message_func(self, edges):
+        return {"z": edges.src["z"], "e": edges.data["e"], "z_e": edges.data["z_e"], "e_e": edges.data["e_e"]}
+
+    def reduce_func(self, nodes):
+        alpha = F.softmax(nodes.mailbox["e"], dim=1)
+        alpha_e = F.softmax(nodes.mailbox["e_e"], dim=1)
+        h = torch.sum(alpha * nodes.mailbox["z"], dim=1)
+        h_e = torch.sum(alpha_e * nodes.mailbox["z_e"], dim=1)
+        h = self.mix_node_edge_info(torch.cat([h, h_e], dim=-1))
+        return {"h": h}
+
+    def forward(self, g, h, e):
+        with g.local_scope():
+            h_in = h.clone()
+            e_in = e.clone()
+
+            g.ndata['B1h'] = self.B_1(h)
+            g.ndata['B2h'] = self.B_2(h)
+            g.edata['B3e'] = self.B_3(e)
+
+            g.apply_edges(fn.u_add_v('B1h', 'B2h', 'B12h'))
+            e_ji = g.edata['B12h'] + g.edata['B3e']
+            e_ji = F.relu(e_ji)
+            if self.residual:
+                e_ji = e_ji + e_in
+
+            z = self.fc(h)
+            z_e = self.fc_e(e_ji)
+            g.ndata["z"] = z
+            g.edata["z_e"] = z_e
+            g.apply_edges(self.edge_attention)
+            g.update_all(self.message_func, self.reduce_func)
+
+            h = g.ndata.pop("h")
+            h = self.bn_h(h)
+            h = F.relu(h)
+            if self.residual:
+                h = h + h_in
+            h = F.dropout(h, self.dropout, training=self.training)
+
+            return h, e_ji
+
 class SymGatedGCN(nn.Module):
     """
     Symmetric GatedGCN, based on the idea of  GatedGCN from 'Residual Gated Graph ConvNets'

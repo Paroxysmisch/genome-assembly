@@ -6,7 +6,7 @@ import dgl.function as fn
 
 
 class SymGAT(nn.Module):
-    def __init__(self, in_channels, out_channels, batch_norm, dropout=None, residual=True):
+    def __init__(self, in_channels, out_channels, batch_norm, dropout=None, residual=True, rnf=False):
         super().__init__()
         if dropout:
             self.dropout = dropout
@@ -14,18 +14,26 @@ class SymGAT(nn.Module):
             self.dropout = 0.0
         self.batch_norm = batch_norm
         self.residual = residual
+        self.rnf = rnf
 
         if in_channels != out_channels:
             self.residual = False
 
-        self.fc = nn.Linear(in_channels, out_channels, bias=False)
+        if not self.rnf:
+            self.fc = nn.Linear(in_channels, out_channels, bias=False)
+        else:
+            self.fc = nn.Linear(in_channels * 2, out_channels, bias=False)
         self.fc_e = nn.Linear(in_channels, out_channels, bias=False)
         self.attn_fc = nn.Linear(3 * out_channels, 1, bias=False)
         self.attn_fc_e = nn.Linear(3 * out_channels, 1, bias=False)
 
         dtype=torch.float32
-        self.B_1 = nn.Linear(in_channels, out_channels, dtype=dtype)
-        self.B_2 = nn.Linear(in_channels, out_channels, dtype=dtype)
+        if not self.rnf:
+            self.B_1 = nn.Linear(in_channels, out_channels, dtype=dtype)
+            self.B_2 = nn.Linear(in_channels, out_channels, dtype=dtype)
+        else:
+            self.B_1 = nn.Linear(in_channels * 2, out_channels, dtype=dtype)
+            self.B_2 = nn.Linear(in_channels * 2, out_channels, dtype=dtype)
         self.B_3 = nn.Linear(in_channels, out_channels, dtype=dtype)
 
         self.mix_node_edge_info = nn.Linear(2 * out_channels, out_channels)
@@ -68,9 +76,15 @@ class SymGAT(nn.Module):
         with g.local_scope():
             h_in = h.clone()
             e_in = e.clone()
+            rnf = torch.randn_like(h)
+            h_plus_random = torch.concat([h, rnf], dim=-1)
 
-            g.ndata['B1h'] = self.B_1(h)
-            g.ndata['B2h'] = self.B_2(h)
+            if not self.rnf:
+                g.ndata['B1h'] = self.B_1(h)
+                g.ndata['B2h'] = self.B_2(h)
+            else:
+                g.ndata['B1h'] = self.B_1(h_plus_random)
+                g.ndata['B2h'] = self.B_2(h_plus_random)
             g.edata['B3e'] = self.B_3(e)
 
             g_reverse = dgl.reverse(g, copy_ndata=True, copy_edata=True)
@@ -87,7 +101,10 @@ class SymGAT(nn.Module):
             if self.residual:
                 e_ik = e_ik + e_in
 
-            z = self.fc(h)
+            if not self.rnf:
+                z = self.fc(h)
+            else:
+                z = self.fc(h_plus_random)
             z_e = self.fc_e(e_ji)
             g.ndata["z"] = z
             g.edata["z_e"] = z_e
@@ -109,7 +126,7 @@ class SymGAT(nn.Module):
 
 
 class GAT(nn.Module):
-    def __init__(self, in_channels, out_channels, batch_norm, dropout=None, residual=True):
+    def __init__(self, in_channels, out_channels, batch_norm, dropout=None, residual=True, rnf=False):
         super().__init__()
         if dropout:
             self.dropout = dropout
@@ -117,18 +134,26 @@ class GAT(nn.Module):
             self.dropout = 0.0
         self.batch_norm = batch_norm
         self.residual = residual
+        self.rnf = rnf
 
         if in_channels != out_channels:
             self.residual = False
 
-        self.fc = nn.Linear(in_channels, out_channels, bias=False)
+        if not self.rnf:
+            self.fc = nn.Linear(in_channels, out_channels, bias=False)
+        else:
+            self.fc = nn.Linear(in_channels * 2, out_channels, bias=False)
         self.fc_e = nn.Linear(in_channels, out_channels, bias=False)
         self.attn_fc = nn.Linear(3 * out_channels, 1, bias=False)
         self.attn_fc_e = nn.Linear(3 * out_channels, 1, bias=False)
 
         dtype=torch.float32
-        self.B_1 = nn.Linear(in_channels, out_channels, dtype=dtype)
-        self.B_2 = nn.Linear(in_channels, out_channels, dtype=dtype)
+        if not self.rnf:
+            self.B_1 = nn.Linear(in_channels, out_channels, dtype=dtype)
+            self.B_2 = nn.Linear(in_channels, out_channels, dtype=dtype)
+        else:
+            self.B_1 = nn.Linear(in_channels * 2, out_channels, dtype=dtype)
+            self.B_2 = nn.Linear(in_channels * 2, out_channels, dtype=dtype)
         self.B_3 = nn.Linear(in_channels, out_channels, dtype=dtype)
 
         self.mix_node_edge_info = nn.Linear(2 * out_channels, out_channels)
@@ -171,9 +196,15 @@ class GAT(nn.Module):
         with g.local_scope():
             h_in = h.clone()
             e_in = e.clone()
+            rnf = torch.randn_like(h)
+            h_plus_random = torch.concat([h, rnf], dim=-1)
 
-            g.ndata['B1h'] = self.B_1(h)
-            g.ndata['B2h'] = self.B_2(h)
+            if not self.rnf:
+                g.ndata['B1h'] = self.B_1(h)
+                g.ndata['B2h'] = self.B_2(h)
+            else:
+                g.ndata['B1h'] = self.B_1(h_plus_random)
+                g.ndata['B2h'] = self.B_2(h_plus_random)
             g.edata['B3e'] = self.B_3(e)
 
             g.apply_edges(fn.u_add_v('B1h', 'B2h', 'B12h'))
@@ -182,7 +213,10 @@ class GAT(nn.Module):
             if self.residual:
                 e_ji = e_ji + e_in
 
-            z = self.fc(h)
+            if not self.rnf:
+                z = self.fc(h)
+            else:
+                z = self.fc(h_plus_random)
             z_e = self.fc_e(e_ji)
             g.ndata["z"] = z
             g.edata["z_e"] = z_e
@@ -204,7 +238,7 @@ class SymGatedGCN(nn.Module):
     paper by Xavier Bresson and Thomas Laurent, ICLR 2018.
     https://arxiv.org/pdf/1711.07553v2.pdf
     """
-    def __init__(self, in_channels, out_channels, batch_norm, dropout=None, residual=True):
+    def __init__(self, in_channels, out_channels, batch_norm, dropout=None, residual=True, rnf=False):
         super().__init__()
         if dropout:
             # print(f'Using dropout: {dropout}')
@@ -214,18 +248,26 @@ class SymGatedGCN(nn.Module):
             self.dropout = 0.0
         self.batch_norm = batch_norm
         self.residual = residual
+        self.rnf = rnf
 
         if in_channels != out_channels:
             self.residual = False
 
         dtype=torch.float32
 
-        self.A_1 = nn.Linear(in_channels, out_channels, dtype=dtype)
-        self.A_2 = nn.Linear(in_channels, out_channels, dtype=dtype)
-        self.A_3 = nn.Linear(in_channels, out_channels, dtype=dtype)
+        if not self.rnf:
+            self.A_1 = nn.Linear(in_channels, out_channels, dtype=dtype)
+            self.A_2 = nn.Linear(in_channels, out_channels, dtype=dtype)
+            self.A_3 = nn.Linear(in_channels, out_channels, dtype=dtype)
+            self.B_1 = nn.Linear(in_channels, out_channels, dtype=dtype)
+            self.B_2 = nn.Linear(in_channels, out_channels, dtype=dtype)
+        else:
+            self.A_1 = nn.Linear(in_channels * 2, out_channels, dtype=dtype)
+            self.A_2 = nn.Linear(in_channels * 2, out_channels, dtype=dtype)
+            self.A_3 = nn.Linear(in_channels * 2, out_channels, dtype=dtype)
+            self.B_1 = nn.Linear(in_channels * 2, out_channels, dtype=dtype)
+            self.B_2 = nn.Linear(in_channels * 2, out_channels, dtype=dtype)
         
-        self.B_1 = nn.Linear(in_channels, out_channels, dtype=dtype)
-        self.B_2 = nn.Linear(in_channels, out_channels, dtype=dtype)
         self.B_3 = nn.Linear(in_channels, out_channels, dtype=dtype)
 
         if batch_norm: # batch normalization
@@ -284,12 +326,21 @@ class SymGatedGCN(nn.Module):
             g.ndata['h'] = h
             g.edata['e'] = e
 
-            g.ndata['A1h'] = self.A_1(h)
-            g.ndata['A2h'] = self.A_2(h)
-            g.ndata['A3h'] = self.A_3(h)
+            if not self.rnf:
+                g.ndata['A1h'] = self.A_1(h)
+                g.ndata['A2h'] = self.A_2(h)
+                g.ndata['A3h'] = self.A_3(h)
+                g.ndata['B1h'] = self.B_1(h)
+                g.ndata['B2h'] = self.B_2(h)
+            else:
+                rnf = torch.randn_like(h)
+                h_plus_random = torch.concat([h, rnf], dim=-1)
+                g.ndata['A1h'] = self.A_1(h_plus_random)
+                g.ndata['A2h'] = self.A_2(h_plus_random)
+                g.ndata['A3h'] = self.A_3(h_plus_random)
+                g.ndata['B1h'] = self.B_1(h_plus_random)
+                g.ndata['B2h'] = self.B_2(h_plus_random)
 
-            g.ndata['B1h'] = self.B_1(h)
-            g.ndata['B2h'] = self.B_2(h)
             g.edata['B3e'] = self.B_3(e)
 
             g_reverse = dgl.reverse(g, copy_ndata=True, copy_edata=True)
@@ -343,7 +394,7 @@ class GatedGCN(nn.Module):
     paper by Xavier Bresson and Thomas Laurent, ICLR 2018.
     https://arxiv.org/pdf/1711.07553v2.pdf
     """
-    def __init__(self, in_channels, out_channels, batch_norm, dropout=None, residual=True):
+    def __init__(self, in_channels, out_channels, batch_norm, dropout=None, residual=True, rnf=False):
         super().__init__()
         if dropout:
             # print(f'Using dropout: {dropout}')

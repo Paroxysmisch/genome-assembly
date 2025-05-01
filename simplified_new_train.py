@@ -295,6 +295,7 @@ class TrainingConfig(BaseModel):
     num_layers: int = 8
     num_hidden_edge_scores: int = 64
     batch_norm: bool = True
+    rnf: bool = False
     use_cuda: bool = True # Setting use_cuda to False uses an alternative PyTorch-based parallel scan implementation, rather than CUDA
 
     # Training hyperparameters
@@ -303,10 +304,10 @@ class TrainingConfig(BaseModel):
     validation_chromosomes: list[int] = [11]
     seed: int = 42
     num_epochs: int = 100
-    patience: int = 10
+    patience: int = 5
     learning_rate: float = 1e-4
     device: str = "cuda:0"
-    decay: float = 0.75
+    decay: float = 0.90
     alpha: float = 0.1
     mask_frac_low: float = 0.6
     mask_frac_high: float = 1.0
@@ -379,7 +380,7 @@ def train(cfg):
     pos_to_neg_ratio = ds_train.pos_to_neg_ratio
     validation_pos_to_neg_ratio = ds_valid.pos_to_neg_ratio
 
-    model = cfg.model_type.value(node_features, edge_features, hidden_edge_features, hidden_features, num_gnn_layers, hidden_edge_scores, batch_norm, dropout=dropout)
+    model = cfg.model_type.value(node_features, edge_features, hidden_edge_features, hidden_features, num_gnn_layers, hidden_edge_scores, batch_norm, dropout=dropout, rnf=cfg.rnf)
     model.to(device)
     if not os.path.exists(models_path):
         print(models_path)

@@ -1,0 +1,31 @@
+defaults:
+  - _self_
+
+model_type: SymGatedGCN
+num_node_features: 2
+num_edge_features: 2
+num_intermediate_hidden_features: 16
+num_hidden_features: 64
+num_layers: 8
+num_hidden_edge_scores: 64
+batch_norm: true
+rnf: false
+use_cuda: true
+
+data_dir: chm13htert-data/
+training_chromosomes:
+  - 19
+validation_chromosomes:
+  - 11
+seed: 42
+num_epochs: 100
+patience: 5
+learning_rate: 1e-4
+device: cuda:0
+decay: 0.9
+alpha: 0.1
+mask_frac_low: 0.8
+mask_frac_high: 1.0
+num_nodes_per_cluster: 2000
+overfit: false
+

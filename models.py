@@ -24,6 +24,7 @@ class SymGatedGCNModel(nn.Module):
         num_hidden_edge_scores,
         batch_norm,
         dropout=None,
+        rnf=False,
         use_cuda=True,
     ):
         super().__init__()
@@ -40,7 +41,7 @@ class SymGatedGCNModel(nn.Module):
             num_intermediate_hidden_features, num_hidden_features
         )
         self.gnn = layers.SymGatedGCN_processor(
-            num_layers, num_hidden_features, batch_norm, dropout=dropout
+            num_layers, num_hidden_features, batch_norm, dropout=dropout, rnf=rnf
         )
         self.predictor = layers.ScorePredictor(
             num_hidden_features * 3, num_hidden_edge_scores
@@ -71,6 +72,7 @@ class GATModel(nn.Module):
         num_hidden_edge_scores,
         batch_norm,
         dropout=None,
+        rnf=False,
         use_cuda=True,
     ):
         super().__init__()
@@ -87,7 +89,7 @@ class GATModel(nn.Module):
             num_intermediate_hidden_features, num_hidden_features
         )
         self.gnn = layers.GAT_processor(
-            num_layers, num_hidden_features, batch_norm, dropout=dropout
+            num_layers, num_hidden_features, batch_norm, dropout=dropout, rnf=rnf
         )
         self.predictor = layers.ScorePredictor(
             num_hidden_features * 3, num_hidden_edge_scores
@@ -118,6 +120,7 @@ class SymGATModel(nn.Module):
         num_hidden_edge_scores,
         batch_norm,
         dropout=None,
+        rnf=False,
         use_cuda=True,
     ):
         super().__init__()
@@ -134,7 +137,7 @@ class SymGATModel(nn.Module):
             num_intermediate_hidden_features, num_hidden_features
         )
         self.gnn = layers.SymGAT_processor(
-            num_layers, num_hidden_features, batch_norm, dropout=dropout
+            num_layers, num_hidden_features, batch_norm, dropout=dropout, rnf=rnf
         )
         self.predictor = layers.ScorePredictor(
             num_hidden_features * 3, num_hidden_edge_scores
@@ -164,6 +167,7 @@ class SymGatedGCNWithReadsModel(nn.Module):
         num_hidden_edge_scores,
         batch_norm,
         dropout=None,
+        rnf=False,
         use_cuda=True,
     ):
         super().__init__()
@@ -175,7 +179,7 @@ class SymGatedGCNWithReadsModel(nn.Module):
             num_gru_features=32,
         )
         self.gnn = layers.SymGatedGCN_processor(
-            num_layers, num_hidden_features, batch_norm, dropout=dropout
+            num_layers, num_hidden_features, batch_norm, dropout=dropout, rnf=rnf
         )
         self.predictor = layers.ScorePredictor(
             num_hidden_features, num_hidden_edge_scores
@@ -200,6 +204,7 @@ class SymGatedGCNMambaModel(nn.Module):
         num_hidden_edge_scores,
         batch_norm,
         dropout=None,
+        rnf=False,
         use_cuda=True,
     ):
         super().__init__()
@@ -216,7 +221,7 @@ class SymGatedGCNMambaModel(nn.Module):
             num_intermediate_hidden_features, num_hidden_features
         )
         self.gnn = layers.SymGatedGCN_processor(
-            num_layers, num_hidden_features, batch_norm, dropout=dropout
+            num_layers, num_hidden_features, batch_norm, dropout=dropout, rnf=rnf
         )
         self.use_cuda = use_cuda
         self.mamba_config = MambaConfig(d_model=4, n_layers=2, d_state=16, use_cuda=use_cuda)
@@ -259,6 +264,7 @@ class SymGatedGCNMambaOnlyModel(nn.Module):
         num_hidden_edge_scores,
         batch_norm,
         dropout=None,
+        rnf=False,
         use_cuda=True,
     ):
         super().__init__()
@@ -275,7 +281,7 @@ class SymGatedGCNMambaOnlyModel(nn.Module):
             num_hidden_features, num_hidden_features
         )
         self.gnn = layers.SymGatedGCN_processor(
-            num_layers, num_hidden_features, batch_norm, dropout=dropout
+            num_layers, num_hidden_features, batch_norm, dropout=dropout, rnf=rnf
         )
         self.use_cuda = use_cuda
         self.mamba_config = MambaConfig(d_model=4, n_layers=2, d_state=16, use_cuda=use_cuda)
@@ -327,6 +333,7 @@ class SymGatedGCNRandomEdgeModel(nn.Module):
         num_hidden_edge_scores,
         batch_norm,
         dropout=None,
+        rnf=False,
         use_cuda=True,
     ):
         super().__init__()
@@ -343,7 +350,7 @@ class SymGatedGCNRandomEdgeModel(nn.Module):
             num_hidden_features, num_hidden_features
         )
         self.gnn = layers.SymGatedGCN_processor(
-            num_layers, num_hidden_features, batch_norm, dropout=dropout
+            num_layers, num_hidden_features, batch_norm, dropout=dropout, rnf=rnf
         )
         self.use_cuda = use_cuda
         self.predictor = layers.ScorePredictor(

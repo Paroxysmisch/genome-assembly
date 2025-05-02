@@ -5,7 +5,7 @@ class SymGatedGCN_processor(nn.Module):
     def __init__(self, num_layers, hidden_features, batch_norm, dropout=None, rnf=False, granola=False):
         super().__init__()
         self.convs = nn.ModuleList([
-            layers.SymGatedGCN(hidden_features, hidden_features, batch_norm, dropout, rnf) for _ in range(num_layers)
+            layers.SymGatedGCN(hidden_features, hidden_features, batch_norm, dropout, rnf=rnf) for _ in range(num_layers)
         ])
         self.use_granola = granola
         if self.use_granola:
@@ -22,7 +22,7 @@ class GAT_processor(nn.Module):
     def __init__(self, num_layers, hidden_features, batch_norm, dropout=None, rnf=False, granola=False):
         super().__init__()
         self.convs = nn.ModuleList([
-            layers.GAT(hidden_features, hidden_features, batch_norm, dropout, rnf) for _ in range(num_layers)
+            layers.GAT(hidden_features, hidden_features, batch_norm, dropout, rnf=rnf) for _ in range(num_layers)
         ])
         self.use_granola = granola
         if self.use_granola:
@@ -39,7 +39,7 @@ class SymGAT_processor(nn.Module):
     def __init__(self, num_layers, hidden_features, batch_norm, dropout=None, rnf=False, granola=False):
         super().__init__()
         self.convs = nn.ModuleList([
-            layers.SymGAT(hidden_features, hidden_features, batch_norm, dropout, rnf) for _ in range(num_layers)
+            layers.SymGAT(hidden_features, hidden_features, batch_norm, dropout, rnf=rnf) for _ in range(num_layers)
         ])
         self.use_granola = granola
         if self.use_granola:

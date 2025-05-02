@@ -10,6 +10,7 @@ num_layers: 8
 num_hidden_edge_scores: 64
 batch_norm: true
 rnf: false
+granola: false
 use_cuda: true
 
 data_dir: chm13htert-data/

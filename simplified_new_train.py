@@ -296,6 +296,7 @@ class TrainingConfig(BaseModel):
     num_hidden_edge_scores: int = 64
     batch_norm: bool = True
     rnf: bool = False
+    granola: bool = False
     use_cuda: bool = True # Setting use_cuda to False uses an alternative PyTorch-based parallel scan implementation, rather than CUDA
 
     # Training hyperparameters
@@ -380,7 +381,7 @@ def train(cfg):
     pos_to_neg_ratio = ds_train.pos_to_neg_ratio
     validation_pos_to_neg_ratio = ds_valid.pos_to_neg_ratio
 
-    model = cfg.model_type.value(node_features, edge_features, hidden_edge_features, hidden_features, num_gnn_layers, hidden_edge_scores, batch_norm, dropout=dropout, rnf=cfg.rnf)
+    model = cfg.model_type.value(node_features, edge_features, hidden_edge_features, hidden_features, num_gnn_layers, hidden_edge_scores, batch_norm, dropout=dropout, rnf=cfg.rnf, granola=cfg.granola)
     model.to(device)
     if not os.path.exists(models_path):
         print(models_path)

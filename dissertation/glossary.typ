@@ -12,7 +12,7 @@
   (
     key: "wgs",
     short: "WGS",
-    long: "Whole-Genome Shotgun"
+    long: "Whole-Genome Sequencing"
   ),
   (
     key: "nuc_a",
@@ -82,5 +82,20 @@
     key: "gdl",
     short: "GDL",
     long: "Geometric Deep Learning"
+  ),
+  (
+    key: "rnn",
+    short: "RNN",
+    long: "Recurrent Neural Network"
+  ),
+  (
+    key: "lstm",
+    short: "LSTM",
+    long: "Long Short Term Memory"
+  ),
+  (
+    key: "lit",
+    short: "LIT",
+    long: "Linear Time Invariance"
   )
 )

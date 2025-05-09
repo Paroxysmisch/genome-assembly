@@ -97,5 +97,20 @@
     key: "lit",
     short: "LIT",
     long: "Linear Time Invariance"
+  ),
+  (
+    key: "bfs",
+    short: "BFS",
+    long: "Breadth First Search"
+  ),
+  (
+    key: "gpu",
+    short: "GPU",
+    long: "Graphics Processing Unit"
+  ),
+  (
+    key: "cpu",
+    short: "CPU",
+    long: "Central Processing Unit"
   )
 )

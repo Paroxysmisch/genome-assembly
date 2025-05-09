@@ -1,5 +1,7 @@
 #import "@preview/glossarium:0.5.6": make-glossary, register-glossary, print-glossary, gls, glspl
 #import "@preview/wordometer:0.1.4": word-count, total-words
+#import "@preview/algorithmic:0.1.0"
+#import algorithmic: algorithm
 
 #set page(margin: ("top": 20mm, "bottom": 20mm, "left": 25mm, "right": 25mm))
 #set text(size: 12pt)
@@ -260,6 +262,78 @@ The ability to select data in an input-dependent manner, along with the scan/pre
 // #pagebreak()
 
 = Design and implementation
+In this section, we detail our training and inference setup, discuss the various @gnn architectures tested, and explain our integration method of raw read data into the model.
+
+== Training and inference setup
+=== Generating the overlap graph
+The first step of generating an overlap graph is gathering the raw read data. Since we are unable to produce our own sequencing data, reads from the CHM13v2 @t2t human genome assembly are instead simulated. This simulation is performed using a utility called PBSIM3 that emulates the read profile of @pacbio @hifi long-reads according to fastq data (fastq is a format for storing the sequencing data, in addition to per-base quality scores that are crucial for our simulation) from the sequencing of the HG002 draft human reference. When simulating reads, a $times #h(0em) 60$ coverage factor is used (enough reads to cover the genome $60$ times over).
+
+For training, we choose chromosomes 19 and 15, representing both non-acrocentric, and acrocentric chromosomes (an acrocentric chromosome is one where the centromere, the region of a chromosome that holds sister chromatids together, is not located centrally in the chromsome, but towards one end). For validation and test, we likewise choose chromsomes 11 and 22, and chromosomes 9 and 21, respectively. Note that the chromosomes chosen represent the most difficult ones during assembly due to the tangles often present in their real-life overlap graphs. Additionally, the centromeric region of each of these chromosomes is extracted for generating reads, where most complexity arises. By training on only a small portion of the chromosomes present in the genome, we demonstrate the positive generalization capabilities of our neural method.
+
+Once the reads are generated, Hifiasm, a de novo assembler specifically designed for @pacbio @hifi read data, is used to generate the overlap graph. Note that no traditional graph simplification algorithms like transitive edge removal, dead-end trimming, or bubble removal, are applied. Also, it is important to note that the overlap graph produced is a symmetric overlap graph as the reads can belong to either strand of the @dna. The symmetric overlap graph consists of one graph, and its dual that contains a duplicate set of nodes representing the same reads, but with the edges reversed. This is due to an interesting property during sequencing where reads from the dual @dna strand are sequenced in reverse order along the length of the @dna.
+
+=== Overlap graph ground-truth label generation
+We refer to whether an edge belongs to the finally assembly as a boolean _label_, which is the target the @gnn aims to predict. There are two conditions for an edge to be valid (i.e. labeled true): (1) The reads the edge states overlap must be sampled from the same strand of @dna (@eq:same_strand) and have a valid overlap (@eq:valid_overlap), and (2) the edge must not lead to a read that is a dead-end. Formally, the first condition states that for reads $A$ and $B$, with edge $A -> B$:
+$
+A_"strand" = B_"strand" "(same strand)"
+$ <eq:same_strand>
+#set math.cases(reverse: true)
+$
+cases(A_"start" &< B_"start",
+A_"end" &> B_"start",
+A_"end" &< B_"end") "(valid overlap)"
+$ <eq:valid_overlap>
+
+where $X_"strand"$, $X_"start"$, $X_"end"$ refer to the strand, starting, and ending positions in the actual genome for some read $X$. Edges not satisfying this first condition are marked with the label false. Note that since the reads are simulated, we know the true strand and positions along the genome they are sampled from. To find the edges also satisfying the second property, we follow the algorithm laid out below:
+#let algorithm_1 = [#set text(size: 0.9em)
+#algorithm({
+  import algorithmic: *
+  Function("Find-Optimal-Assembly", args: ([_overlap-graph_],), {
+    Cmt[Initialize the set of edges belonging to the optimal assembly]
+    Assign[_optimal-edges_][${}$]
+    State[]
+    For(cond: [_connected-component_ *in* _overlap-graph_], {
+      Cmt[Decompose the connected-component into nodes and edges]
+      Assign[$V$, $E$][_connected_component_]
+      State[]
+      Cmt[Start search from the read at the lowest position along the genome sequence]
+      Assign[_lowest-read-node_][$"argmin"_(v thin in thin V)$ #FnI[get-read-start-loc-for-node][$v$]]
+      State[]
+      Cmt[Perform the forward @bfs]
+      Assign[_visited-nodes-forward_][${}$]
+      Assign[_visited-edges-forward_][${}$]
+      Assign[_visited-nodes-forward_, _visited-edges-forward_][#linebreak() #h(2em) #FnI[@bfs][_connected-component_, start=_lowest-read-node_]]
+      State[]
+      Cmt[Start the reverse search from the _visited_ read at the highest position]
+      Assign[_highest-read-node_][$"argmax"_(v thin in italic("visited-nodes-forward"))$ #FnI[get-read-start-loc-for-node][$v$]]
+      State[]
+      Cmt[Perform the reverse @bfs]
+      Assign[_visited-nodes-backward_][${}$]
+      Assign[_visited-edges-backward_][${}$]
+      Assign[_visited-nodes-backward_, _visited-edges-backward_][#linebreak() #h(2em) #FnI[@bfs][_connected-component_, start=_highest-read-node_]]
+      State[]
+      Cmt[The edges belonging to the final assembly are traversed by both @bfs:pl]
+      Assign[_optimal-edges_][_optimal-edges_ $union$ (_visited-edges-forward_ $inter$ _visited-edges-backward_)]
+    })
+    State[]
+    Return[_optimal-edges_]
+  })
+})]
+#algorithm_1
+
+We start from the edge whose starting read is at the lowest position along the genome and perform a @bfs from it, storing the visited nodes. From this set of visited nodes, another @bfs is performed starting from the node representing the read at the highest genomic position. Edges traversed by both of the @bfs:pl belong to the optimal assembly (called _optimal-edges_). If there are multiple connected components in the overlap graph, the process is repeated. The _optimal-edges_ are labeled as belonging to the final assembly (true)---all other edges are labeled false.
+
+=== Overlap graph masking and partitioning
+Masking and partitioning is performed during training only, with the entire graph used for performing inference. Masking is performed as a form a data augmentation to cheaply produce different sets of reads and the corresponding overlap graph. For every training step, $0$--$20%$ of the overlap graph's nodes, and corresponding edges, are removed. This simulates varying levels of read coverage up to the original $times #h(0em) 60$.
+
+Additionally, since the entire overlap graph contains $>100,000$ nodes, and cannot fit onto @gpu memory, METIS partitioning is used to divide the overlap graph. Note that inference is performed on the @cpu, which is able to access the system's main memory, and so graph partitioning is not required.
+
+=== Feature extraction and running the models
+We leave discussion of the node and edge features extracted from the overlap graph and raw read data to later sections, since they depend on the model architecture used. The models then take the overlap graph and these node and edge features as input, producing for each edge, a probability of that edge belonging to the final assembly.
+
+=== Reconstructing the genome via greedy decoding
+
+
 Brief overview of the entire process
 
 Detailed explanation of the dataset generation, which involves simuation of the reads, preprocessing the real reads, constructing the graph

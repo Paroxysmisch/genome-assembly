@@ -265,6 +265,8 @@ The ability to select data in an input-dependent manner, along with the scan/pre
 In this section, we detail our training and inference setup, discuss the various @gnn architectures tested, and explain our integration method of raw read data into the model.
 
 == Training and inference setup
+The training and inference pipeline begins by generating sequencing reads from a reference genome and constructing the corresponding overlap graph. Next, the ground-truth edge labels are computed corresponding to the optimal assembly. During training only, the overlap graph is masked and partitioned. Following this, features are extracted from the overlap graph according to the model used, and edge probability predictions are made by the model. Finally, the genome is reconstructed via greedy decoding and assembly metrics computed.
+
 === Generating the overlap graph
 The first step of generating an overlap graph is gathering the raw read data. Since we are unable to produce our own sequencing data, reads from the CHM13v2 @t2t human genome assembly are instead simulated. This simulation is performed using a utility called PBSIM3 that emulates the read profile of @pacbio @hifi long-reads according to fastq data (fastq is a format for storing the sequencing data, in addition to per-base quality scores that are crucial for our simulation) from the sequencing of the HG002 draft human reference. When simulating reads, a $times #h(0em) 60$ coverage factor is used (enough reads to cover the genome $60$ times over).
 
@@ -329,10 +331,93 @@ Masking and partitioning is performed during training only, with the entire grap
 Additionally, since the entire overlap graph contains $>100,000$ nodes, and cannot fit onto @gpu memory, METIS partitioning is used to divide the overlap graph. Note that inference is performed on the @cpu, which is able to access the system's main memory, and so graph partitioning is not required.
 
 === Feature extraction and running the models
-We leave discussion of the node and edge features extracted from the overlap graph and raw read data to later sections, since they depend on the model architecture used. The models then take the overlap graph and these node and edge features as input, producing for each edge, a probability of that edge belonging to the final assembly.
+We leave discussion of the node and edge features extracted from the overlap graph and raw read data to later sections, since they depend on the model architecture used. The models then take the overlap graph, and these node and edge features as input, producing for each edge, a probability of that edge belonging to the final assembly.
 
 === Reconstructing the genome via greedy decoding
+Once a probability has been assigned to each edge representing its likelihood of belonging to the final assembly, we apply a greedy decoding algorithm (detailed below) to extract contigs---sets of overlapping @dna fragments that together reconstruct a contiguous portion of the genome:
 
+#let algorithm_2 = [#set text(size: 0.9em)
+#algorithm({
+  import algorithmic: *
+  Function("Greedy-Decode-Contigs", args: ([_overlap-graph_],[_edge-probabilities_]), {
+    Assign[_final-assembly_][${}$]
+    State[]
+    While(cond: [_overlap-graph_ contains unvisited nodes], {
+      Cmt[Sample $B$ starting edges using an empirical distribution given by _edge-probabilities_]
+      Assign[$E$][${e_1, ..., e_B}$, where $e_i$ is an edge with probability $bb(P)(e_i) = italic("edge-probabilities")[$e_i$]$]
+      State[]
+      For(cond: [$e_i in E$], {
+        Cmt[Initialize path greedily decoded from this edge]
+        Cmt[Note that in this pseudocode although the path $p_i$ is a list of edges, we also allow for checking if a node is in the path for ease of notation]
+        Assign[$p_i$][[$e_i$]]
+        State[]
+        Cmt[Greedy forward search from $v_i$ (target node of $e_i: u_i -> v_i$)]
+        Cmt[During greedy forward search, the new edge to be traversed must be unvisited, and lead to an unvisited node]
+        While(cond: [unvisited outgoing edge from last node in $p_i$, $v_k$, exists], {
+          Cmt[Choose outgoing edge from $v_k$ with highest probability]
+          Assign[$e_k$][$"argmax"_("outgoing edge" e_k "from" v_k) bb(P)(e_k) $]
+          Cmt[Append this edge to extend the path $p_i$]
+          Assign[$p_i$][$p_i$ + [$e_k$]]
+        })
+        State[]
+        Cmt[Greedy backward search from $u_i '$ (virtual pair of source node $u_i$ of $e_i: u_i -> v_i$)]
+        Cmt[During greedy backward search, the new edge to be traversed must be unvisited, and its source must be an unvisited node]
+        While(cond: [unvisited incoming edge to first node in $p_i$, $v_j$, exists], {
+          Cmt[Choose incoming edge from $v_j$ with highest probability]
+          Assign[$e_j$][$"argmax"_("incoming edge" e_j "from" v_j) bb(P)(e_j) $]
+          Cmt[Prepend this edge to extend the path $p_i$]
+          Assign[$p_i$][[$e_j$] + $p_i$]
+        })
+        State[]
+        Cmt[Mark transitive nodes as visited]
+        For(cond: [node $v in.not p_i$], {
+          If(cond: [
+            #FnI[predecessor][$v$] $in p_i and$ #FnI[successor][$v$] $in p_i $ #linebreak() $and e:$ #FnI[predecessor][$v$] $->$ #FnI[successor][$v$] $in p_i$
+          ], {
+            FnI[mark-node-visited][$v$]
+          })
+        })
+      })
+      State[]
+      Cmt[Keep the longest path]
+      Assign[_longest-path_][$"argmax"_(p_i)$ #FnI[length][$p_i$]]
+      State[]
+      Cmt[Convert the set of reads in the _longest-path_ into a contig]
+      Assign[_contig_][#FnI[to-contig][_longest-path_]]
+      State[]
+      Cmt[Add the _contig_ to the _final-assembly_]
+      Assign[_final-assembly_][_final-assembly_ $union$ _contig_]
+      State[]
+      Cmt[The nodes (and edges) used to form the contig cannot be reused to avoid duplicating regions]
+      State[#FnI[mark-nodes-visited][_longest-path_]]
+      State[]
+      Cmt[Stop when the length of the longest contig found falls below a fixed threshold]
+      If(cond: [#FnI[length][_longest_path_] $<$ _min-contig-length_], {
+        State[break]
+      })
+    })
+    State[]
+    Return[_final-assembly_]
+  })
+})]
+#algorithm_2
+
+Recall that we are interested in finding a Hamiltonian path through the overlap graph to recover the genome. In an ideal scenario, where all neural network edge predictions are accurate and the graph contains no artifacts, a simple greedy traversal (forwards and backwards) starting from any positively predicted edge would suffice to reconstruct the genome. However, due to prediction errors and noise in the graph, neither of these conditions are met in practice, and so we use a greedy decoding algorithm.
+
+This algorithm first samples multiple high-probability seed edges and then greedily chooses a sequence of edges both forwards and backwards from each seed edge, forming a path through the assembly graph. The longest resulting path is selected and overlapping reads along that path merged into a contig. Nodes along the selected path are marked as visited to prevent their reuse in subsequent searches, and the process repeats until no path above a fixed length threshold can be found.
+
+== Model architectures
+=== SymGatedGCN
+
+=== GAT+Edge
+
+=== SymGAT+Edge
+
+=== SymGatedGCN+Mamba
+
+=== SymGatedGCN+MambaOnly
+
+=== Graph Adaptive Layer Normalization
 
 Brief overview of the entire process
 

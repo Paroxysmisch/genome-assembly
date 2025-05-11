@@ -407,7 +407,42 @@ Recall that we are interested in finding a Hamiltonian path through the overlap 
 This algorithm first samples multiple high-probability seed edges and then greedily chooses a sequence of edges both forwards and backwards from each seed edge, forming a path through the assembly graph. The longest resulting path is selected and overlapping reads along that path merged into a contig. Nodes along the selected path are marked as visited to prevent their reuse in subsequent searches, and the process repeats until no path above a fixed length threshold can be found.
 
 == Model architectures
+=== Standard input features
+Assume we are given an overlap graph $G = (V, E)$.
+
+For two overlapping reads $r_i$ and $r_j$, represented by nodes $v_i$ and $v_j$, and connected by edge $e_(i j): i -> j$ the edge feature $z_(i j) in bb(R)^2$ is defined as follows:
+$ z_(i j) = &("normalized" italic("overlap length") "between" r_i "and" r_j, \
+&"normalized" italic("overlap similarity") "between" r_i "and" r_j) $
+
+$ italic("overlap similarity") = (italic("overlap length") - italic("edit distance")) / italic("overlap length") $
+
+where normalized refers to standard z-scoring (zero mean and unit standard deviation) over the set of all edges $E$ in the overlap graph. Note that the _edit distance_ is given by approximate string matching between the overlapping suffix of $r_i$ and prefix of $r_j$.
+
+The standard node input edge features $x_i in bb(R)^2$ are given as:
+$ x_i = (italic("in-degree") "of" v_i, italic("out-degree") "of" v_i) $
+
+noting that these node features are calculated before graph masking and partitioning during training.
+
+Henceforth, $z_(i j)$ and $x_i$ will together be referred to as the standard input features.
+
+=== Standard input embedding
+The embedding of the standard input features into the initial hidden representations $h_i^0 in bb(R)^d$ for node $i$ at layer $0$, and $e_(s t)^0 in bb(R)^d$ for the edge $s -> t$ (where $s$ and $t$ are nodes) at layer 0 are computed as:
+$
+  h_i^0 &= W_2^"n" (W_1^"n" x_i + b_1^"n") + b_2^"n" \
+  e_(s t)^0 &= W_2^"e" (W_1^"e" x_i + b_1^"e") + b_2^"e"
+$
+where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable parameters for transforming the node and edge features respectively ($W_1^"n", W_1^"e" in bb(R)^(d times 2)$, $W_2^"n", W_2^"e" in bb(R)^(d times d)$, and $b_1^"n", b_1^"e", b_2^"n", b_2^"e" in bb(R)^d$), and $d$ is the hidden dimension.
+
+We refer to this formulation for $h_i^0$ and $e_(s t)^0$ as the standard input embedding.
+
 === SymGatedGCN
+Let the hidden representations of node $i$ and edge $e_(s t): s -> t$ at layer $l$ be $h_i^l$ and $e_(s t)^l$ respectively. Additionally, let $j$ denote node $i$'s predecessors and $k$ denote its successors. Each SymGatedGCN layer then transforms the hidden node and edge embeddings as follows:
+#let relu = [$italic("ReLU")$]
+#let norm = [$italic("Norm")$]
+$
+  h_i^(l + 1) = h_i^l + #relu (#norm (A_1^l h_i^l + sum_(j -> i) eta_(j i)^("f", l + 1) dot.circle A_2^l h_j^l + sum_(i -> k) eta_(i k)^("b", l + 1) dot.circle A_2^l h_j^l)) \ \ \
+  e_(s t)^(l + 1) = e_(s t)^l + #relu (#norm (B_1^l e_(s t)^l + B_2^l h_s^l + B_3^l h_t^l))
+$
 
 === GAT+Edge
 

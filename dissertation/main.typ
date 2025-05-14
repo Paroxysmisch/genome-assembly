@@ -2,6 +2,7 @@
 #import "@preview/wordometer:0.1.4": word-count, total-words
 #import "@preview/algorithmic:0.1.0"
 #import algorithmic: algorithm
+#import "@preview/subpar:0.2.2"
 
 #set page(margin: ("top": 20mm, "bottom": 20mm, "left": 25mm, "right": 25mm))
 #set text(size: 12pt)
@@ -99,6 +100,7 @@ Date [date]
 #show: word-count
 
 #set heading(numbering: "1.")
+#set place(float: true)
 
 = Introduction
 == Motivation
@@ -114,6 +116,28 @@ Historically, hierarchical sequencing and @wgs have been the two predominant str
 Due to its high cost and labour-intensive nature, heirarchical sequencing has largely been replaced by @wgs, where the genome is randomly fragmented into individually sequenced smaller segments called reads. These reads are then reassembled into a complete genome by identifying overlaps between them. Unlike hierarchical sequencing, @wgs must consider overlaps between reads spanning the entire genome, not just localized regions, which significantly increases computational complexity.
 
 A fundamental part of @wgs is the creation of the overlap graph, in which each vertex is a read. There exists a directed edge between the vertex of read $A$ and of read $B$ if the suffix of $A$ can be aligned to (i.e. overlaps with) the prefix $B$. However, in practice, this overlap graph is not perfect. Due to the computational cost of exact overlap calculations and the inherent noise in sequencing technologies, overlaps are imprecise. Additional challenges include errors in base-calling (translating the electrical signals into a sequence of nucleotides: @nuc_a, @nuc_g, @nuc_c, @nuc_t) the raw read data, long repetitive regions in the genome, and other sequencing artifacts---all of which introduce spurious nodes and edges into the graph, which must be cleaned up.
+
+#figure(
+  image("graphics/artifacts.svg", width: 90%)
+)
+
+#subpar.grid(
+  columns: (1fr, 1fr, 1fr),
+  figure(image("graphics/chr19_bubble.png"), caption: [
+    Bubble
+    #v(1em)
+  ]), <bubble>,
+  figure(image("graphics/chr21_tip.png"), caption: [
+    Dead-end/Tip
+    #v(1em)
+  ]), <tip>,
+  figure(image("graphics/chr19_tangle.png"), caption: [
+    Transitive edges
+    #v(1em)
+  ]), <tangle>,
+  caption: [A figure composed of two sub figures.],
+  label: <full>,
+)
 
 Existing methods for overlap graph simplification involve a collection of algorithms and heuristics to remove artifacts such as bubbles, dead-ends, and transitive edges. Despite their utility, these methods often struggle in complex genomic regions, where unique assembly solutions may not exist, resulting in either the omission of these complex regions in the final assembly completely, fragmenting the resulting genome assembly, or reliance on manual curation by human experts---an approach that is time-consuming, costly, and not scalable when processing thousands of genomes.
 
@@ -144,6 +168,15 @@ There are three key characteristics of sequencing reads that are often traded-of
 
 == Overlap-Layout-Consensus //https://bio.libretexts.org/Bookshelves/Computational_Biology/Book%3A_Computational_Biology_-_Genomes_Networks_and_Evolution_(Kellis_et_al.)/05%3A_Genome_Assembly_and_Whole-Genome_Alignment/5.02%3A_Genome_Assembly_I-_Overlap-Layout-Consensus_Approach
 The fundamental problem in genome sequencing is that no current technology that can read continuously from one end of the genome to the other. Instead, sequencing technologies only produce relatively short contiguous fragments called reads. Most chromosomes are $>10$ @mb long, and can be up to $1$ @gb long, while even current long-read sequencing technologies only produce accurate reads up to a few $10$s of @kb. Thus assembling the genome requires an algorithm to combine these shorter reads. @olc is the predominant approach for genome assembly with long reads. In this section, we discuss the three phases of @olc in more detail.
+
+#figure(
+  grid(
+    columns: (2.4fr, 1fr),
+    gutter: 3em,
+    [#image("graphics/overlap.svg")],
+    [#image("graphics/kmer.svg")]
+  )
+)
 
 === Overlap
 The first step is identifying overlapping reads. Read $A$ overlaps with read $B$ if the suffix of $A$ matches the prefix of $B$. While the Needleman-Wunsch dynamic programming algorithm can be used to find overlaps through pairwise alignments of reads, its $cal(O)(n^2)$ (where $n$ is the nucleotide length of the longer read) complexity for each pair of reads makes it infeasible for genome assembly involving millions, or billions of read pairs. Moreover, most read pairs do not overlap, making exhaustive pairwise alignment highly inefficient.
@@ -203,6 +236,32 @@ A @gnn consists of sequentially applied message passing layers.
 == Mamba Selective State Space Model
 Mamba is derived from the class of Structured State Space Models (S4) @mamba, combining aspects of recurrent and convolutional networks. While S4 models have a recurrent formulation, a parallelizable convolutional operation applied to a sequence yields the identical result, making them much faster than previous @rnn architectures, such as @lstm networks.
 
+// #grid(
+//   columns: (1.3fr, 1fr),
+//   gutter: 2em,
+//   align: center + horizon,
+//   grid(
+//     rows: 2,
+//     gutter: 3em,
+//     [#image("graphics/s4_cont.png")],
+//     [#image("graphics/rnn.png", width: 6cm)]
+//   ),
+//   [#image("graphics/scan.png")],
+// )
+
+#figure(
+  image("graphics/s4_continuous.svg"),
+)
+
+#figure(
+  grid(
+    columns: (1fr, 1.2fr),
+    gutter: 2em,
+    [#image("graphics/s4_discrete_recurrent.svg")],
+    [#image("graphics/s4_discrete_convolutional.svg")],
+  ) 
+)
+
 Crucially, S4 models scale better with sequence length in comparison to other parallel architectures such as Transformer. While Transformers incur quadratic complexity with sequence length, S4 models have linear, or near-linear scaling. Moreover, these models have principled mechanisms for long-range dependency modelling @ssm-long-range, critical for sequence modelling, and perform well in benchmarks such as Long Range Arena @long-range-arena. 
 
 Formally, S4 models, defined with continuous-time parameters $(Delta, bold(A), bold(B), bold(C)))$ can be formulated as follows:
@@ -217,14 +276,9 @@ Through repeated application of the recurrence relation, and simplification via 
 $ bold(dash(K)) = (C dash(B), C dash(A) dash(B), ..., C dash(A)^k dash(B), ...) $
 $ y = x star bold(dash(K)) $
 
-
-
 Although S4 can model recurrent processes with latent state across large contexts well, they are not as effective at modelling discrete, information-dense data. To address this, Mamba extends the S4 formulation by incorporating _selectivity_---the ability to select data in an input-dependent manner, helping filter out irrelevant data, and keep relevant information indefinitely. However, this breaks the time- and input-invariance that makes the convolution operation possible in S4, responsible for S4's speed. This is compensated for by replacing the convolution with a scan/prefix sum operation. 
 
 The ability to select data in an input-dependent manner, along with the scan/prefix sum in-place of convolution, together results in the Mamba _Selective_ State Space Model (henceforth referred to simply as Mamba).
-
-
-
 
 
 
@@ -263,6 +317,9 @@ The ability to select data in an input-dependent manner, along with the scan/pre
 
 = Design and implementation
 In this section, we detail our training and inference setup, discuss the various @gnn architectures tested, and explain our integration method of raw read data into the model.
+#place(top + center)[#figure(
+  image("graphics/overview.svg")
+)]
 
 == Training and inference setup
 The training and inference pipeline begins by generating sequencing reads from a reference genome and constructing the corresponding overlap graph. Next, the ground-truth edge labels are computed corresponding to the optimal assembly. During training only, the overlap graph is masked and partitioned. Following this, features are extracted from the overlap graph according to the model used, and edge probability predictions are made by the model. Finally, the genome is reconstructed via greedy decoding and assembly metrics computed.

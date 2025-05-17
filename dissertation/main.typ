@@ -5,7 +5,8 @@
 #import "@preview/subpar:0.2.2"
 
 #set page(margin: ("top": 20mm, "bottom": 20mm, "left": 25mm, "right": 25mm))
-#set text(size: 12pt)
+#set text(size: 12pt, font: "New Computer Modern")
+#show math.equation: set text(font: "New Computer Modern Math")
 #set heading(numbering: "1")
 
 #align(right)[
@@ -180,8 +181,8 @@ The fundamental problem in genome sequencing is that no current technology that 
     columns: 2,
     gutter: 4em,
     figure(image("graphics/overlap.svg"), caption: [Overlap between two reads #v(1em)]), <fig:overlap>,
-    figure(image("graphics/kmer.svg"), caption: [All 3-mers of a read #v(1em)]), <fig:kmer>,
-    caption: [(a) shows the maximal overlapping region between a pair of reads, where the alignment is found using the Needleman-Wunsch dynamic programming algorithm. (b) shows all #kmers of a read, where $k=3$.]
+    figure(image("graphics/kmer.svg"), caption: [All 3-mers present in a read #v(1em)]), <fig:kmer>,
+    caption: [(a) shows the maximal overlapping region between a pair of reads, where the alignment is found using the Needleman-Wunsch dynamic programming algorithm. (b) shows all #kmers present in an example read, where $k=3$.]
 )
 
 
@@ -198,16 +199,26 @@ This overlap information is used to construct the overlap graph in which each ve
 === Layout
 In a perfect overlap graph, free from artifacts, the genome can be reconstructed by finding a Hamiltonian path (a path that visits every vertex/read in the graph exactly once). Contemporary assemblers first simplify the overlap graph by removing spurious vertices and edges (such as bubbles, dead-ends, and transitive edges), aiming to simplify the graph into a chain. However, as previously mentioned in @sec:existing_methods, this simplification is often incomplete, or infeasible.
 
-#image("graphics/ul-strategy.svg")
+#subpar.grid(
+  columns: (1fr, 0.9fr, 1fr),
+  align: top,
+  gutter: 2em,
+  figure(image("graphics/layout_phase.svg", height: 8cm, fit: "contain"), caption: [Constructing the Overlap Graph]),
+  figure(image("graphics/sequencing_errors.svg", height: 8cm, fit: "contain"), caption: [Errors manifesting in the Overlap Graph]),
+  figure(image("graphics/resolving_repeats.svg", height: 8cm, fit: "contain"), caption: [Assembling tandem repeat regions])
+)
+
+
+
 
 This project targets this layout phase with the use of @gnn:pl. The @gnn takes a partially simplified overlap graph as input, and predicts a probability of each edge belonging to the Hamiltonian path corresponding to the genome.
 
-#image("graphics/hifiasm_ul.svg")
+
 
 === Consensus
 In this final phase, the remaining reads are mapped onto a linear assembly and per-base errors are addressed, for example by taking the most common base substring for a region where several reads overlap.
 
-== Repeating regions and the importance of long-read technology
+== Repeating regions and the need for accurate long-read technology
 // https://pmc.ncbi.nlm.nih.gov/articles/PMC1226196/
 A sequence occurring multiple times in the genome is known as a repetitive sequence, or repeat, for short. The repeat structure, rather than the genome's length, is the predominant determinant for the difficulty of assembly. Problematic repeating regions often consist of satellite repeats---short ($<100$ base pairs), almost identical @dna sequences that are repeated in tandem, as well as segmental duplications (also known as low-copy repeats) which are long ($1$--$400$ @kb) @dna regions that occur at multiple sites in the genome. A sufficiently long read may resolve such regions by bridging the repetitive segment and linking adjacent unique segments, however the lengths of these repetitive regions far exceed the lengths captured by any sequencing technology today. For instance, the pericentromeric region of human chromosome 1 contains 20 @mb of satellite repeats.
 
@@ -223,6 +234,11 @@ There are three key characteristics of sequencing reads that are often traded-of
 Due to their much increased length, @ul is critical in helping resolve tangles, repeat sequences, and other artifacts that cannot be resolved with @hifi reads alone. At present, @ul reads are more expensive than @hifi data (in part as they require large amounts of input @dna), and so are not commonplace in current sequencing projects. However, as the technology matures, they offer tremendous potential in improving the accuracy and scalability of @t2t assembly. Hence, in this project, we find exploring the incorporation of such ultra-long read data with the neural genome assembly paradigm incredibly valuable.
 
 This project utilizes @pacbio's @hifi read technology for long-read data, as well as integrating @ont @ul for ultra-long read data. The next section discusses this integration in more detail.
+
+== Integrating ultra-long data
+#image("graphics/ul-strategy.svg")
+
+#image("graphics/hifiasm_ul.svg")
 
 == Geometric Deep Learning
 @gdl is a framework leveraging the geometry in data, through groups, representations, and principles of invariance and equivariance, to learn more effective machine learning models. 

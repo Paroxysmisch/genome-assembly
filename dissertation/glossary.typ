@@ -112,5 +112,10 @@
     key: "cpu",
     short: "CPU",
     long: "Central Processing Unit"
+  ),
+  (
+    key: "ul",
+    short: "UL",
+    long: "Ultra-Long"
   )
 )

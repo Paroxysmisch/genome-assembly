@@ -101,27 +101,34 @@ Date [date]
 
 #set heading(numbering: "1.")
 #set place(float: true)
+#show figure.caption: set text(size: 0.9em)
 
 = Introduction
 == Motivation
 Genome assembly has remained a central subject in computational biology for the past four decades, as accurate reconstruction of an organism’s genome is essential in understanding its biology and evolution. By enabling researchers to map and analyze an organism's @dna, including genes, regulatory elements, and non-coding regions (segments that do not directly encode proteins), we gain insight into the organism's traits, development, and overall function. Comparative analyses of genome assemblies across species also sheds light on evolutionary relationships.
 
-In addition, assembling a large number of genomes from the same species allows scientists to study the role of genetic variation in health and disease, revealing factors that contribute to susceptibility or resistance to various conditions. This is increasingly important as we move into the realm of targeted healthcare, such as personalized drugs that are tailored to an individual by utilizing their unique genetic information, providing more effective treatment. Genome assemblies are often crucial pre-requisites for downstream biological analysis, and in this project, we demonstrate how machine learning is an effective tool in improving de novo (without relying on a pre-existing reference genome) assembly, by increasing accuracy, scalability, and speed, as well as reducing costs.
+In addition, assembling a large number of genomes from the same species allows scientists to study the role of genetic variation in health and disease, revealing factors that contribute to susceptibility or resistance to various conditions. This is increasingly important as we move into the realm of targeted healthcare, such as personalized drugs that are tailored to an individual by utilizing their unique genetic information, providing more effective treatment. 
+
+A @t2t assembly is essential in gaining complete insight into an organism's genome. A @t2t sequence represents a complete, continuous genome without gaps or fragmentation. Remarkably, achieving such assemblies has only become feasible in recent years with the advent of long-read sequencing technologies. Although the Human Genome Project concluded in 2003, the reference genome produced contained several missing regions that were challenging to assemble, with the first @t2t sequencing of human DNA only recently achieved in 2021.
+
+@T2t assemblies are a foundational requirement for several downstream biological analysis, and in this project, we demonstrate how machine learning is an effective tool in improving de novo (without relying on a pre-existing reference genome) @t2t assembly, by increasing accuracy, scalability, and speed, as well as reducing costs.
 
 == Existing methods <sec:existing_methods>
-Although the Human Genome Project concluded in 2003, the first @t2t sequencing of human DNA was only achieved in 2021. A @t2t sequence is a gapless, unfragmented genome assembly, necessary for understanding the full structural complexity of a chromosome, with telomeres being the protective structures found at the ends of chromosomes. 
-
-Historically, hierarchical sequencing and @wgs have been the two predominant strategies. Hierarchical sequencing involves cloning, sequencing, and assembly of tiled genomic fragments that are aligned against a physical or genetic genome map, with the human reference genome GRCh38 being primarily constructed with this method. 
+Historically, hierarchical sequencing and @wgs have been the two predominant assembly strategies. Hierarchical sequencing involves cloning, sequencing, and assembly of tiled genomic fragments that are aligned against a physical or genetic genome map, with the human reference genome GRCh38 being primarily constructed with this method. 
 
 Due to its high cost and labour-intensive nature, heirarchical sequencing has largely been replaced by @wgs, where the genome is randomly fragmented into individually sequenced smaller segments called reads. These reads are then reassembled into a complete genome by identifying overlaps between them. Unlike hierarchical sequencing, @wgs must consider overlaps between reads spanning the entire genome, not just localized regions, which significantly increases computational complexity.
 
-A fundamental part of @wgs is the creation of the overlap graph, in which each vertex is a read. There exists a directed edge between the vertex of read $A$ and of read $B$ if the suffix of $A$ can be aligned to (i.e. overlaps with) the prefix $B$. However, in practice, this overlap graph is not perfect. Due to the computational cost of exact overlap calculations and the inherent noise in sequencing technologies, overlaps are imprecise. Additional challenges include errors in base-calling (translating the electrical signals into a sequence of nucleotides: @nuc_a, @nuc_g, @nuc_c, @nuc_t) the raw read data, long repetitive regions in the genome, and other sequencing artifacts---all of which introduce spurious nodes and edges into the graph, which must be cleaned up.
+A fundamental part of @wgs is the creation of the overlap graph, in which each vertex is a read. There exists a directed edge between the vertex of read $A$ and of read $B$ if the suffix of $A$ can be aligned to (i.e. overlaps with) the prefix $B$. However, in practice, this overlap graph is not perfect. Due to the computational cost of exact overlap calculations and the inherent noise in sequencing technologies, overlaps are imprecise.
 
-#figure(
-  image("graphics/artifacts.svg", width: 90%)
-)
+Additional challenges include errors in base-calling (translating the electrical signals into a sequence of nucleotides: @nuc_a, @nuc_g, @nuc_c, @nuc_t) the raw read data, long repetitive regions in the genome, and other sequencing artifacts---all of which introduce spurious nodes and edges into the graph, which must be cleaned up.
 
-#subpar.grid(
+#place(top + center)[#figure(image("graphics/artifacts.svg", width: 90%), caption: [Elementary artifact types encountered in overlap graphs. Each node in this example overlap graph represents a read, and the edges correspond to overlaps between those reads.]) <fig:common_artifacts>]
+
+Existing methods for overlap graph simplification involve a collection of algorithms and heuristics to remove elementary artifacts such as bubbles, dead-ends, and transitive (shortcut) edges (@fig:common_artifacts). It is vital to note that artifacts occurring in overlap graphs are not bound to only these three categories, and do not occur in isolation. Instead, they frequently have complex interactions that lead to challenging to resolve tangles (demonstrated in @tip and @tangle). 
+
+Consequently, despite the utility of heuristic algorithms, these methods often struggle in complex genomic regions, where unique assembly solutions may not exist, resulting in either the omission of these complex regions in the final assembly completely, leading to a fragmented and incomplete result, or reliance on manual curation by human experts---an approach that is time-consuming, costly, and not scalable when processing thousands of genomes.
+
+#place(top + center)[#subpar.grid(
   columns: (1fr, 1fr, 1fr),
   figure(image("graphics/chr19_bubble.png"), caption: [
     Bubble
@@ -135,11 +142,9 @@ A fundamental part of @wgs is the creation of the overlap graph, in which each v
     Transitive edges
     #v(1em)
   ]), <tangle>,
-  caption: [A figure composed of two sub figures.],
+  caption: [The figures show common artifacts in overlap graphs generated from real read data, taken from human chromosome 19 (a, b) and 21 (c). Note that these are the very same overlap graphs that are successfully simplified and resolved by our work.],
   label: <full>,
-)
-
-Existing methods for overlap graph simplification involve a collection of algorithms and heuristics to remove artifacts such as bubbles, dead-ends, and transitive edges. Despite their utility, these methods often struggle in complex genomic regions, where unique assembly solutions may not exist, resulting in either the omission of these complex regions in the final assembly completely, fragmenting the resulting genome assembly, or reliance on manual curation by human experts---an approach that is time-consuming, costly, and not scalable when processing thousands of genomes.
+)]
 
 == Related work
 
@@ -163,27 +168,28 @@ Outline
 #pagebreak()
 
 = Background
-== Read technology
-There are three key characteristics of sequencing reads that are often traded-off during genome assembly: length, accuracy, and evenness of representation. Contemporary efforts targeting de novo @t2t assembly focus on accurate long-read technology that produces contiguous sequences spanning $>=10$ @kb in length, with @pacbio and @ont being the two companies leading their development. This project utilizes @pacbio's @hifi read technology, due to its potential to generate long reads spanning $10$--$20$ @kb in length, whilst maintaining a low error rate of $<0.5%$, and is the current core data type for high-quality genome assembly.
+
 
 == Overlap-Layout-Consensus //https://bio.libretexts.org/Bookshelves/Computational_Biology/Book%3A_Computational_Biology_-_Genomes_Networks_and_Evolution_(Kellis_et_al.)/05%3A_Genome_Assembly_and_Whole-Genome_Alignment/5.02%3A_Genome_Assembly_I-_Overlap-Layout-Consensus_Approach
 The fundamental problem in genome sequencing is that no current technology that can read continuously from one end of the genome to the other. Instead, sequencing technologies only produce relatively short contiguous fragments called reads. Most chromosomes are $>10$ @mb long, and can be up to $1$ @gb long, while even current long-read sequencing technologies only produce accurate reads up to a few $10$s of @kb. Thus assembling the genome requires an algorithm to combine these shorter reads. @olc is the predominant approach for genome assembly with long reads. In this section, we discuss the three phases of @olc in more detail.
 
-#figure(
-  grid(
-    columns: (2.4fr, 1fr),
-    gutter: 3em,
-    [#image("graphics/overlap.svg")],
-    [#image("graphics/kmer.svg")]
-  )
-)
-
-=== Overlap
-The first step is identifying overlapping reads. Read $A$ overlaps with read $B$ if the suffix of $A$ matches the prefix of $B$. While the Needleman-Wunsch dynamic programming algorithm can be used to find overlaps through pairwise alignments of reads, its $cal(O)(n^2)$ (where $n$ is the nucleotide length of the longer read) complexity for each pair of reads makes it infeasible for genome assembly involving millions, or billions of read pairs. Moreover, most read pairs do not overlap, making exhaustive pairwise alignment highly inefficient.
-
 #let kmer = [$k$-mer]
 #let kmers = [$k$-mers]
-Instead, the BLAST algorithm is used, leveraging #kmers --- unique $k$-length substrings acting as seeds for identifying overlaps. The algorithm extracts all #kmers from the reads and locates positions where multiple reads share common #kmers. An approximate similarity score is computed depending on the multiplicity and location of matching #kmers.
+
+#subpar.grid(
+    columns: 2,
+    gutter: 4em,
+    figure(image("graphics/overlap.svg"), caption: [Overlap between two reads #v(1em)]), <fig:overlap>,
+    figure(image("graphics/kmer.svg"), caption: [All 3-mers of a read #v(1em)]), <fig:kmer>,
+    caption: [(a) shows the maximal overlapping region between a pair of reads, where the alignment is found using the Needleman-Wunsch dynamic programming algorithm. (b) shows all #kmers of a read, where $k=3$.]
+)
+
+
+=== Overlap
+The first step is identifying overlapping reads. Read $A$ overlaps with read $B$ if the suffix of $A$ matches the prefix of $B$ (shown in @fig:overlap). While the Needleman-Wunsch dynamic programming algorithm can be used to find overlaps through pairwise alignments of reads, its $cal(O)(n^2)$ (where $n$ is the nucleotide length of the longer read) complexity for each pair of reads makes it infeasible for genome assembly involving millions, or billions of read pairs. Moreover, most read pairs do not overlap, making exhaustive pairwise alignment highly inefficient.
+
+
+Instead, the BLAST algorithm is used, leveraging #kmers --- unique $k$-length substrings (example #kmers for a read are displayed in @fig:kmer) acting as seeds for identifying overlaps. The algorithm extracts all #kmers from the reads and locates positions where multiple reads share common #kmers. An approximate similarity score is computed depending on the multiplicity and location of matching #kmers.
 
 Next, read pairs (matches) falling under some threshold of similarity, say $95%$, are discarded. The full alignment need only be calculated for these remaining matching reads. The matches do not need to be identical, allowing tolerance for sequencing errors (and heterozygosity for diploid(/polyploid) organisms (like humans) where there may be two variants of an allele with one from each parent at polymorphic sites in the genome).
 
@@ -192,10 +198,31 @@ This overlap information is used to construct the overlap graph in which each ve
 === Layout
 In a perfect overlap graph, free from artifacts, the genome can be reconstructed by finding a Hamiltonian path (a path that visits every vertex/read in the graph exactly once). Contemporary assemblers first simplify the overlap graph by removing spurious vertices and edges (such as bubbles, dead-ends, and transitive edges), aiming to simplify the graph into a chain. However, as previously mentioned in @sec:existing_methods, this simplification is often incomplete, or infeasible.
 
+#image("graphics/ul-strategy.svg")
+
 This project targets this layout phase with the use of @gnn:pl. The @gnn takes a partially simplified overlap graph as input, and predicts a probability of each edge belonging to the Hamiltonian path corresponding to the genome.
+
+#image("graphics/hifiasm_ul.svg")
 
 === Consensus
 In this final phase, the remaining reads are mapped onto a linear assembly and per-base errors are addressed, for example by taking the most common base substring for a region where several reads overlap.
+
+== Repeating regions and the importance of long-read technology
+// https://pmc.ncbi.nlm.nih.gov/articles/PMC1226196/
+A sequence occurring multiple times in the genome is known as a repetitive sequence, or repeat, for short. The repeat structure, rather than the genome's length, is the predominant determinant for the difficulty of assembly. Problematic repeating regions often consist of satellite repeats---short ($<100$ base pairs), almost identical @dna sequences that are repeated in tandem, as well as segmental duplications (also known as low-copy repeats) which are long ($1$--$400$ @kb) @dna regions that occur at multiple sites in the genome. A sufficiently long read may resolve such regions by bridging the repetitive segment and linking adjacent unique segments, however the lengths of these repetitive regions far exceed the lengths captured by any sequencing technology today. For instance, the pericentromeric region of human chromosome 1 contains 20 @mb of satellite repeats.
+
+Fortunately, the repeat copies forming these extended repeat regions are inexact replicas due to the mutations acquired over time, and so do not share an identical repeat sequence spanning $> 10$ @kb. Although highly accurate long reads cannot span the entire region, they can distinguish between these subtly differing inexact duplicates, with their length sufficing in bridging between the differences in the repeats. With help from the @olc algorithm detailed earlier, such repeating regions can be resolved and sequenced. It is critical that such long reads have high accuracy, as errors in the reads are otherwise indistinct to the mutations we rely on to sequence such regions.
+
+Recall that @t2t assembly is a gapless reconstruction of the genome. Although long-read technology was introduced in 2010, supported by the arrival of single-molecule sequencing, their error rate ($~10%$) was too high to resolve complex genomic section, like those exhibited by repeating regions. This resulted in fragmented, and incomplete assembly. Accurate long-read technology was only available since 2019, revolutionizing genome assembly, and making possible the first @t2t human genome assembly in 2021.
+
+== Read technology
+There are three key characteristics of sequencing reads that are often traded-off during genome assembly: length, accuracy, and evenness of representation. The ideal sequencing technology produces long, highly accurate reads, with uniform coverage across the genome---avoiding gaps in low-coverage regions, and conserving computational resources in over-represented areas. Contemporary efforts targeting de novo @t2t assembly focus on accurate long-read technology that produces contiguous sequences spanning $>=10$ @kb in length, with @pacbio and @ont being the two companies leading their development.
+
+@pacbio's @hifi read technology is the current core data type for high-quality genome assembly, due to its potential to generate reads spanning $10$--$20$ @kb in length, with an error rate $<0.5%$, replacing the previous continuous long-read solution that had an error rate $>10%$. Despite the success of long-read technology in achieving @t2t assemblies, the advent of ultra-long read technology is fast becoming a compelling additional data type to improve assembly reliability. @ont's @ul sequencing technology is central in the generation of ultra-long read data, producing reads $>100$ @kb in length, however with significantly lower accuracy than the @hifi solution.
+
+Due to their much increased length, @ul is critical in helping resolve tangles, repeat sequences, and other artifacts that cannot be resolved with @hifi reads alone. At present, @ul reads are more expensive than @hifi data (in part as they require large amounts of input @dna), and so are not commonplace in current sequencing projects. However, as the technology matures, they offer tremendous potential in improving the accuracy and scalability of @t2t assembly. Hence, in this project, we find exploring the incorporation of such ultra-long read data with the neural genome assembly paradigm incredibly valuable.
+
+This project utilizes @pacbio's @hifi read technology for long-read data, as well as integrating @ont @ul for ultra-long read data. The next section discusses this integration in more detail.
 
 == Geometric Deep Learning
 @gdl is a framework leveraging the geometry in data, through groups, representations, and principles of invariance and equivariance, to learn more effective machine learning models. 
@@ -249,18 +276,14 @@ Mamba is derived from the class of Structured State Space Models (S4) @mamba, co
 //   [#image("graphics/scan.png")],
 // )
 
-#figure(
-  image("graphics/s4_continuous.svg"),
-)
-
-#figure(
-  grid(
-    columns: (1fr, 1.2fr),
+#subpar.grid(
+    columns: (0.32fr, 0.95fr, 1fr),
+    align: center,
     gutter: 2em,
-    [#image("graphics/s4_discrete_recurrent.svg")],
-    [#image("graphics/s4_discrete_convolutional.svg")],
-  ) 
-)
+    figure(image("graphics/s4_continuous.svg", height: 4cm), caption: [S4 Cont.]),
+    figure(image("graphics/s4_discrete_recurrent.svg", height: 4cm), caption: [S4 Discrete (Recurrent)]),
+    figure(image("graphics/s4_discrete_convolutional.svg", height: 4cm), caption: [S4 Discrete (Convolutional)]),
+  )
 
 Crucially, S4 models scale better with sequence length in comparison to other parallel architectures such as Transformer. While Transformers incur quadratic complexity with sequence length, S4 models have linear, or near-linear scaling. Moreover, these models have principled mechanisms for long-range dependency modelling @ssm-long-range, critical for sequence modelling, and perform well in benchmarks such as Long Range Arena @long-range-arena. 
 

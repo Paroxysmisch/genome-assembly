@@ -8,6 +8,7 @@
 #set text(size: 12pt, font: "New Computer Modern")
 #show math.equation: set text(font: "New Computer Modern Math")
 #set heading(numbering: "1")
+#set page(background: [#v(30%) #image("graphics/chr19.png", width: 75%, height: 45%, fit: "contain")])
 
 #align(right)[
   #text(size: 1.5em)[Yash Shah]
@@ -42,7 +43,7 @@
 #let title(content) = [#v(8em) #text(size: 2em)[#content]]
 
 #counter(page).update(1)
-#set page(numbering: "i")
+#set page(numbering: "i", background: none)
 
 #title[Declaration]
 
@@ -177,13 +178,13 @@ The fundamental problem in genome sequencing is that no current technology that 
 #let kmer = [$k$-mer]
 #let kmers = [$k$-mers]
 
-#subpar.grid(
+#place(bottom + center)[#subpar.grid(
     columns: 2,
     gutter: 4em,
     figure(image("graphics/overlap.svg"), caption: [Overlap between two reads #v(1em)]), <fig:overlap>,
     figure(image("graphics/kmer.svg"), caption: [All 3-mers present in a read #v(1em)]), <fig:kmer>,
     caption: [(a) shows the maximal overlapping region between a pair of reads, where the alignment is found using the Needleman-Wunsch dynamic programming algorithm. (b) shows all #kmers present in an example read, where $k=3$.]
-)
+)]
 
 
 === Overlap
@@ -194,19 +195,20 @@ Instead, the BLAST algorithm is used, leveraging #kmers --- unique $k$-length su
 
 Next, read pairs (matches) falling under some threshold of similarity, say $95%$, are discarded. The full alignment need only be calculated for these remaining matching reads. The matches do not need to be identical, allowing tolerance for sequencing errors (and heterozygosity for diploid(/polyploid) organisms (like humans) where there may be two variants of an allele with one from each parent at polymorphic sites in the genome).
 
-This overlap information is used to construct the overlap graph in which each vertex is a read and there exists a directed edge between the vertex of read $A$ and of read $B$ if they overlap.
+This overlap information is used to construct the overlap graph in which each vertex is a read and there exists a directed edge between the vertex of read $A$ and of read $B$ if they overlap (@fig:layout_phase).
 
 === Layout
-In a perfect overlap graph, free from artifacts, the genome can be reconstructed by finding a Hamiltonian path (a path that visits every vertex/read in the graph exactly once). Contemporary assemblers first simplify the overlap graph by removing spurious vertices and edges (such as bubbles, dead-ends, and transitive edges), aiming to simplify the graph into a chain. However, as previously mentioned in @sec:existing_methods, this simplification is often incomplete, or infeasible.
+In a perfect overlap graph, free from artifacts, the genome can be reconstructed by finding a Hamiltonian path (a path that visits every vertex/read in the graph exactly once). Contemporary assemblers first simplify the overlap graph by removing spurious vertices and edges (such as bubbles, dead-ends, and transitive edges), aiming to simplify the graph into a chain. @fig:sequencing_errors shows how some of these errors form. However, as previously mentioned in @sec:existing_methods, this simplification is often incomplete, or infeasible.
 
-#subpar.grid(
+#place(top + center)[#subpar.grid(
   columns: (1fr, 0.9fr, 1fr),
   align: top,
   gutter: 2em,
-  figure(image("graphics/layout_phase.svg", height: 8cm, fit: "contain"), caption: [Constructing the Overlap Graph]),
-  figure(image("graphics/sequencing_errors.svg", height: 8cm, fit: "contain"), caption: [Errors manifesting in the Overlap Graph]),
-  figure(image("graphics/resolving_repeats.svg", height: 8cm, fit: "contain"), caption: [Assembling tandem repeat regions])
-)
+  figure(image("graphics/layout_phase.svg", height: 8cm, fit: "contain"), caption: [Constructing the Overlap Graph #v(1em)]), <fig:layout_phase>,
+  figure(image("graphics/sequencing_errors.svg", height: 8cm, fit: "contain"), caption: [Errors manifesting in the Overlap Graph #v(1em)]), <fig:sequencing_errors>,
+  figure(image("graphics/resolving_repeats.svg", height: 8cm, fit: "contain"), caption: [Assembling tandem repeat regions #v(1em)]), <fig:resolving_repeats>,
+  caption: [All figures show the reference genome to illustrate the relative genomic positions of the reads. (a) demonstrates the construction of the overlap graph from reads. Note that there are transitive edges in the resulting graph despite the presence of sequencing errors. Unitigging refers to the process of identifying a high-confidence contig---a contiguous sequence of DNA. (b) shows how artifacts manifest in the overlap graph. A sequencing error in Read 2 leads to the formation of a tip. The #text(fill: green.darken(20%))[green] regions in the reference genome correspond to segmental duplications that cannot be distinguished. Thus, the start of Read 4 appears identical to that of Read 1, leading to the creation of an erroneous transitive edge. (c) shows how a tandem repeat region in the genome (in #text(fill: red.lighten(20%))[pink]) can be resolved by using mutations in the @dna to differentiate different positions in the repetitive region. This requires exact matches to avoid addition of erroneous edges, however this exact matching can only be performed with high accuracy reads.]
+)]
 
 
 
@@ -216,13 +218,20 @@ This project targets this layout phase with the use of @gnn:pl. The @gnn takes a
 
 
 === Consensus
-In this final phase, the remaining reads are mapped onto a linear assembly and per-base errors are addressed, for example by taking the most common base substring for a region where several reads overlap.
+#place(top + center)[#figure(
+  image("graphics/consensus.svg"),
+  caption: [The consensus phase is responsible for the correction of per-base errors within contigs identified by the layout phase. Nucleotides in #text(fill: red)[red] highlight differences compared to the majority at that position.]
+)]
+
+Each path found in the previous layout phase corresponds to a contig---a contiguous sequence of @dna constructed from the set of overlapping reads in the path, representing a region of the genome. However, recall that the reads are erroneous, and overlaps are inexact---consensus is the step to address per-base errors.
+
+At any particular location within the contig, there may be multiple overlapping reads. These reads need to be aligned at the base level, and then consensus on each nucleotide reached to produce the final contig. There are multiple methods of achieving consensus post read alignment. For example, a simple majority vote can be taken for each nucleotide position, or a weighted scheme, using nucleotide quality scores as weights.
 
 == Repeating regions and the need for accurate long-read technology
 // https://pmc.ncbi.nlm.nih.gov/articles/PMC1226196/
 A sequence occurring multiple times in the genome is known as a repetitive sequence, or repeat, for short. The repeat structure, rather than the genome's length, is the predominant determinant for the difficulty of assembly. Problematic repeating regions often consist of satellite repeats---short ($<100$ base pairs), almost identical @dna sequences that are repeated in tandem, as well as segmental duplications (also known as low-copy repeats) which are long ($1$--$400$ @kb) @dna regions that occur at multiple sites in the genome. A sufficiently long read may resolve such regions by bridging the repetitive segment and linking adjacent unique segments, however the lengths of these repetitive regions far exceed the lengths captured by any sequencing technology today. For instance, the pericentromeric region of human chromosome 1 contains 20 @mb of satellite repeats.
 
-Fortunately, the repeat copies forming these extended repeat regions are inexact replicas due to the mutations acquired over time, and so do not share an identical repeat sequence spanning $> 10$ @kb. Although highly accurate long reads cannot span the entire region, they can distinguish between these subtly differing inexact duplicates, with their length sufficing in bridging between the differences in the repeats. With help from the @olc algorithm detailed earlier, such repeating regions can be resolved and sequenced. It is critical that such long reads have high accuracy, as errors in the reads are otherwise indistinct to the mutations we rely on to sequence such regions.
+Fortunately, the repeat copies forming these extended repeat regions are inexact replicas due to the mutations acquired over time, and so do not share an identical repeat sequence spanning $> 10$ @kb. Although highly accurate long reads cannot span the entire region, they can distinguish between these subtly differing inexact duplicates, with their length sufficing in bridging between the differences in the repeats. With help from the @olc algorithm detailed earlier, such repeating regions can be resolved and sequenced, as demonstrated in @fig:resolving_repeats. It is critical that such long reads have high accuracy, as errors in the reads are otherwise indistinct to the mutations we rely on to sequence such regions.
 
 Recall that @t2t assembly is a gapless reconstruction of the genome. Although long-read technology was introduced in 2010, supported by the arrival of single-molecule sequencing, their error rate ($~10%$) was too high to resolve complex genomic section, like those exhibited by repeating regions. This resulted in fragmented, and incomplete assembly. Accurate long-read technology was only available since 2019, revolutionizing genome assembly, and making possible the first @t2t human genome assembly in 2021.
 

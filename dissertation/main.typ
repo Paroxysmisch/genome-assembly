@@ -227,7 +227,7 @@ Each path found in the previous layout phase corresponds to a contig---a contigu
 
 At any particular location within the contig, there may be multiple overlapping reads. These reads need to be aligned at the base level, and then consensus on each nucleotide reached to produce the final contig. There are multiple methods of achieving consensus post read alignment. For example, a simple majority vote can be taken for each nucleotide position, or a weighted scheme, using nucleotide quality scores as weights.
 
-== Repeating regions and the need for accurate long-read technology
+== Repeating regions and the need for accurate long-read technology <sec:need_long_reads>
 // https://pmc.ncbi.nlm.nih.gov/articles/PMC1226196/
 A sequence occurring multiple times in the genome is known as a repetitive sequence, or repeat, for short. The repeat structure, rather than the genome's length, is the predominant determinant for the difficulty of assembly. Problematic repeating regions often consist of satellite repeats---short ($<100$ base pairs), almost identical @dna sequences that are repeated in tandem, as well as segmental duplications (also known as low-copy repeats) which are long ($1$--$400$ @kb) @dna regions that occur at multiple sites in the genome. A sufficiently long read may resolve such regions by bridging the repetitive segment and linking adjacent unique segments, however the lengths of these repetitive regions far exceed the lengths captured by any sequencing technology today. For instance, the pericentromeric region of human chromosome 1 contains 20 @mb of satellite repeats.
 
@@ -245,9 +245,29 @@ Due to their much increased length, @ul is critical in helping resolve tangles, 
 This project utilizes @pacbio's @hifi read technology for long-read data, as well as integrating @ont @ul for ultra-long read data. The next section discusses this integration in more detail.
 
 == Integrating ultra-long data
-#image("graphics/ul-strategy.svg")
+As shown in @sec:need_long_reads, and demonstrated in @fig:resolving_repeats, long reads are crucial in helping resolve repeating regions and tangles in assembly graphs. Longer reads are critical in improving assembly quality, but only if their accuracy is maintained. Unfortunately, current ultra-long read technology's accuracy is not high enough to replace long reads as the primary data type. Hence, we have to incorporate them as additional information into existing long-read assembly workflows. @fig:ul_strategy shows that ultra-long data can help in resolving small assembly gaps and artifacts, e.g. a bubble can be simplified by the ultra-long read bridging the bubble region, and reinforcing a unique path through that tangle.
 
-#image("graphics/hifiasm_ul.svg")
+#place(top + center)[#figure(
+  image("graphics/ul-strategy.svg"),
+  caption: [This figures illustrates how ultra-long read data can help improve assembly quality. (A) The #text(fill: orange)[amber] reads correspond to @pacbio @hifi long reads, and the #text(fill: purple)[purple] reads reference @ont @ul reads. Note that the ultra-longe reads contain more sequencing errors. (B) Error correction is applied to remove some sequencing errors. (C) Long-read data is used to generate an initial assembly graph, with the arrows representing sequences, with thin lines connecting those sequences. Note the presence of artifacts such as bubbles and gaps. (D) By threading ultra-long reads through this assembly graph, artifacts can be resolved, and assembly gaps patched.]
+) <fig:ul_strategy>]
+
+A naive method of ultra-long read integration is to construct two assembly graphs--- one solely from long reads, and the other from ultra-long reads. Then, these assembly graphs could be combined. Alternatively, the ultra-long reads could be treated simply as additional read data that is used to construct the assembly graph. Unfortunately, neither of these approaches would lead to a high quality assembly due to numerous issues.
+
+Firstly, identifying correct overlaps among ultra-long reads is particularly challenging due to their higher error rate. Secondly, the @ont @ul technology in particular suffers from an increased frequency of recurrent sequence errors, making overlap identification even more problematic in complex genomic regions. Lastly, computing all-to-all pairwise overlaps is the predominant computational bottleneck in long-read assembly. Ultra-long reads increase these computational demands even further.
+
+#place(top + center)[#figure(
+  image("graphics/hifiasm_ul.svg"),
+  caption: [Double graph framework used in Hifiasm (UL) to integrate @ont @ul reads with long-read information. (A) A string graph from only @pacbio @hifi reads is constructed, and ultra-long reads aligned to these long reads. (B) Ultra-long reads are translated from base-space to integer-space. (C) Overlaps between ultra-long reads are calculated in integer space, and an integer graph created. Contigs are then found in this integer graph. (D) The ultra-long contigs are integrated into the @hifi string graph. (E) Additional graph cleaning can be performed using ultra-long data. For example, the number of ultra-long reads supporting each edge can be tracked. In the case of the bubble, no ultra-long reads supported the alternative path, hence resolving the bubble. ]
+) <fig:hifiasm_ul>]
+
+An alternative approach, employed by Hifiasm (UL), which is the assembler utilized by this project, is the double graph framework (illustrated in @fig:hifiasm_ul) that exploits all information contained in both sets of reads. The @pacbio @hifi long-reads are initially used to create a string graph---an assembly graph preserving read information. Next, the @ont @ul reads are aligned to these @pacbio @hifi reads. This alignment information is then used to map the ultra-long reads from base-space into integer space---instead of each ultra-long read being a sequence of nucleotides, it is now a sequence of integer node identifiers from the @hifi string graph.
+
+Each ultra-long read in integer space is only $10$s of node identifiers long, instead of $100$s of @kb, allowing for cheap all-to-all overlap calculation that is also accurate---the underlying nucleotide information is from the much more accurate @hifi reads. With ultra-long overlaps calculated, an ultra-long integer (overlap) graph can be constructed, that is then used to extract ultra-long integer contigs. These ultra-long contigs can then be incorporated into the original @hifi string graph. During this integration, the additional information provided by the ultra-long contigs can help clean the original @hifi assembly (as shown in @fig:hifiasm_ul (D)).
+
+While the integration of ultra-long data may help eliminate some overlap graph artifacts, it introduces new erroneous nodes and edges too. This is a result of issues such as: ultra-long reads having a much higher error rate; reliance on imperfect alignment with long reads, and erroneous integer sequence overlap calculation. Ultra-long reads are poised to be a valuable data type moving forward, and so it is compelling to evaluate their utility with neural genome assembly.
+
+
 
 == Geometric Deep Learning
 @gdl is a framework leveraging the geometry in data, through groups, representations, and principles of invariance and equivariance, to learn more effective machine learning models. 
@@ -259,29 +279,33 @@ The key insight is that by encoding symmetry within our model architecture, we r
 Within genome assembly, we operate on input overlap graphs. By studying the symmetries of graphs by inspecting their invariances and equivariances, we develop a machine learning architecture, the @gnn, that is tailored to operate effectively on graph-structured data.
 === Permutation Invariance and Equivariance
 Let $G = (V, E)$ be a graph such that $V$ is the set of nodes representing arbitrary entities. $E subset.eq V times V$ is the set of edges such that $(u, v) in E$ encodes relationships among these nodes/entities. The complete connectivity of $G$ has an algrebric representation $bold(A) in RR^(|V| times |V|)$, the adjacency matrix such that:
-$ A_(u v) = cases(1", if"  space (v, u) in cal(E),
-                  0", if" space (v, u) in.not E) $
+$ A_(u v) = cases(1", if"  space (u, v) in E,
+                  0", if" space (u, v) in.not E) $
 
-Now assume that each node $v$ is equipped with a feature vector $bold(x)_v$. By stacking these per-node feature vectors, we get the node feature matrix $bold(X) = (bold(x_1), ..., bold(x_n))^T in |V| times k$, where $k$ is the feature dimension, with the $v^"th"$ row corresponding to $bold(x)_v$.
+Now assume that each node $v$ is equipped with a node feature vector $bold(x)_v$. By stacking these per-node feature vectors, we get the node feature matrix $bold(X) = (bold(x_1), ..., bold(x_n))^T in |V| times k^"n"$, where $k^"n"$ is the node feature dimension. $bold(X) [v]$ corresponds to $bold(x)_v$.
+
+Similarly, assume that each edge $(u, v) in E$ is equipped with an edge feature vector $bold(e)_(u v)$. The per-edge feature vectors are packed into an edge feature matrix $bold(E) in |V| times |V| times k^"e"$, where $k^"e"$ is the edge feature dimension. $bold(E) [u][v]$ corresponds to $bold(e)_(u v)$.
 
 #let perm = $bold(P)$
+#let permedge = $dash(bold(P))$
 #let features = $bold(X)$
+#let edgefeatures = $bold(E)$
 #let adj = $bold(A)$
 
 Given an arbitrary permutation matrix #perm, a function $f$ is said to be permutation _invariant_ iff
-$f(perm features, perm adj perm^T) = f(features, adj)$. Likewise, a function $bold(F)$ is said to be permutation _equivariant_ iff $bold(F)(perm features, perm adj perm^T) =  perm bold(F)(features, adj)$.
+$f(perm features, permedge edgefeatures permedge^T, perm adj perm^T) = f(features, edgefeatures, adj)$, where $forall k in k^"e". thin permedge[u, v, k] = perm$. Likewise, a function $bold(F)$ is said to be permutation _equivariant_ iff $bold(F)(perm features, permedge edgefeatures permedge^T, perm adj perm^T) =  perm bold(F)(features, edgefeatures, adj)$. These correspond to the the automorphism group of a graph---the set of all symmetry operations preserving the graph's structure i.e. the vertices are permuted in such a way that the adjacency structure is preserved.
 
 === Graph Neural Networks
 #let neighborhood = $cal(N)$
-Let $G = (V, E)$ be a graph, with $neighborhood_v = {u in V : (v,u) in E}$ representing the one-hop neighborhood  of node $v$, having node features $features_(neighborhood_v) = {{bold(x)_u: u in neighborhood_v}}$, where ${{dot}}$ denotes a multiset. 
-We define $f$, the message passing function, as a local and permutation-invariant function over the neighborhood features $features_(neighborhood_u)$ as:
-$ f(bold(x)_v, features_(neighborhood_v)) = phi.alt(bold(x)_v, plus.circle.big_(u in neighborhood_v) psi(bold(x)_v, bold(x)_u)) $
+Let $G = (V, E)$ be a graph, with $neighborhood_v = {u in V : (v,u) in E}$ representing the one-hop neighborhood  of node $v$, having node features $features_(neighborhood_v) = {{bold(x)_u: u in neighborhood_v}}$, and edge features $edgefeatures_(neighborhood_v) = {{bold(e)_(u v): u in neighborhood_v}}$, where ${{dot}}$ denotes a multiset.
+We define $f$, the message passing function, as a local and permutation-invariant function over the neighborhood features $features_(neighborhood_v)$ and $edgefeatures_(neighborhood_v)$ as:
+$ f(bold(x)_v, features_(neighborhood_v), edgefeatures_(neighborhood_v)) = phi.alt(bold(x)_v, plus.circle.big_(u in neighborhood_v) psi(bold(x)_u, bold(x)_v, bold(e)_(u v))) $
 
-where $psi$ and $phi.alt$ are learnable message, and update functions, respectively, while $plus.circle$ is a permutation-invariant aggregation function (e.g., sum, mean, max). A permutation-equivariant GNN layer $bold(F)$ is the local message passing function applied over all neighborhoods of G:
-$ bold(F)(features, adj) = mat(dash.em f(bold(x)_1, features_(neighborhood_1)) dash.em;
-                               dash.em f(bold(x)_2, features_(neighborhood_2)) dash.em;
+where $psi$ and $phi.alt$ are learnable message, and update functions, respectively, while $plus.circle$ is a permutation-invariant aggregation function (e.g., sum, mean, max). A permutation-equivariant GNN layer $bold(F)$ is the local message passing function applied over all neighborhoods of $G$:
+$ bold(F)(features, edgefeatures, adj) = mat(dash.em f(bold(x)_1, features_(neighborhood_1), edgefeatures_(neighborhood_1)) dash.em;
+                               dash.em f(bold(x)_2, features_(neighborhood_2), edgefeatures_(neighborhood_2)) dash.em;
                                dots.v;
-                               dash.em f(bold(x)_n, features_(neighborhood_n)) dash.em;) $
+                               dash.em f(bold(x)_n, features_(neighborhood_n), edgefeatures_(neighborhood_n)) dash.em;) $
 
 A @gnn consists of sequentially applied message passing layers.
 
@@ -316,7 +340,7 @@ Formally, S4 models, defined with continuous-time parameters $(Delta, bold(A), b
 $ h'(t) = bold(A) h(t) + bold(B) x(t) $
 $ y(t) = bold(C) h(t) $
 
-These equations refer to a continuous-time system, mapping a _continuous _ sequence $x(t) in bb(R) arrow.r y(t) in bb(R)$, through an implicit hidden latent space $h(t) in bb(R)^N$. For discrete data, like a sequence of bases in a read, these equations are discretized using the step size $Delta$, transforming the continuous-time parameters $(Delta, bold(A), bold(B))$ into discrete-time parameters $(bold(dash(A)), bold(dash(B)))$ through a discretization rule. This yields a new set of discrete equations:
+These equations refer to a continuous-time system, mapping a _continuous _ sequence $x(t) in bb(R) arrow.r y(t) in bb(R)$, through an implicit hidden latent space $h(t) in bb(R)^N$. For discrete data, like a sequence of bases in a read, these equations are discretized using the step size $Delta$, transforming the continuous-time parameters $(Delta, bold(A), bold(B))$ into discrete-time parameters $(bold(dash(A)), bold(dash(B)))$ through a discretization rule (Mamba Selective State Space model uses zero-order hold, where $dash(A) = exp(Delta A)$ and $dash(B) = (Delta A)^(-1)(exp(Delta A) - I) dot Delta B$). This yields a new set of discrete equations:
 $ h_t = dash(bold(A))h_(t - 1) + dash(bold(B)) x_t $
 $ y_t = bold(C)h_t $
 

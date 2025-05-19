@@ -117,5 +117,10 @@
     key: "ul",
     short: "UL",
     long: "Ultra-Long"
+  ),
+  (
+    key: "wl",
+    short: "WL",
+    long: "Weisfeiler-Lehman" 
   )
 )

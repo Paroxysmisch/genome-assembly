@@ -263,7 +263,7 @@ Firstly, identifying correct overlaps among ultra-long reads is particularly cha
 
 An alternative approach, employed by Hifiasm (UL), which is the assembler utilized by this project, is the double graph framework (illustrated in @fig:hifiasm_ul) that exploits all information contained in both sets of reads. The @pacbio @hifi long-reads are initially used to create a string graph---an assembly graph preserving read information. Next, the @ont @ul reads are aligned to these @pacbio @hifi reads. This alignment information is then used to map the ultra-long reads from base-space into integer space---instead of each ultra-long read being a sequence of nucleotides, it is now a sequence of integer node identifiers from the @hifi string graph.
 
-Each ultra-long read in integer space is only $10$s of node identifiers long, instead of $100$s of @kb, allowing for cheap all-to-all overlap calculation that is also accurate---the underlying nucleotide information is from the much more accurate @hifi reads. With ultra-long overlaps calculated, an ultra-long integer (overlap) graph can be constructed, that is then used to extract ultra-long integer contigs. These ultra-long contigs can then be incorporated into the original @hifi string graph. During this integration, the additional information provided by the ultra-long contigs can help clean the original @hifi assembly (as shown in @fig:hifiasm_ul (D)).
+Each ultra-long read in integer space is only $10$s of node identifiers long, instead of $100$s of @kb, allowing for inexpensive all-to-all overlap calculation that is also accurate---the underlying nucleotide information is from the much more accurate @hifi reads. With ultra-long overlaps calculated, an ultra-long integer (overlap) graph can be constructed, that is then used to extract ultra-long integer contigs. These ultra-long contigs can then be incorporated into the original @hifi string graph. During this integration, the additional information provided by the ultra-long contigs can help clean the original @hifi assembly (as shown in @fig:hifiasm_ul (D)).
 
 While the integration of ultra-long data may help eliminate some overlap graph artifacts, it introduces new erroneous nodes and edges too. This is a result of issues such as: ultra-long reads having a much higher error rate; reliance on imperfect alignment with long reads, and erroneous integer sequence overlap calculation. Ultra-long reads are poised to be a valuable data type moving forward, and so it is compelling to evaluate their utility with neural genome assembly.
 
@@ -295,11 +295,11 @@ Similarly, assume that each edge $(u, v) in E$ is equipped with an edge feature 
 Given an arbitrary permutation matrix #perm, a function $f$ is said to be permutation _invariant_ iff
 $f(perm features, permedge edgefeatures permedge^T, perm adj perm^T) = f(features, edgefeatures, adj)$, where $forall k in k^"e". thin permedge[u, v, k] = perm$. Likewise, a function $bold(F)$ is said to be permutation _equivariant_ iff $bold(F)(perm features, permedge edgefeatures permedge^T, perm adj perm^T) =  perm bold(F)(features, edgefeatures, adj)$. These correspond to the the automorphism group of a graph---the set of all symmetry operations preserving the graph's structure i.e. the vertices are permuted in such a way that the adjacency structure is preserved.
 
-=== Graph Neural Networks
+=== Graph Neural Networks <section:gnn>
 #let neighborhood = $cal(N)$
 Let $G = (V, E)$ be a graph, with $neighborhood_v = {u in V : (v,u) in E}$ representing the one-hop neighborhood  of node $v$, having node features $features_(neighborhood_v) = {{bold(x)_u: u in neighborhood_v}}$, and edge features $edgefeatures_(neighborhood_v) = {{bold(e)_(u v): u in neighborhood_v}}$, where ${{dot}}$ denotes a multiset.
 We define $f$, the message passing function, as a local and permutation-invariant function over the neighborhood features $features_(neighborhood_v)$ and $edgefeatures_(neighborhood_v)$ as:
-$ f(bold(x)_v, features_(neighborhood_v), edgefeatures_(neighborhood_v)) = phi.alt(bold(x)_v, plus.circle.big_(u in neighborhood_v) psi(bold(x)_u, bold(x)_v, bold(e)_(u v))) $
+$ f(bold(x)_v, features_(neighborhood_v), edgefeatures_(neighborhood_v)) = phi.alt(bold(x)_v, plus.circle.big_(u in neighborhood_v) psi(bold(x)_u, bold(x)_v, bold(e)_(u v))) $ <eq:gnn_message_passing>
 
 where $psi$ and $phi.alt$ are learnable message, and update functions, respectively, while $plus.circle$ is a permutation-invariant aggregation function (e.g., sum, mean, max). A permutation-equivariant GNN layer $bold(F)$ is the local message passing function applied over all neighborhoods of $G$:
 $ bold(F)(features, edgefeatures, adj) = mat(dash.em f(bold(x)_1, features_(neighborhood_1), edgefeatures_(neighborhood_1)) dash.em;
@@ -308,6 +308,50 @@ $ bold(F)(features, edgefeatures, adj) = mat(dash.em f(bold(x)_1, features_(neig
                                dash.em f(bold(x)_n, features_(neighborhood_n), edgefeatures_(neighborhood_n)) dash.em;) $
 
 A @gnn consists of sequentially applied message passing layers.
+
+=== Expressivity of Graph Neural Networks
+Graphs $G_1$ and $G_2$ are considered isomorphic if they encode the same adjacency structure under some permutation of their nodes. Although @gnn:pl are powerful graph processing tools, they are unable to solve all tasks on a graph accurately.
+
+A @gnn is able to distinguish two non-isomorphic graphs $G_1$ and $G_2$, if it maps them to differing graph embeddings (in $RR^d$, for some arbitrary dimension $d in NN$) i.e. $bold(h)_(G_1) eq.not bold(h)_(G_2)$. The ability to distinguish non-isomorphic graphs is important as without this capability, solving a task requiring discriminating between them is unachievable. This graph isomorphism problem is also challenging, we no known polynomial-time algorithm known for it yet.
+
+The expressive power of a @gnn is assessed by the set of graphs that they can distinguish (mapping them to different embeddings if, and only if, the graphs are non-isomorphic). Formally, assume that the set of all @gnn:pl is given by the set $PP$, and the set of all graphs is given by the set $GG$. Now, further assume that $P_1, P_2 in GG$ are arbitrary @gnn:pl, and that the set of graphs distinguishable by $P_1$ and $P_2$ are $DD_(P_1), DD_(P_2) subset.eq GG$). We then define the expressive power partial ordering over $PP$, $prec.eq$ , as:
+$
+  P_1 prec.eq P_2 <==> DD_(PP_1) subset.eq DD_(PP_2)
+$
+and consequently, we also have $P_1 prec P_2 <==> DD_(PP_1) subset DD_(PP_2)$.
+
+It has been proven that the @gnn formulation laid out in @section:gnn is at most as powerful at distinguishing non-topologically identical graphs as the @wl test (note the similarity to @gnn message passing in @eq:gnn_message_passing):
+
+#let wl_test = [#set text(size: 0.9em)
+#algorithm({
+  import algorithmic: *
+  Function("Weisfeiler-Lehman-Test", args: ([$G_1 = (V_1, E_1)$],[$G_2 = (V_2, E_2)$],), {
+    Cmt[Note that this is more specifically the 1-@wl test]
+    State[]
+    Cmt[Assign identical starting colors to each node in both graphs]
+    Assign[$forall u in V_1, thin thin thin thin c_(u, G_1)$][$c_0$]
+    Assign[$forall v in V_2, thin thin thin thin c_(v, G_2)$][$c_0$]
+    State[]
+    While(cond: [colors are not stable], {
+      Cmt[Update each node's color]
+      Cmt[Note that $"HASH"$ is some color hashing function]
+      State[]
+      Assign[$forall u in V_1, thin thin thin thin c_(u, G_1)^(t)$][$"HASH"(c_(u, G_1)^(t - 1), {{c_(w, G_1)^(t - 1)}}_(w in cal(N)_u))$]
+      State[]
+      Assign[$forall v in V_2, thin thin thin thin c_(v, G_2)^(t)$][$"HASH"(c_(v, G_2)^(t - 1), {{c_(w, G_2)^(t - 1)}}_(w in cal(N)_v))$]
+    })
+    State[]
+    If(cond: [${{c_(u, G_1)^(t)}}_(u in V_1) eq.not {{c_(v, G_1)^(t)}}_(v in V_2)$], {
+      [#v(0.5em) return _not_ isomorphic]
+    })
+    Else({
+      [return _possibly_ isomorphic]
+    })
+  })
+})]
+#wl_test
+
+@gnn expressivity is an important topic for solving problems on graphs that require identifying and differentiating graph structure. Since the layout problem in genome assembly is fundamentally about graph structure, this is a critical area of interest.
 
 == Mamba Selective State Space Model
 Mamba is derived from the class of Structured State Space Models (S4) @mamba, combining aspects of recurrent and convolutional networks. While S4 models have a recurrent formulation, a parallelizable convolutional operation applied to a sequence yields the identical result, making them much faster than previous @rnn architectures, such as @lstm networks.
@@ -351,6 +395,13 @@ $ y = x star bold(dash(K)) $
 Although S4 can model recurrent processes with latent state across large contexts well, they are not as effective at modelling discrete, information-dense data. To address this, Mamba extends the S4 formulation by incorporating _selectivity_---the ability to select data in an input-dependent manner, helping filter out irrelevant data, and keep relevant information indefinitely. However, this breaks the time- and input-invariance that makes the convolution operation possible in S4, responsible for S4's speed. This is compensated for by replacing the convolution with a scan/prefix sum operation. 
 
 The ability to select data in an input-dependent manner, along with the scan/prefix sum in-place of convolution, together results in the Mamba _Selective_ State Space Model (henceforth referred to simply as Mamba).
+
+#subpar.grid(
+  columns: 2,
+  gutter: 3em,
+  image("graphics/recurrent.svg", height: 8cm, fit: "contain"),
+  image("graphics/parallel_scan.svg", height: 8cm, fit: "contain"),
+)
 
 
 
@@ -600,6 +651,11 @@ Discussion of Mamba SSM
   - Problems with tokenization of DNA
 
 Explanation of the decoding process to reconstruct the genome
+
+Under each model architecture, have a box for why there is that change
+
+At the beginning of this entire section, story of we're trying to integrate extra ultra-long data -> might require better gnns
+  - But, in evaluation, since these new gnns are at the same expressivity level in the wl heirarchy, and this is a very structural problem, there is no benefit
 
 
 

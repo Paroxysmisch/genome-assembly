@@ -122,5 +122,10 @@
     key: "wl",
     short: "WL",
     long: "Weisfeiler-Lehman" 
+  ),
+  (
+    key: "s4",
+    short: "S4",
+    long: "Structured State Space Sequence"
   )
 )

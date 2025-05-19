@@ -104,6 +104,20 @@ Date [date]
 #set heading(numbering: "1.")
 #set place(float: true)
 #show figure.caption: set text(size: 0.9em)
+#show figure.caption: set align(left)
+#let subcaption = it => [
+  #set align(center)
+  #v(-1.9em)
+  #it
+  #v(1em)
+]
+#let subcaptionlong = it => [
+  #set align(center)
+  #v(-1.85em)
+  #h(1.5em)
+  #it
+  #v(1em)
+]
 
 = Introduction
 == Motivation
@@ -132,17 +146,14 @@ Consequently, despite the utility of heuristic algorithms, these methods often s
 
 #place(top + center)[#subpar.grid(
   columns: (1fr, 1fr, 1fr),
-  figure(image("graphics/chr19_bubble.png"), caption: [
+  figure(image("graphics/chr19_bubble.png"), caption: subcaption[
     Bubble
-    #v(1em)
   ]), <bubble>,
-  figure(image("graphics/chr21_tip.png"), caption: [
+  figure(image("graphics/chr21_tip.png"), caption: subcaption[
     Dead-end/Tip
-    #v(1em)
   ]), <tip>,
-  figure(image("graphics/chr19_tangle.png"), caption: [
+  figure(image("graphics/chr19_tangle.png"), caption: subcaption[
     Transitive edges
-    #v(1em)
   ]), <tangle>,
   caption: [The figures show common artifacts in overlap graphs generated from real read data, taken from human chromosome 19 (a, b) and 21 (c). Note that these are the very same overlap graphs that are successfully simplified and resolved by our work.],
   label: <full>,
@@ -181,8 +192,8 @@ The fundamental problem in genome sequencing is that no current technology that 
 #place(bottom + center)[#subpar.grid(
     columns: 2,
     gutter: 4em,
-    figure(image("graphics/overlap.svg"), caption: [Overlap between two reads #v(1em)]), <fig:overlap>,
-    figure(image("graphics/kmer.svg"), caption: [All 3-mers present in a read #v(1em)]), <fig:kmer>,
+    figure(image("graphics/overlap.svg"), caption: subcaption[Overlap between two reads]), <fig:overlap>,
+    figure(image("graphics/kmer.svg"), caption: subcaptionlong[All 3-mers present in a read]), <fig:kmer>,
     caption: [(a) shows the maximal overlapping region between a pair of reads, where the alignment is found using the Needleman-Wunsch dynamic programming algorithm. (b) shows all #kmers present in an example read, where $k=3$.]
 )]
 
@@ -191,7 +202,7 @@ The fundamental problem in genome sequencing is that no current technology that 
 The first step is identifying overlapping reads. Read $A$ overlaps with read $B$ if the suffix of $A$ matches the prefix of $B$ (shown in @fig:overlap). While the Needleman-Wunsch dynamic programming algorithm can be used to find overlaps through pairwise alignments of reads, its $cal(O)(n^2)$ (where $n$ is the nucleotide length of the longer read) complexity for each pair of reads makes it infeasible for genome assembly involving millions, or billions of read pairs. Moreover, most read pairs do not overlap, making exhaustive pairwise alignment highly inefficient.
 
 
-Instead, the BLAST algorithm is used, leveraging #kmers --- unique $k$-length substrings (example #kmers for a read are displayed in @fig:kmer) acting as seeds for identifying overlaps. The algorithm extracts all #kmers from the reads and locates positions where multiple reads share common #kmers. An approximate similarity score is computed depending on the multiplicity and location of matching #kmers.
+Instead, the BLAST algorithm is used, leveraging $k$-mers---unique $k$-length substrings (example #kmers for a read are displayed in @fig:kmer) acting as seeds for identifying overlaps. The algorithm extracts all #kmers from the reads and locates positions where multiple reads share common #kmers. An approximate similarity score is computed depending on the multiplicity and location of matching #kmers.
 
 Next, read pairs (matches) falling under some threshold of similarity, say $95%$, are discarded. The full alignment need only be calculated for these remaining matching reads. The matches do not need to be identical, allowing tolerance for sequencing errors (and heterozygosity for diploid(/polyploid) organisms (like humans) where there may be two variants of an allele with one from each parent at polymorphic sites in the genome).
 
@@ -204,9 +215,9 @@ In a perfect overlap graph, free from artifacts, the genome can be reconstructed
   columns: (1fr, 0.9fr, 1fr),
   align: top,
   gutter: 2em,
-  figure(image("graphics/layout_phase.svg", height: 8cm, fit: "contain"), caption: [Constructing the Overlap Graph #v(1em)]), <fig:layout_phase>,
-  figure(image("graphics/sequencing_errors.svg", height: 8cm, fit: "contain"), caption: [Errors manifesting in the Overlap Graph #v(1em)]), <fig:sequencing_errors>,
-  figure(image("graphics/resolving_repeats.svg", height: 8cm, fit: "contain"), caption: [Assembling tandem repeat regions #v(1em)]), <fig:resolving_repeats>,
+  figure(image("graphics/layout_phase.svg", height: 8cm, fit: "contain"), caption: subcaptionlong[Constructing the Overlap Graph]), <fig:layout_phase>,
+  figure(image("graphics/sequencing_errors.svg", height: 8cm, fit: "contain"), caption: subcaptionlong[Errors manifesting in the Overlap Graph]), <fig:sequencing_errors>,
+  figure(image("graphics/resolving_repeats.svg", height: 8cm, fit: "contain"), caption: subcaption[Assembling tandem #linebreak() repeat regions]), <fig:resolving_repeats>,
   caption: [All figures show the reference genome to illustrate the relative genomic positions of the reads. (a) demonstrates the construction of the overlap graph from reads. Note that there are transitive edges in the resulting graph despite the presence of sequencing errors. Unitigging refers to the process of identifying a high-confidence contig---a contiguous sequence of DNA. (b) shows how artifacts manifest in the overlap graph. A sequencing error in Read 2 leads to the formation of a tip. The #text(fill: green.darken(20%))[green] regions in the reference genome correspond to segmental duplications that cannot be distinguished. Thus, the start of Read 4 appears identical to that of Read 1, leading to the creation of an erroneous transitive edge. (c) shows how a tandem repeat region in the genome (in #text(fill: red.lighten(20%))[pink]) can be resolved by using mutations in the @dna to differentiate different positions in the repetitive region. This requires exact matches to avoid addition of erroneous edges, however this exact matching can only be performed with high accuracy reads.]
 )]
 
@@ -276,7 +287,7 @@ Central to @gdl are symmetries---transformations that that leave an object uncha
 
 The key insight is that by encoding symmetry within our model architecture, we restrict the space of functions that can be represented to those that respect these symmetries. This makes models more performant, improves generalization, and can make learning more sample/data efficient.
 
-Within genome assembly, we operate on input overlap graphs. By studying the symmetries of graphs by inspecting their invariances and equivariances, we develop a machine learning architecture, the @gnn, that is tailored to operate effectively on graph-structured data.
+Within genome assembly, we operate on input overlap graphs. By studying the symmetries of graphs by inspecting their invariances and equivariances, we are led to the @gnn machine learning architecture that is tailored to operate effectively on graph-structured data.
 === Permutation Invariance and Equivariance
 Let $G = (V, E)$ be a graph such that $V$ is the set of nodes representing arbitrary entities. $E subset.eq V times V$ is the set of edges such that $(u, v) in E$ encodes relationships among these nodes/entities. The complete connectivity of $G$ has an algrebric representation $bold(A) in RR^(|V| times |V|)$, the adjacency matrix such that:
 $ A_(u v) = cases(1", if"  space (u, v) in E,
@@ -354,7 +365,7 @@ It has been proven that the @gnn formulation laid out in @section:gnn is at most
 @gnn expressivity is an important topic for solving problems on graphs that require identifying and differentiating graph structure. Since the layout problem in genome assembly is fundamentally about graph structure, this is a critical area of interest.
 
 == Mamba Selective State Space Model
-Mamba is derived from the class of Structured State Space Models (S4) @mamba, combining aspects of recurrent and convolutional networks. While S4 models have a recurrent formulation, a parallelizable convolutional operation applied to a sequence yields the identical result, making them much faster than previous @rnn architectures, such as @lstm networks.
+Mamba is derived from the class of @s4 models @mamba, combining aspects of recurrent, convolutional, and classical state space models. While @s4 models have a recurrent formulation, a parallelizable convolutional operation applied to a sequence yields the identical result, making them much faster than previous @rnn architectures, such as @lstm networks.
 
 // #grid(
 //   columns: (1.3fr, 1fr),
@@ -369,40 +380,46 @@ Mamba is derived from the class of Structured State Space Models (S4) @mamba, co
 //   [#image("graphics/scan.png")],
 // )
 
-#subpar.grid(
+#place(top + center)[#subpar.grid(
     columns: (0.32fr, 0.95fr, 1fr),
     align: center,
     gutter: 2em,
-    figure(image("graphics/s4_continuous.svg", height: 4cm), caption: [S4 Cont.]),
-    figure(image("graphics/s4_discrete_recurrent.svg", height: 4cm), caption: [S4 Discrete (Recurrent)]),
-    figure(image("graphics/s4_discrete_convolutional.svg", height: 4cm), caption: [S4 Discrete (Convolutional)]),
-  )
+    figure(image("graphics/s4_continuous.svg", height: 4cm), caption: subcaptionlong[S4 Cont.]), <fig:s4_continuous>,
+    figure(image("graphics/s4_discrete_recurrent.svg", height: 4cm), caption: subcaption[S4 Discrete (Recurrent)]), <fig:s4_discrete_recurrent>,
+    figure(image("graphics/s4_discrete_convolutional.svg", height: 4cm), caption: subcaption[S4 Discrete (Convolutional)]), <fig:s4_discrete_convolutional>,
+    caption: [Illustration of the continuous-time @s4 model in (a). (b) and (c) show how the discrete @s4 model can be represented equivalently by recurrence and convolution.]
+  )]
 
-Crucially, S4 models scale better with sequence length in comparison to other parallel architectures such as Transformer. While Transformers incur quadratic complexity with sequence length, S4 models have linear, or near-linear scaling. Moreover, these models have principled mechanisms for long-range dependency modelling @ssm-long-range, critical for sequence modelling, and perform well in benchmarks such as Long Range Arena @long-range-arena. 
+Moreover, these models have principled mechanisms for long-range dependency modelling @ssm-long-range, and perform well in benchmarks such as Long Range Arena @long-range-arena. Their speed and ability to capture long-range dependencies make them compelling for sequence modelling tasks.
 
 Formally, S4 models, defined with continuous-time parameters $(Delta, bold(A), bold(B), bold(C)))$ can be formulated as follows:
 $ h'(t) = bold(A) h(t) + bold(B) x(t) $
 $ y(t) = bold(C) h(t) $
 
-These equations refer to a continuous-time system, mapping a _continuous _ sequence $x(t) in bb(R) arrow.r y(t) in bb(R)$, through an implicit hidden latent space $h(t) in bb(R)^N$. For discrete data, like a sequence of bases in a read, these equations are discretized using the step size $Delta$, transforming the continuous-time parameters $(Delta, bold(A), bold(B))$ into discrete-time parameters $(bold(dash(A)), bold(dash(B)))$ through a discretization rule (Mamba Selective State Space model uses zero-order hold, where $dash(A) = exp(Delta A)$ and $dash(B) = (Delta A)^(-1)(exp(Delta A) - I) dot Delta B$). This yields a new set of discrete equations:
+These equations refer to a continuous-time system, mapping a _continuous _ sequence $x(t) in bb(R) arrow.r y(t) in bb(R)$, through an implicit hidden latent space $h(t) in bb(R)^N$ (illustrated in @fig:s4_continuous). For discrete data however, like a sequence of bases in a read, these equations need to be discretized. Before detailing the discretization procedure, we note that having an underlying continuous-time system is beneficial as we inherit beneficial properties of continuous-time dynamics---key is smoother encoding of long-range dependencies and memory. Moreover, there are well-established connections between discretization of continuous time systems and @rnn gating mechanisms.
+
+
+Discretization is performed using the step size parameter $Delta$, transforming the continuous-time parameters $(Delta, bold(A), bold(B))$ into discrete-time parameters $(bold(dash(A)), bold(dash(B)))$ through a discretization rule. $Delta$ can be viewed as a more generalized version of the gating mechanism found in @rnn:pl. Mamba Selective State Space model uses zero-order hold as its discretization rule, where $dash(A) = exp(Delta A)$ and $dash(B) = (Delta A)^(-1)(exp(Delta A) - I) dot Delta B$). This yields a new set of discrete equations:
 $ h_t = dash(bold(A))h_(t - 1) + dash(bold(B)) x_t $
 $ y_t = bold(C)h_t $
 
-Through repeated application of the recurrence relation, and simplification via the @lit property (which states that $(Delta, bold(A), bold(B))$ and consequently $(bold(dash(A)), bold(dash(B)))$ remain constant for all time-steps), the system can be equivalently expressed as a 1-dimensional convolution over the sequence $x$ with kernel $bold(dash(K))$ ($star$ denotes the covolution operation):
+Through repeated application of the recurrence relation, and simplification via the @lit property (which states that $(Delta, bold(A), bold(B))$ and consequently $(bold(dash(A)), bold(dash(B)))$ remain constant for all time-steps), the system can be equivalently expressed as a 1-dimensional convolution (see @fig:s4_discrete_recurrent and @fig:s4_discrete_convolutional for illustration) over the sequence $x$ with kernel $bold(dash(K))$ ($star$ denotes the covolution operation):
 $ bold(dash(K)) = (C dash(B), C dash(A) dash(B), ..., C dash(A)^k dash(B), ...) $
 $ y = x star bold(dash(K)) $
 
-Although S4 can model recurrent processes with latent state across large contexts well, they are not as effective at modelling discrete, information-dense data. To address this, Mamba extends the S4 formulation by incorporating _selectivity_---the ability to select data in an input-dependent manner, helping filter out irrelevant data, and keep relevant information indefinitely. However, this breaks the time- and input-invariance that makes the convolution operation possible in S4, responsible for S4's speed. This is compensated for by replacing the convolution with a scan/prefix sum operation. 
+Since @s4 models have fixed parameters with respect to the inputs, they cannot perform content-based reasoning, essential for tasks such as language, or genome modelling. To address this, Mamba extends the S4 formulation by incorporating _selectivity_---the ability to select data in an input-dependent manner, helping filter out irrelevant data, and keep relevant information indefinitely, by making the parameters functions of the input. However, this breaks the time- and input-invariance (@lit) that allows fast convolution-based calculation. This is compensated for by replacing the convolution with a scan/prefix sum operation (@fig:recurrent and @fig:parallel_scan show how the scan/prefix sum algorithm produces the same result as recurrence). 
 
-The ability to select data in an input-dependent manner, along with the scan/prefix sum in-place of convolution, together results in the Mamba _Selective_ State Space Model (henceforth referred to simply as Mamba).
+The ability to select data in an input-dependent manner, along with the scan/prefix sum in-place of convolution, together results in the Mamba _Selective_ State Space Model (henceforth referred to simply as Mamba) (@fig:mamba_official shows the Mamba diagram from the original paper).
 
-#subpar.grid(
+#place(top + center)[#subpar.grid(
   columns: 2,
   gutter: 3em,
-  image("graphics/recurrent.svg", height: 8cm, fit: "contain"),
-  image("graphics/parallel_scan.svg", height: 8cm, fit: "contain"),
-)
+  figure(image("graphics/recurrent.svg", height: 8cm, fit: "contain"), caption: subcaptionlong[Recurrent formulation for generating @s4 hidden states]), <fig:recurrent>,
+  figure(image("graphics/parallel_scan.svg", height: 8cm, fit: "contain"), caption: subcaptionlong[Scan/Prefix sum formulation]), <fig:parallel_scan>,
+  caption: [Illustration of how the scan/prefix sum algorithm produces the same result as the recurrent (sequential) formulation in generating the @s4 hidden states in parallel. Note that, for example, $x_3$'s calculation begins before $x_2$ has been fully calculated.]
+)]
 
+#figure(image("graphics/mamba_official.png"), caption: [Mamba's selection mechanism in #text(fill:blue.darken(50%))[blue] alters parameters in an input-dependent manner.]) <fig:mamba_official>
 
 
 // Even the reference human genome has 100s of assembly gaps that are 100s of Mb (megabases) of highly repetitive or recently duplicated sequences.

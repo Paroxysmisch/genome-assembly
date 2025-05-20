@@ -127,5 +127,25 @@
     key: "s4",
     short: "S4",
     long: "Structured State Space Sequence"
+  ),
+  (
+    key: "symgatedgcn",
+    short: "SymGatedGCN",
+    long: "Symmetric Gated Graph Convolutional Network"
+  ),
+  (
+    key: "gat",
+    short: "GAT",
+    long: "Graph Attention Network"
+  ),
+  (
+    key: "mlp",
+    short: "MLP",
+    long: "Multi-Layer Perceptron"
+  ),
+  (
+    key: "gcn",
+    short: "GCN",
+    long: "Graph Convolutional Network"
   )
 )

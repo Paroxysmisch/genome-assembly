@@ -456,7 +456,9 @@ The ability to select data in an input-dependent manner, along with the scan/pre
 // #pagebreak()
 
 = Design and implementation
-In this section, we detail our training and inference setup, discuss the various @gnn architectures tested, and explain our integration method of raw read data into the model.
+Ultra-long reads have have demonstrated significant advantages in resolving complex artifacts in overlap graphs and repeating regions in genomes, and prior work has presented @gnn:pl as a viable method for improving the layout phase in the @olc algorithm. We are interested in investigating the utility of @gnn:pl in leveraging ultra-long read data to advance the capabilities of neural genome assembly methods.
+
+The integration of ultra-long reads with conventional long-read data alters the structural properties of the resulting overlap graphs. This motivates exploring alternative @gnn architectures that may better exploit the additional information available. In this chapter, we detail our training and inference setup, discuss the various @gnn architectures tested, and explain our integration method of raw read data into the model.
 #place(top + center)[#figure(
   image("graphics/overview.svg")
 )]
@@ -633,15 +635,53 @@ where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable param
 We refer to this formulation for $h_i^0$ and $e_(s t)^0$ as the standard input embedding.
 
 === SymGatedGCN
-Let the hidden representations of node $i$ and edge $e_(s t): s -> t$ at layer $l$ be $h_i^l$ and $e_(s t)^l$ respectively. Additionally, let $j$ denote node $i$'s predecessors and $k$ denote its successors. Each SymGatedGCN layer then transforms the hidden node and edge embeddings as follows:
-#let relu = [$italic("ReLU")$]
-#let norm = [$italic("Norm")$]
+Let the hidden representations of node $i$ and edge $e_(s t): s -> t$ at layer $l$ be $h_i^l$ and $e_(s t)^l$ respectively. Additionally, let $j$ denote node $i$'s predecessors and $k$ denote its successors. Each @symgatedgcn layer then transforms the hidden node and edge embeddings as follows:
+#let relu = [$"ReLU"$]
+#let norm = [$"Norm"$]
 $
   h_i^(l + 1) = h_i^l + #relu (#norm (A_1^l h_i^l + sum_(j -> i) eta_(j i)^("f", l + 1) dot.circle A_2^l h_j^l + sum_(i -> k) eta_(i k)^("b", l + 1) dot.circle A_2^l h_j^l)) \ \ \
   e_(s t)^(l + 1) = e_(s t)^l + #relu (#norm (B_1^l e_(s t)^l + B_2^l h_s^l + B_3^l h_t^l))
 $
+where all $A, B in RR^(d times d)$ are learnable parameters with hidden dimension $d$, #relu stands for Rectified Linear Unit, and #norm refers to the normalization layer used---this is discussed in more detail in @sec:granola. Note that the standard input embeddings are used for $h_i^0$ and $e_(s t)^0$. $eta_(j i)^("f", l)$ and $eta_(i k)^("b", l)$ refer to the forward, and backward gating functions respectively. The edge gates are defined according to the GatedGCN:
+$
+  eta_(j i)^("f", l) = sigma (e_(j i)^l) / (sum_(j' -> i) sigma (e_(j' i)^l) + epsilon.alt) in [0, 1]^d, #h(2.5em) eta_(i k)^("b", l) = sigma (e_(i k)^l) / (sum_(i -> k') sigma (e_(i k')^l) + epsilon.alt) in [0, 1]^d
+$
+where $sigma$ represents the sigmoid function, $epsilon.alt$ is a small value added to prevent division by 0, and $j' -> i$ represents all edges where the destination node is $i$. Likewise, $i -> k'$ represents all edges where the source node is $i$.
+
+#let modelexplanation = it => [
+  #box(fill: blue.lighten(90%), inset: 1em, stroke: blue, radius: 1em, width: 100%)[#it]
+]
+
+#modelexplanation[
+  Most conventional @gnn layers are designed to operate on undirected graphs, and therefore do not account for directional information intrinsic to overlap graphs. This limitation is problematic, since the overlap graph encodes the directional path reflecting the linear structure of the genome from start to end. @symgatedgcn aims to address this lack of expressivity by distinguishing the messages passed along the edges $(sum_(j -> i) eta_(j i)^("f", l + 1) dot.circle A_2^l h_j^l)$, to those passed along the reversed direction of the edges $(sum_(i -> k) eta_(i k)^("b", l + 1) dot.circle A_2^l h_j^l)$.
+]
 
 === GAT+Edge
+The standard @gat architecture only focusses on node features, and so we extend this architecture to update edge features, include them in the attention calculation, and use them to also update the node features.
+
+First, updated edge features are calculated identically to @symgatedgcn:
+$ e_(s t)^(l + 1) = e_(s t)^l + #relu (#norm (B_1^l e_(s t)^l + B_2^l h_s^l + B_3^l h_t^l)) $
+
+There are now two shared attention mechanisms, $a^"n"$ and $a^"e"$, which compute the attention coefficients for nodes and edges respectively ($a^"n", a^"e": RR^d times RR^d times RR^d -> RR$), and each implemented via separate, single-layer feed-forward neural networks. The attention coefficients are given as follows:
+$
+  c_(i j)^"n" &= a^"n" (h_j^l || e_(j i)^l || h_i^l) \
+  c_(i j)^"e" &= a^"e" (h_j^l || e_(j i)^l || h_i^l) \
+$
+where $c_(i j)^"n"$ indicates the importance of node $j$'s features to node $i$, and $c_(i j)^"e"$ indicates the importance of the edge $e_(j i): j -> i$ to node $i$. $||$ denotes the concatenation operator along the hidden dimension. These coefficients are then normalized over all $j$ to make them comparable across nodes, via softmax:
+$
+  alpha_(i j)^"n" &= "softmax"_j (c_(i j)^"n") = (exp (c_(i j)^"n")) / (sum_(k in neighborhood_i) exp (c_(i k)^"n")) \
+  alpha_(i j)^"e" &= "softmax"_j (c_(i j)^"e") = (exp (c_(i j)^"e")) / (sum_(k in neighborhood_i) exp (c_(i k)^"e")) \
+$
+The updated node features are then calculated by first weighing the node and edge features by their corresponding normalized attention coefficients. Next, these node and edge features are concatenated, and passed through another single-layer feed-forward neural network, $"mix-node-edge-information"$:
+$
+  
+  h_i^(l + 1) = "mix-node-edge-information"(lr(sigma (sum_(j in neighborhood_i) alpha_(i j)^"n" bold(W)^"n" h_j^l ) ||) thin sigma (sum_(j in neighborhood_i) alpha_(i j)^"e" bold(W)^"e" e_(j i)^l ))
+$
+where $bold(W)^"n", bold(W)^"e" in RR^(d times d)$ are parameterized weight matrices.
+
+#modelexplanation[
+  We refer to our custom attention-based formulation, which incorporates edge features, as @gat+Edge. This architecture extends the original @gat by not only implicitly enabling assignment of different importances to nodes of the same neighborhood, but also across edges. Importantly, this addresses a key limitation of the standard @gcn architecture, but note that this is mitigated with the gating mechanism introduced with GatedGCN. Additionally, @gat+Edge remains a computationally efficient architecture.
+]
 
 === SymGAT+Edge
 
@@ -649,7 +689,7 @@ $
 
 === SymGatedGCN+MambaOnly
 
-=== Graph Adaptive Layer Normalization
+=== Graph Adaptive Layer Normalization <sec:granola>
 
 Brief overview of the entire process
 

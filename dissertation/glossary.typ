@@ -147,5 +147,15 @@
     key: "gcn",
     short: "GCN",
     long: "Graph Convolutional Network"
+  ),
+  (
+    key: "granola",
+    short: "GRANOLA",
+    long: "Graph Adaptive Normalization Layer"
+  ),
+  (
+    key: "rnf",
+    short: "RNF",
+    long: "Random Node Features"
   )
 )

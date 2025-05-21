@@ -752,6 +752,15 @@ where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable param
 ]
 
 === Graph Adaptive Layer Normalization <sec:granola>
+Normalization has been shown to be critical for enhancing the training stability, convergence behavior, and overall performance of neural networks. Conventional normalization techniques such as BatchNorm, InstanceNorm, and LayerNorm, have been widely adopted, but are not specifically designed to support graph-structured data. In fact, direct application of these standard normalization techniques can impair the expressive power of @gnn:pl, degrading performance significantly.
+
+Increasing the depth of a @gnn by stacking additional layers theoretically expands the class of functions it can represent, but repeated message passing operations can lead to node embeddings becoming indistinguishable---an effect known as over-smoothing. This observation is also theoretically motivated---graph convolution can be viewed as a type of Laplacian smoothing, and so its repeated applications in @gnn layers leads to embeddings having similar values. Mitigating over-smoothing is the primary motivator for many graph-specific normalization layers (e.g. PairNorm and DiffGroupNorm).
+
+Unfortunately, despite numerous efforts to develop graph-based normalization schemes, no method consistently outperforms the alternatives in all tasks and benchmarks. Furthermore, normalization schemes extended from traditional schemes such as BatchNorm and InstanceNorm, often reduce the expressive power of the @gnn. The @granola authors postulate that there are two main reasons why these alternative schemes do not provide an unambiguous performance improvement across domains. Firstly, many methods use shared affine normalization parameters across all graphs, failing to adapt to input graph-specific characteristics. Secondly, special regard should be given to the expressive power of the normalization layer itself.
+
+Since commonly used @gnn architectures are at most as powerful as the @wl graph isomorphism heuristic, any normalization layer designed using them will be unable to distinguish all input graphs, and therefore will fail to adapt the normalization parameters correctly to suit the input. More expressive architectures such as $k$-GNNs, whose design is motivated by the generalization of 1-@wl to $k$−tuples of nodes ($k$-WL), are accompanied by unacceptable computation and memory costs (e.g. $cal(O)(|V|^k)$ memory for higher-order MPNNs, where $V$ is the number of nodes in the graph).
+
+@rnf is an easy to compute (and memory efficient), yet theoretically grounded alternative technique involving concatenating a different randomly generated vector to each node feature. This simple addition not only allows distinguishing between 1-@wl indistinguishable graph pairs based on fixed local substructures, but @gnn:pl augmented with @rnf are provably universal (with high probability), and thus can approximate any function defined on graphs of fixed order. 
 
 Brief overview of the entire process
 

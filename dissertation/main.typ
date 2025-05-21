@@ -460,11 +460,12 @@ Ultra-long reads have have demonstrated significant advantages in resolving comp
 
 The integration of ultra-long reads with conventional long-read data alters the structural properties of the resulting overlap graphs. This motivates exploring alternative @gnn architectures that may better exploit the additional information available. In this chapter, we detail our training and inference setup, discuss the various @gnn architectures tested, and explain our integration method of raw read data into the model.
 #place(top + center)[#figure(
-  image("graphics/overview.svg")
-)]
+  image("graphics/overview.svg"),
+  caption: [(A) Simulated @pacbio @hifi reads are generated from a reference genome via PBSIM. Additional @ont @ul reads may also be generated. Alternatively, real read data can also be provided. The reads are then passed to Hifiasm, which constructs the corresponding overlap graph. (B) Ground-truth edge labels are computed corresponding to the optimal assembly. During training only, the overlap graph is masked and partitioned. Masking allows for data augmentation by simulating varying read coverage from $times 30$ to $times 60$. Partitioning is required to fit onto @gpu memory. (C) Features are extracted from the overlap graph according to the model used, and edge probability predictions are made by the model. Note the reversed compliment is only used by some of the @gnn models. The loss in computed relative to the ground-truth labels. (D) The genome is reconstructed via greedy decoding.]
+) <fig:overview>]
 
 == Training and inference setup
-The training and inference pipeline begins by generating sequencing reads from a reference genome and constructing the corresponding overlap graph. Next, the ground-truth edge labels are computed corresponding to the optimal assembly. During training only, the overlap graph is masked and partitioned. Following this, features are extracted from the overlap graph according to the model used, and edge probability predictions are made by the model. Finally, the genome is reconstructed via greedy decoding and assembly metrics computed.
+We detail the training and inference pipeline next. A detailed illustration can be found in @fig:overview.
 
 === Generating the overlap graph
 The first step of generating an overlap graph is gathering the raw read data. Since we are unable to produce our own sequencing data, reads from the CHM13v2 @t2t human genome assembly are instead simulated. This simulation is performed using a utility called PBSIM3 that emulates the read profile of @pacbio @hifi long-reads according to fastq data (fastq is a format for storing the sequencing data, in addition to per-base quality scores that are crucial for our simulation) from the sequencing of the HG002 draft human reference. When simulating reads, a $times #h(0em) 60$ coverage factor is used (enough reads to cover the genome $60$ times over).
@@ -606,10 +607,8 @@ Recall that we are interested in finding a Hamiltonian path through the overlap 
 This algorithm first samples multiple high-probability seed edges and then greedily chooses a sequence of edges both forwards and backwards from each seed edge, forming a path through the assembly graph. The longest resulting path is selected and overlapping reads along that path merged into a contig. Nodes along the selected path are marked as visited to prevent their reuse in subsequent searches, and the process repeats until no path above a fixed length threshold can be found.
 
 == Model architectures
-=== Standard input features
-Assume we are given an overlap graph $G = (V, E)$.
-
-For two overlapping reads $r_i$ and $r_j$, represented by nodes $v_i$ and $v_j$, and connected by edge $e_(i j): i -> j$ the edge feature $z_(i j) in bb(R)^2$ is defined as follows:
+=== Standard input features <sec:standard_input_features>
+Assume we are given an overlap graph $G = (V, E)$. For two overlapping reads $r_i$ and $r_j$, represented by nodes $v_i$ and $v_j$, and connected by edge $e_(i j): i -> j$ the edge feature $z_(i j) in bb(R)^2$ is defined as follows:
 $ z_(i j) = &("normalized" italic("overlap length") "between" r_i "and" r_j, \
 &"normalized" italic("overlap similarity") "between" r_i "and" r_j) $
 
@@ -624,11 +623,11 @@ noting that these node features are calculated before graph masking and partitio
 
 Henceforth, $z_(i j)$ and $x_i$ will together be referred to as the standard input features.
 
-=== Standard input embedding
+=== Standard input embedding <sec:standard_input_embedding>
 The embedding of the standard input features into the initial hidden representations $h_i^0 in bb(R)^d$ for node $i$ at layer $0$, and $e_(s t)^0 in bb(R)^d$ for the edge $s -> t$ (where $s$ and $t$ are nodes) at layer 0 are computed as:
 $
   h_i^0 &= W_2^"n" (W_1^"n" x_i + b_1^"n") + b_2^"n" \
-  e_(s t)^0 &= W_2^"e" (W_1^"e" x_i + b_1^"e") + b_2^"e"
+  e_(s t)^0 &= W_2^"e" (W_1^"e" z_(i j) + b_1^"e") + b_2^"e"
 $
 where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable parameters for transforming the node and edge features respectively ($W_1^"n", W_1^"e" in bb(R)^(d times 2)$, $W_2^"n", W_2^"e" in bb(R)^(d times d)$, and $b_1^"n", b_1^"e", b_2^"n", b_2^"e" in bb(R)^d$), and $d$ is the hidden dimension.
 
@@ -639,10 +638,12 @@ Let the hidden representations of node $i$ and edge $e_(s t): s -> t$ at layer $
 #let relu = [$"ReLU"$]
 #let norm = [$"Norm"$]
 $
-  h_i^(l + 1) = h_i^l + #relu (#norm (A_1^l h_i^l + sum_(j -> i) eta_(j i)^("f", l + 1) dot.circle A_2^l h_j^l + sum_(i -> k) eta_(i k)^("b", l + 1) dot.circle A_2^l h_j^l)) \ \ \
-  e_(s t)^(l + 1) = e_(s t)^l + #relu (#norm (B_1^l e_(s t)^l + B_2^l h_s^l + B_3^l h_t^l))
+  h_i^(l + 1) = h_i^l + #relu (#norm (A_1^l h_i^l + sum_(j -> i) eta_(j i)^("f", l + 1) dot.circle A_2^l h_j^l + sum_(i -> k) eta_(i k)^("b", l + 1) dot.circle A_2^l h_j^l))
 $
-where all $A, B in RR^(d times d)$ are learnable parameters with hidden dimension $d$, #relu stands for Rectified Linear Unit, and #norm refers to the normalization layer used---this is discussed in more detail in @sec:granola. Note that the standard input embeddings are used for $h_i^0$ and $e_(s t)^0$. $eta_(j i)^("f", l)$ and $eta_(i k)^("b", l)$ refer to the forward, and backward gating functions respectively. The edge gates are defined according to the GatedGCN:
+$
+  e_(s t)^(l + 1) = e_(s t)^l + #relu (#norm (B_1^l e_(s t)^l + B_2^l h_s^l + B_3^l h_t^l))
+$ <eq:edge_features>
+where all $A, B in RR^(d times d)$ are learnable parameters with hidden dimension $d$, #relu stands for Rectified Linear Unit, and #norm refers to the normalization layer used---this is discussed in more detail in @sec:granola. Note that the standard input embeddings (@sec:standard_input_embedding) are used for $h_i^0$ and $e_(s t)^0$. $eta_(j i)^("f", l)$ and $eta_(i k)^("b", l)$ refer to the forward, and backward gating functions respectively. The edge gates are defined according to the GatedGCN:
 $
   eta_(j i)^("f", l) = sigma (e_(j i)^l) / (sum_(j' -> i) sigma (e_(j' i)^l) + epsilon.alt) in [0, 1]^d, #h(2.5em) eta_(i k)^("b", l) = sigma (e_(i k)^l) / (sum_(i -> k') sigma (e_(i k')^l) + epsilon.alt) in [0, 1]^d
 $
@@ -659,10 +660,9 @@ where $sigma$ represents the sigmoid function, $epsilon.alt$ is a small value ad
 === GAT+Edge
 The standard @gat architecture only focusses on node features, and so we extend this architecture to update edge features, include them in the attention calculation, and use them to also update the node features.
 
-First, updated edge features are calculated identically to @symgatedgcn:
-$ e_(s t)^(l + 1) = e_(s t)^l + #relu (#norm (B_1^l e_(s t)^l + B_2^l h_s^l + B_3^l h_t^l)) $
+First, updated edge features are calculated identically to @symgatedgcn (@eq:edge_features).
 
-There are now two shared attention mechanisms, $a^"n"$ and $a^"e"$, which compute the attention coefficients for nodes and edges respectively ($a^"n", a^"e": RR^d times RR^d times RR^d -> RR$), and each implemented via separate, single-layer feed-forward neural networks. The attention coefficients are given as follows:
+In contrast to the @gat architecture with a single shared attention mechanism, there are now two mechanisms, $a^"n"$ and $a^"e"$, which compute the attention coefficients for nodes and edges respectively ($a^"n", a^"e": RR^d times RR^d times RR^d -> RR$). Each mechanism is implemented via separate, single-layer feed-forward neural networks. The attention coefficients are given as follows:
 $
   c_(i j)^"n" &= a^"n" (h_j^l || e_(j i)^l || h_i^l) \
   c_(i j)^"e" &= a^"e" (h_j^l || e_(j i)^l || h_i^l) \
@@ -680,14 +680,76 @@ $
 where $bold(W)^"n", bold(W)^"e" in RR^(d times d)$ are parameterized weight matrices.
 
 #modelexplanation[
-  We refer to our custom attention-based formulation, which incorporates edge features, as @gat+Edge. This architecture extends the original @gat by not only implicitly enabling assignment of different importances to nodes of the same neighborhood, but also across edges. Importantly, this addresses a key limitation of the standard @gcn architecture, but note that this is mitigated with the gating mechanism introduced with GatedGCN. Additionally, @gat+Edge remains a computationally efficient architecture.
+  We refer to our custom attention-based formulation, which incorporates edge features, as GAT+Edge. This architecture extends the original @gat by not only implicitly enabling assignment of different importances to nodes of the same neighborhood, but also across edges. Importantly, this addresses a key limitation of the standard @gcn architecture, but note that this is mitigated with the gating mechanism introduced with GatedGCN. Additionally, GAT+Edge remains a computationally efficient architecture.
 ]
 
 === SymGAT+Edge
+With the design of this architecture, we aim to combine the symmetry feature from @symgatedgcn with the GAT+Edge architecture mentioned previously. This is done by first calculating the updated edge features $e_(s t)^(l + 1)$ identically to @symgatedgcn (@eq:edge_features).
+
+Next, a copy of the input graph $G = (V, E)$ is made, $G_"rev" = (V, E_"rev")$, such that:
+$ forall i, j in V. thick i -> j in E <==> j -> i in E_"rev" $
+$G_"rev"$ is equivalent to the original graph $G$, with the direction of all edges reversed. GAT+Edge then individually takes $G$ and $G_"rev"$ as input, producing a pair of new node features $h_i^("f", l + 1)$ and $h_i^("b", l + 1)$ respectively. These are then combined to produced to new hidden node state as follows:
+$
+  h_i^(l + 1) = h_i^l + #relu (#norm h_i^("f", l + 1) + h_i^("b", l + 1) )
+$
+
+#modelexplanation[
+  Integrating the symmetry feature from @symgatedgcn into GAT+Edge, to form SymGAT+Edge, helps to increase expressivity as messages passed along edges cannot be distinguished from messages passed along the reversed direction by the attention mechanism either. 
+]
 
 === SymGatedGCN+Mamba
+The standard input features (@sec:standard_input_features) used in prior work on neural genome assembly extract normalized overlap length and similarity from pairs of overlapping reads. However, the models have access to only these summary statistics, not the raw nucleotide read data, which could enable the model to extract more complex features, for example by capturing some notion of what is biologically plausible.
+
+While encoder-only Transformers are the contemporary choice for sequence-to-embedding tasks like this, a fundamental drawback makes them unsuitable---their quadratic complexity with respect to the sequence length. Each read is upto $10s$ of @kb long for @pacbio @hifi reads, and there are $1000$s of reads even in the partitioned overlap graph used during training (note that we cannot partition the graph to an arbitrarily small number of nodes without sustaining major losses in performance as context around the graph artifact is lost).
+
+On the other hand, @rnn architectures such as @lstm have linear complexity, but have traditionally struggled with modelling such long sequences. The key to the efficacy of Transformers, is the self-attention mechanism's ability to effectively route information from across the sequence, regardless of the distance.
+
+As a result, we turn to the Mamba architecture, which with its selectivity mechanism and parallel scan implementation, is able to model complex, long sequences, without the computational cost of Transformers.
+
+Additionally, another issue mitigated by the use of Mamba is that there is no canonical tokenization for a sequence of nucleotides. Operating directly on the nucleotide sequence is important for de novo sequencing, where we have no knowledge of the underlying genome, due to the absence of a reference. The Mamba model has been previously shown to operate well directly on nucleotide sequences on tasks involving @dna modelling.
+
+The SymGatedGCN+Mamba model uses the standard input features (from @sec:standard_input_features) in addition to the Mamba encoding of the reads as additional node features. Assume we are given an overlap graph $G = (V, E)$. For read $r_i$, represented by node $v_i$, the Mamba read encoding node feature $m_i in bb(R)^d$ is generated as follows ($d$ is size of the hidden dimension).
+
+First, read $r_i in {"A, T, C, G"}^n$, which is a string of nucleotides of length $n$, is one-hot encoded to produce $r_i^"one-hot" in {0, 1}^(n times 4)$:
+$
+  r_(i, j)^"one-hot" = cases(
+    (0, 0, 0, 1) "if " r_(i j) = "A",
+    (0, 0, 1, 0) "if " r_(i j) = "T",
+    (0, 1, 0, 0) "if " r_(i j) = "C",
+    (1, 0, 0, 0) "if " r_(i j) = "G",
+  )
+$
+where $j$ refers to the $j$th nucleotide in $r_i$. Next, the one-hot encoded representation is expanded to the hidden dimension $d$ via a learned parameter matrix $bold(W)^"expand" in 4 times d$, and then the read is encoded into $r_i^"encoded" in n times d$ by Mamba:
+$
+  r_i^"encoded" = "Mamba"(r_i bold(W)^"expand")
+$
+Note that $r_i^"encoded"$ is a matrix that varies in size with the length of the read. In order to obtain a fixed length hidden encoding of the read, we simply take the last row of this matrix (indexing from 1):
+$
+  m_i = r_i^"encoded" [n]
+$
+
+The initial node and edge hidden embeddings are then given by:
+$
+  h_i^0 &= W_2^"n" (W_1^"n" (x_i || m_i) + b_1^"n") + b_2^"n" \
+  e_(s t)^0 &= W_2^"e" (W_1^"e" z_(i j) + b_1^"e") + b_2^"e"
+$
+where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable parameters for transforming the node and edge features respectively ($W_1^"n" in bb(R)^(2 + d times d), W_1^"e" in bb(R)^(d times 2)$, $W_2^"n", W_2^"e" in bb(R)^(d times d)$, and $b_1^"n", b_1^"e", b_2^"n", b_2^"e" in bb(R)^d$), and $d$ is the hidden dimension. $||$ denotes the concatenation operator.
+
+#modelexplanation[
+  The primary goal of SymGatedGCN+Mamba is to explore whether the model can exploit the raw read data to generate new (node) features that are useful in resolving overlap graph artifacts. Mamba was chosen as the read encoding model of choice due to its near-linear time complexity, long-range dependency modelling capabilities, and promising results on adjacent @dna modelling tasks.
+]
 
 === SymGatedGCN+MambaOnly
+We use the same Mamba read encoding node feature $m_i in bb(R)^d$ as in SymGatedGCN+Mamba, but remove the dependency on standard edge features (@sec:standard_input_features). The initial node and edge embeddings are now given as:
+$
+  h_i^0 &= W_2^"n" (W_1^"n" (x_i) + b_1^"n") + b_2^"n" \
+  e_(s t)^0 &= W_2^"e" (W_1^"e" (m_i || m_j) + b_1^"e") + b_2^"e"
+$
+where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable parameters for transforming the node and edge features respectively ($W_1^"n" in bb(R)^(d times 2), W_1^"e" in bb(R)^(d times 2d)$, $W_2^"n", W_2^"e" in bb(R)^(d times d)$, and $b_1^"n", b_1^"e", b_2^"n", b_2^"e" in bb(R)^d$), and $d$ is the hidden dimension. $||$ denotes the concatenation operator.
+
+#modelexplanation[
+  SymGatedGCN+MambaOnly tests whether the model can recover the overlap length and similarity metrics used earlier, from raw read data (or alternatively generate even richer embeddings).
+]
 
 === Graph Adaptive Layer Normalization <sec:granola>
 

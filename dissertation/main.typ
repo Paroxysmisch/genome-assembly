@@ -1,7 +1,8 @@
 #import "@preview/glossarium:0.5.6": make-glossary, register-glossary, print-glossary, gls, glspl
 #import "@preview/wordometer:0.1.4": word-count, total-words
-#import "@preview/algorithmic:0.1.0"
-#import algorithmic: algorithm
+#import "@preview/algorithmic:1.0.0"
+#import algorithmic: algorithm, algorithm-figure, style-algorithm
+#show: style-algorithm
 #import "@preview/subpar:0.2.2"
 
 #set page(margin: ("top": 20mm, "bottom": 20mm, "left": 25mm, "right": 25mm))
@@ -221,9 +222,6 @@ In a perfect overlap graph, free from artifacts, the genome can be reconstructed
   caption: [All figures show the reference genome to illustrate the relative genomic positions of the reads. (a) demonstrates the construction of the overlap graph from reads. Note that there are transitive edges in the resulting graph despite the presence of sequencing errors. Unitigging refers to the process of identifying a high-confidence contig---a contiguous sequence of DNA. (b) shows how artifacts manifest in the overlap graph. A sequencing error in Read 2 leads to the formation of a tip. The #text(fill: green.darken(20%))[green] regions in the reference genome correspond to segmental duplications that cannot be distinguished. Thus, the start of Read 4 appears identical to that of Read 1, leading to the creation of an erroneous transitive edge. (c) shows how a tandem repeat region in the genome (in #text(fill: red.lighten(20%))[pink]) can be resolved by using mutations in the @dna to differentiate different positions in the repetitive region. This requires exact matches to avoid addition of erroneous edges, however this exact matching can only be performed with high accuracy reads.]
 )]
 
-
-
-
 This project targets this layout phase with the use of @gnn:pl. The @gnn takes a partially simplified overlap graph as input, and predicts a probability of each edge belonging to the Hamiltonian path corresponding to the genome.
 
 
@@ -246,7 +244,7 @@ Fortunately, the repeat copies forming these extended repeat regions are inexact
 
 Recall that @t2t assembly is a gapless reconstruction of the genome. Although long-read technology was introduced in 2010, supported by the arrival of single-molecule sequencing, their error rate ($~10%$) was too high to resolve complex genomic section, like those exhibited by repeating regions. This resulted in fragmented, and incomplete assembly. Accurate long-read technology was only available since 2019, revolutionizing genome assembly, and making possible the first @t2t human genome assembly in 2021.
 
-== Read technology
+== Sequencing technology
 There are three key characteristics of sequencing reads that are often traded-off during genome assembly: length, accuracy, and evenness of representation. The ideal sequencing technology produces long, highly accurate reads, with uniform coverage across the genome---avoiding gaps in low-coverage regions, and conserving computational resources in over-represented areas. Contemporary efforts targeting de novo @t2t assembly focus on accurate long-read technology that produces contiguous sequences spanning $>=10$ @kb in length, with @pacbio and @ont being the two companies leading their development.
 
 @pacbio's @hifi read technology is the current core data type for high-quality genome assembly, due to its potential to generate reads spanning $10$--$20$ @kb in length, with an error rate $<0.5%$, replacing the previous continuous long-read solution that had an error rate $>10%$. Despite the success of long-read technology in achieving @t2t assemblies, the advent of ultra-long read technology is fast becoming a compelling additional data type to improve assembly reliability. @ont's @ul sequencing technology is central in the generation of ultra-long read data, producing reads $>100$ @kb in length, however with significantly lower accuracy than the @hifi solution.
@@ -331,36 +329,33 @@ $
 $
 and consequently, we also have $P_1 prec P_2 <==> DD_(PP_1) subset DD_(PP_2)$.
 
-It has been proven that the @gnn formulation laid out in @section:gnn is at most as powerful at distinguishing non-topologically identical graphs as the @wl test (note the similarity to @gnn message passing in @eq:gnn_message_passing):
+It has been proven that the @gnn formulation laid out in @section:gnn is at most as powerful at distinguishing non-topologically identical graphs as the 1-@wl test displayed in @alg:1-el (note the similarity to @gnn message passing in @eq:gnn_message_passing).
 
 #let wl_test = [#set text(size: 0.9em)
-#algorithm({
+#algorithm-figure("1-Weisfeiler-Lehman-Test", {
   import algorithmic: *
-  Function("Weisfeiler-Lehman-Test", args: ([$G_1 = (V_1, E_1)$],[$G_2 = (V_2, E_2)$],), {
-    Cmt[Note that this is more specifically the 1-@wl test]
-    State[]
-    Cmt[Assign identical starting colors to each node in both graphs]
+  Procedure([1-@wl], ([$G_1 = (V_1, E_1)$],[$G_2 = (V_2, E_2)$],), {
+    Comment[Assign identical starting colors to each node in both graphs]
     Assign[$forall u in V_1, thin thin thin thin c_(u, G_1)$][$c_0$]
     Assign[$forall v in V_2, thin thin thin thin c_(v, G_2)$][$c_0$]
     State[]
-    While(cond: [colors are not stable], {
-      Cmt[Update each node's color]
-      Cmt[Note that $"HASH"$ is some color hashing function]
+    While([colors are not stable], {
+      Comment[Update each node's color]
+      Comment[Note that $"HASH"$ is some color hashing function]
       State[]
-      Assign[$forall u in V_1, thin thin thin thin c_(u, G_1)^(t)$][$"HASH"(c_(u, G_1)^(t - 1), {{c_(w, G_1)^(t - 1)}}_(w in cal(N)_u))$]
-      State[]
+      Assign[$forall u in V_1, thin thin thin thin c_(u, G_1)^(t)$][$"HASH"(c_(u, G_1)^(t - 1), {{c_(w, G_1)^(t - 1)}}_(w in cal(N)_u))$ #v(1em)]
       Assign[$forall v in V_2, thin thin thin thin c_(v, G_2)^(t)$][$"HASH"(c_(v, G_2)^(t - 1), {{c_(w, G_2)^(t - 1)}}_(w in cal(N)_v))$]
     })
     State[]
-    If(cond: [${{c_(u, G_1)^(t)}}_(u in V_1) eq.not {{c_(v, G_1)^(t)}}_(v in V_2)$], {
-      [#v(0.5em) return _not_ isomorphic]
+    If([${{c_(u, G_1)^(t)}}_(u in V_1) eq.not {{c_(v, G_1)^(t)}}_(v in V_2)$], {
+      [#v(0.5em) return _not_ isomorphic #v(0.2em)]
     })
     Else({
       [return _possibly_ isomorphic]
     })
   })
-})]
-#wl_test
+}) <alg:1-el>]
+#place(top + center)[#wl_test]
 
 @gnn expressivity is an important topic for solving problems on graphs that require identifying and differentiating graph structure. Since the layout problem in genome assembly is fundamentally about graph structure, this is a critical area of interest.
 
@@ -419,7 +414,7 @@ The ability to select data in an input-dependent manner, along with the scan/pre
   caption: [Illustration of how the scan/prefix sum algorithm produces the same result as the recurrent (sequential) formulation in generating the @s4 hidden states in parallel. Note that, for example, $x_3$'s calculation begins before $x_2$ has been fully calculated.]
 )]
 
-#figure(image("graphics/mamba_official.png"), caption: [Mamba's selection mechanism in #text(fill:blue.darken(50%))[blue] alters parameters in an input-dependent manner.]) <fig:mamba_official>
+#figure(image("graphics/mamba_official.png", height: 4cm), caption: [Mamba's selection mechanism in #text(fill:blue.darken(50%))[blue] alters parameters in an input-dependent manner.]) <fig:mamba_official>
 
 
 // Even the reference human genome has 100s of assembly gaps that are 100s of Mb (megabases) of highly repetitive or recently duplicated sequences.
@@ -486,42 +481,42 @@ A_"end" &> B_"start",
 A_"end" &< B_"end") "(valid overlap)"
 $ <eq:valid_overlap>
 
-where $X_"strand"$, $X_"start"$, $X_"end"$ refer to the strand, starting, and ending positions in the actual genome for some read $X$. Edges not satisfying this first condition are marked with the label false. Note that since the reads are simulated, we know the true strand and positions along the genome they are sampled from. To find the edges also satisfying the second property, we follow the algorithm laid out below:
+where $X_"strand"$, $X_"start"$, $X_"end"$ refer to the strand, starting, and ending positions in the actual genome for some read $X$. Edges not satisfying this first condition are marked with the label false. Note that since the reads are simulated, we know the true strand and positions along the genome they are sampled from. To find the edges also satisfying the second property, we follow the algorithm laid out in @alg:find-optimal-edges.
 #let algorithm_1 = [#set text(size: 0.9em)
-#algorithm({
+#algorithm-figure("Find-Optimal-Assembly", {
   import algorithmic: *
-  Function("Find-Optimal-Assembly", args: ([_overlap-graph_],), {
-    Cmt[Initialize the set of edges belonging to the optimal assembly]
+  Procedure("Find-Optimal-Edges", ([_overlap-graph_],), {
+    Comment[Initialize the set of edges belonging to the optimal assembly]
     Assign[_optimal-edges_][${}$]
     State[]
-    For(cond: [_connected-component_ *in* _overlap-graph_], {
-      Cmt[Decompose the connected-component into nodes and edges]
+    For([_connected-component_ *in* _overlap-graph_], {
+      Comment[Decompose the connected-component into nodes and edges]
       Assign[$V$, $E$][_connected_component_]
       State[]
-      Cmt[Start search from the read at the lowest position along the genome sequence]
-      Assign[_lowest-read-node_][$"argmin"_(v thin in thin V)$ #FnI[get-read-start-loc-for-node][$v$]]
+      Comment[Start search from the read at the lowest position along the genome sequence]
+      Assign[_lowest-read-node_][$"argmin"_(v thin in thin V)$ #FnInline[get-read-start-loc-for-node][$v$]]
       State[]
-      Cmt[Perform the forward @bfs]
+      Comment[Perform the forward @bfs]
       Assign[_visited-nodes-forward_][${}$]
       Assign[_visited-edges-forward_][${}$]
-      Assign[_visited-nodes-forward_, _visited-edges-forward_][#linebreak() #h(2em) #FnI[@bfs][_connected-component_, start=_lowest-read-node_]]
+      Assign[_visited-nodes-forward_, _visited-edges-forward_][#linebreak() #h(2em) #FnInline[@bfs][_connected-component_, start=_lowest-read-node_]]
       State[]
-      Cmt[Start the reverse search from the _visited_ read at the highest position]
-      Assign[_highest-read-node_][$"argmax"_(v thin in italic("visited-nodes-forward"))$ #FnI[get-read-start-loc-for-node][$v$]]
+      Comment[Start the reverse search from the _visited_ read at the highest position]
+      Assign[_highest-read-node_][$"argmax"_(v thin in italic("visited-nodes-forward"))$ #FnInline[get-read-start-loc-for-node][$v$]]
       State[]
-      Cmt[Perform the reverse @bfs]
+      Comment[Perform the reverse @bfs]
       Assign[_visited-nodes-backward_][${}$]
       Assign[_visited-edges-backward_][${}$]
-      Assign[_visited-nodes-backward_, _visited-edges-backward_][#linebreak() #h(2em) #FnI[@bfs][_connected-component_, start=_highest-read-node_]]
+      Assign[_visited-nodes-backward_, _visited-edges-backward_][#linebreak() #h(2em) #FnInline[@bfs][_connected-component_, start=_highest-read-node_]]
       State[]
-      Cmt[The edges belonging to the final assembly are traversed by both @bfs:pl]
+      Comment[The edges belonging to the final assembly are traversed by both @bfs:pl]
       Assign[_optimal-edges_][_optimal-edges_ $union$ (_visited-edges-forward_ $inter$ _visited-edges-backward_)]
     })
     State[]
     Return[_optimal-edges_]
   })
-})]
-#algorithm_1
+}) <alg:find-optimal-edges>]
+#place(top + center)[#algorithm_1]
 
 We start from the edge whose starting read is at the lowest position along the genome and perform a @bfs from it, storing the visited nodes. From this set of visited nodes, another @bfs is performed starting from the node representing the read at the highest genomic position. Edges traversed by both of the @bfs:pl belong to the optimal assembly (called _optimal-edges_). If there are multiple connected components in the overlap graph, the process is repeated. The _optimal-edges_ are labeled as belonging to the final assembly (true)---all other edges are labeled false.
 
@@ -537,74 +532,74 @@ We leave discussion of the node and edge features extracted from the overlap gra
 Once a probability has been assigned to each edge representing its likelihood of belonging to the final assembly, we apply a greedy decoding algorithm (detailed below) to extract contigs---sets of overlapping @dna fragments that together reconstruct a contiguous portion of the genome:
 
 #let algorithm_2 = [#set text(size: 0.9em)
-#algorithm({
+#algorithm-figure("Genome reconstruction via greedy decoding", {
   import algorithmic: *
-  Function("Greedy-Decode-Contigs", args: ([_overlap-graph_],[_edge-probabilities_]), {
+  Procedure("Greedy-Decode-Contigs", ([_overlap-graph_],[_edge-probabilities_]), {
     Assign[_final-assembly_][${}$]
     State[]
-    While(cond: [_overlap-graph_ contains unvisited nodes], {
-      Cmt[Sample $B$ starting edges using an empirical distribution given by _edge-probabilities_]
+    While([_overlap-graph_ contains unvisited nodes], {
+      Comment[Sample $B$ starting edges using an empirical distribution given by _edge-probabilities_]
       Assign[$E$][${e_1, ..., e_B}$, where $e_i$ is an edge with probability $bb(P)(e_i) = italic("edge-probabilities")[$e_i$]$]
       State[]
-      For(cond: [$e_i in E$], {
-        Cmt[Initialize path greedily decoded from this edge]
-        Cmt[Note that in this pseudocode although the path $p_i$ is a list of edges, we also allow for checking if a node is in the path for ease of notation]
+      For([$e_i in E$], {
+        Comment[Initialize path greedily decoded from this edge]
+        Comment[Although the path $p_i$ is a list of edges, allow checking if a node is in the path for notational ease]
         Assign[$p_i$][[$e_i$]]
         State[]
-        Cmt[Greedy forward search from $v_i$ (target node of $e_i: u_i -> v_i$)]
-        Cmt[During greedy forward search, the new edge to be traversed must be unvisited, and lead to an unvisited node]
-        While(cond: [unvisited outgoing edge from last node in $p_i$, $v_k$, exists], {
-          Cmt[Choose outgoing edge from $v_k$ with highest probability]
+        Comment[Greedy forward search from $v_i$ (target node of $e_i: u_i -> v_i$)]
+        Comment[New edge(s) to be traversed must be unvisited, and lead to an unvisited node]
+        While([unvisited outgoing edge from last node in $p_i$, $v_k$, exists], {
+          Comment[Choose outgoing edge from $v_k$ with highest probability]
           Assign[$e_k$][$"argmax"_("outgoing edge" e_k "from" v_k) bb(P)(e_k) $]
-          Cmt[Append this edge to extend the path $p_i$]
+          Comment[Append this edge to extend the path $p_i$]
           Assign[$p_i$][$p_i$ + [$e_k$]]
         })
         State[]
-        Cmt[Greedy backward search from $u_i '$ (virtual pair of source node $u_i$ of $e_i: u_i -> v_i$)]
-        Cmt[During greedy backward search, the new edge to be traversed must be unvisited, and its source must be an unvisited node]
-        While(cond: [unvisited incoming edge to first node in $p_i$, $v_j$, exists], {
-          Cmt[Choose incoming edge from $v_j$ with highest probability]
+        Comment[Greedy backward search from $u_i '$ (virtual pair of source node $u_i$ of $e_i: u_i -> v_i$)]
+        Comment[New edge(s) to be traversed must be unvisited, with an unvisited source node]
+        While([unvisited incoming edge to first node in $p_i$, $v_j$, exists], {
+          Comment[Choose incoming edge from $v_j$ with highest probability]
           Assign[$e_j$][$"argmax"_("incoming edge" e_j "from" v_j) bb(P)(e_j) $]
-          Cmt[Prepend this edge to extend the path $p_i$]
+          Comment[Prepend this edge to extend the path $p_i$]
           Assign[$p_i$][[$e_j$] + $p_i$]
         })
         State[]
-        Cmt[Mark transitive nodes as visited]
-        For(cond: [node $v in.not p_i$], {
+        Comment[Mark transitive nodes as visited]
+        For([node $v in.not p_i$], {
           If(cond: [
-            #FnI[predecessor][$v$] $in p_i and$ #FnI[successor][$v$] $in p_i $ #linebreak() $and e:$ #FnI[predecessor][$v$] $->$ #FnI[successor][$v$] $in p_i$
+            #FnInline[predecessor][$v$] $in p_i and$ #FnInline[successor][$v$] $in p_i $ #linebreak() $and e:$ #FnInline[predecessor][$v$] $->$ #FnInline[successor][$v$] $in p_i$
           ], {
-            FnI[mark-node-visited][$v$]
+            FnInline[mark-node-visited][$v$]
           })
         })
       })
       State[]
-      Cmt[Keep the longest path]
-      Assign[_longest-path_][$"argmax"_(p_i)$ #FnI[length][$p_i$]]
+      Comment[Keep the longest path]
+      Assign[_longest-path_][$"argmax"_(p_i)$ #FnInline[length][$p_i$]]
       State[]
-      Cmt[Convert the set of reads in the _longest-path_ into a contig]
-      Assign[_contig_][#FnI[to-contig][_longest-path_]]
+      Comment[Convert the set of reads in the _longest-path_ into a contig]
+      Assign[_contig_][#FnInline[to-contig][_longest-path_]]
       State[]
-      Cmt[Add the _contig_ to the _final-assembly_]
+      Comment[Add the _contig_ to the _final-assembly_]
       Assign[_final-assembly_][_final-assembly_ $union$ _contig_]
       State[]
-      Cmt[The nodes (and edges) used to form the contig cannot be reused to avoid duplicating regions]
-      State[#FnI[mark-nodes-visited][_longest-path_]]
+      Comment[Nodes (and edges) forming the contig cannot be reused to avoid duplicating regions]
+      State[#FnInline[mark-nodes-visited][_longest-path_]]
       State[]
-      Cmt[Stop when the length of the longest contig found falls below a fixed threshold]
-      If(cond: [#FnI[length][_longest_path_] $<$ _min-contig-length_], {
+      Comment[Stop when the length of the longest contig found falls below a fixed threshold]
+      If([#FnInline[length][_longest_path_] $<$ _min-contig-length_], {
         State[break]
       })
     })
     State[]
     Return[_final-assembly_]
   })
-})]
-#algorithm_2
+}) <alg:greedy-decode-contigs>]
+#place(top + center)[#algorithm_2]
 
-Recall that we are interested in finding a Hamiltonian path through the overlap graph to recover the genome. In an ideal scenario, where all neural network edge predictions are accurate and the graph contains no artifacts, a simple greedy traversal (forwards and backwards) starting from any positively predicted edge would suffice to reconstruct the genome. However, due to prediction errors and noise in the graph, neither of these conditions are met in practice, and so we use a greedy decoding algorithm.
+Recall that we are interested in finding a Hamiltonian path through the overlap graph to recover the genome. In an ideal scenario, where all neural network edge predictions are accurate and the graph contains no artifacts, a simple greedy traversal (forwards and backwards) starting from any positively predicted edge would suffice to reconstruct the genome. However, due to prediction errors and noise in the graph, neither of these conditions are met in practice, and so we use the greedy decoding algorithm shown in @alg:greedy-decode-contigs.
 
-This algorithm first samples multiple high-probability seed edges and then greedily chooses a sequence of edges both forwards and backwards from each seed edge, forming a path through the assembly graph. The longest resulting path is selected and overlapping reads along that path merged into a contig. Nodes along the selected path are marked as visited to prevent their reuse in subsequent searches, and the process repeats until no path above a fixed length threshold can be found.
+@alg:greedy-decode-contigs first samples multiple high-probability seed edges and then greedily chooses a sequence of edges both forwards and backwards from each seed edge, forming a path through the assembly graph. The longest resulting path is selected and overlapping reads along that path merged into a contig. Nodes along the selected path are marked as visited to prevent their reuse in subsequent searches, and the process repeats until no path above a fixed length threshold can be found.
 
 == Model architectures
 === Standard input features <sec:standard_input_features>
@@ -760,7 +755,42 @@ Unfortunately, despite numerous efforts to develop graph-based normalization sch
 
 Since commonly used @gnn architectures are at most as powerful as the @wl graph isomorphism heuristic, any normalization layer designed using them will be unable to distinguish all input graphs, and therefore will fail to adapt the normalization parameters correctly to suit the input. More expressive architectures such as $k$-GNNs, whose design is motivated by the generalization of 1-@wl to $k$−tuples of nodes ($k$-WL), are accompanied by unacceptable computation and memory costs (e.g. $cal(O)(|V|^k)$ memory for higher-order MPNNs, where $V$ is the number of nodes in the graph).
 
-@rnf is an easy to compute (and memory efficient), yet theoretically grounded alternative technique involving concatenating a different randomly generated vector to each node feature. This simple addition not only allows distinguishing between 1-@wl indistinguishable graph pairs based on fixed local substructures, but @gnn:pl augmented with @rnf are provably universal (with high probability), and thus can approximate any function defined on graphs of fixed order. 
+@rnf is an easy to compute (and memory efficient), yet theoretically grounded alternative technique involving concatenating a different randomly generated vector to each node feature. This simple addition not only allows distinguishing between 1-@wl indistinguishable graph pairs based on fixed local substructures, but @gnn:pl augmented with @rnf are provably universal (with high probability), and thus can approximate any function defined on graphs of fixed order.
+
+$
+  tilde(bold(H))_b^l = "GNN"_"Layer"^(l - 1) (bold(A)_b, bold(H)_b^(l - 1))
+$
+
+$
+  bold(H)^l = phi.alt ("Norm" (tilde(bold(H))^l; l))
+$
+
+$
+  "Norm"(tilde(h)_(b, n, c)^l; tilde(bold(H))^l, l) = gamma_c^l (tilde(h)_(b, n, c)^l - mu_(b, n, c)) / sigma_(b, n, c) + beta_c^l
+$
+
+#let granola = [#set text(size: 0.9em)
+#algorithm-figure([@granola Layer], {
+  import algorithmic: *
+  Procedure([@granola], ([Node features $tilde(bold(H))_b^l in RR^(n times d)$ from $"GNN"_"Layer"^(l - 1)$],), {
+    Comment[Returns normalized node features]
+    Comment[Batch size $b$, number of nodes $n$, hidden dimension size $d$, @gnn layer $l$]
+    State[]
+    State[Sample @rnf $bold(R)_b^l in RR^(n times d)$]
+    State[]
+    Comment[Concatenate @rnf with $tilde(bold(H))_b^l in RR^(n times d)$ and pass through @granola's expressive @gnn]
+    Assign[#v(0.5em) $bold(Z)_b^l$][$"GNN"_"Norm"^l (bold(A)_b, tilde(bold(H))_b^l || bold(Z)_b^l)$ #v(0.5em)]
+    State[]
+    Comment[Calculate affine parameters that are specific to the input graph]
+    Assign[#v(0.5em) $gamma_(b, n)^l$][$f_1(z_(b, n)^l)$ #v(0.5em)]
+    Assign[#v(0.5em) $beta_(b, n)^l$][$f_2(z_(b, n)^l)$ #v(0.5em)]
+    State[]
+    State[Compute mean $mu_(b, n, d)$ and standard deviation $sigma_(b, n, d)$ of $tilde(bold(H))_b^l in RR^(n times d)$ across the hidden dimension $d$]
+    State[]
+    Return[$gamma_(b, n, d)^l (tilde(h)_(b, n, d)^l - mu_(b, n, d)) / sigma_(b, n, d) + beta_(b, n, d)^l$]
+  })
+}) <alg:granola>]
+#place(top + center)[#granola]
 
 Brief overview of the entire process
 

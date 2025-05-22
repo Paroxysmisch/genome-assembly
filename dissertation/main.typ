@@ -106,19 +106,7 @@ Date [date]
 #set place(float: true)
 #show figure.caption: set text(size: 0.9em)
 #show figure.caption: set align(left)
-#let subcaption = it => [
-  #set align(center)
-  #v(-1.9em)
-  #it
-  #v(1em)
-]
-#let subcaptionlong = it => [
-  #set align(center)
-  #v(-1.85em)
-  #h(1.5em)
-  #it
-  #v(1em)
-]
+#let sub-caption-styling = (num, it) => [#set align(center); #num #it.body #v(0.5em)]
 
 = Introduction
 == Motivation
@@ -147,13 +135,14 @@ Consequently, despite the utility of heuristic algorithms, these methods often s
 
 #place(top + center)[#subpar.grid(
   columns: (1fr, 1fr, 1fr),
-  figure(image("graphics/chr19_bubble.png"), caption: subcaption[
+  show-sub-caption: sub-caption-styling,
+  figure(image("graphics/chr19_bubble.png"), caption: [
     Bubble
   ]), <bubble>,
-  figure(image("graphics/chr21_tip.png"), caption: subcaption[
+  figure(image("graphics/chr21_tip.png"), caption: [
     Dead-end/Tip
   ]), <tip>,
-  figure(image("graphics/chr19_tangle.png"), caption: subcaption[
+  figure(image("graphics/chr19_tangle.png"), caption: [
     Transitive edges
   ]), <tangle>,
   caption: [The figures show common artifacts in overlap graphs generated from real read data, taken from human chromosome 19 (a, b) and 21 (c). Note that these are the very same overlap graphs that are successfully simplified and resolved by our work.],
@@ -193,8 +182,9 @@ The fundamental problem in genome sequencing is that no current technology that 
 #place(bottom + center)[#subpar.grid(
     columns: 2,
     gutter: 4em,
-    figure(image("graphics/overlap.svg"), caption: subcaption[Overlap between two reads]), <fig:overlap>,
-    figure(image("graphics/kmer.svg"), caption: subcaptionlong[All 3-mers present in a read]), <fig:kmer>,
+    show-sub-caption: sub-caption-styling,
+    figure(image("graphics/overlap.svg"), caption: [Overlap between two reads]), <fig:overlap>,
+    figure(image("graphics/kmer.svg"), caption: [All 3-mers present in a read]), <fig:kmer>,
     caption: [(a) shows the maximal overlapping region between a pair of reads, where the alignment is found using the Needleman-Wunsch dynamic programming algorithm. (b) shows all #kmers present in an example read, where $k=3$.]
 )]
 
@@ -216,9 +206,10 @@ In a perfect overlap graph, free from artifacts, the genome can be reconstructed
   columns: (1fr, 0.9fr, 1fr),
   align: top,
   gutter: 2em,
-  figure(image("graphics/layout_phase.svg", height: 8cm, fit: "contain"), caption: subcaptionlong[Constructing the Overlap Graph]), <fig:layout_phase>,
-  figure(image("graphics/sequencing_errors.svg", height: 8cm, fit: "contain"), caption: subcaptionlong[Errors manifesting in the Overlap Graph]), <fig:sequencing_errors>,
-  figure(image("graphics/resolving_repeats.svg", height: 8cm, fit: "contain"), caption: subcaption[Assembling tandem #linebreak() repeat regions]), <fig:resolving_repeats>,
+  show-sub-caption: sub-caption-styling,
+  figure(image("graphics/layout_phase.svg", height: 8cm, fit: "contain"), caption: [Constructing the Overlap Graph]), <fig:layout_phase>,
+  figure(image("graphics/sequencing_errors.svg", height: 8cm, fit: "contain"), caption: [Errors manifesting in the Overlap Graph]), <fig:sequencing_errors>,
+  figure(image("graphics/resolving_repeats.svg", height: 8cm, fit: "contain"), caption: [Assembling tandem #linebreak() repeat regions]), <fig:resolving_repeats>,
   caption: [All figures show the reference genome to illustrate the relative genomic positions of the reads. (a) demonstrates the construction of the overlap graph from reads. Note that there are transitive edges in the resulting graph despite the presence of sequencing errors. Unitigging refers to the process of identifying a high-confidence contig---a contiguous sequence of DNA. (b) shows how artifacts manifest in the overlap graph. A sequencing error in Read 2 leads to the formation of a tip. The #text(fill: green.darken(20%))[green] regions in the reference genome correspond to segmental duplications that cannot be distinguished. Thus, the start of Read 4 appears identical to that of Read 1, leading to the creation of an erroneous transitive edge. (c) shows how a tandem repeat region in the genome (in #text(fill: red.lighten(20%))[pink]) can be resolved by using mutations in the @dna to differentiate different positions in the repetitive region. This requires exact matches to avoid addition of erroneous edges, however this exact matching can only be performed with high accuracy reads.]
 )]
 
@@ -379,9 +370,10 @@ Mamba is derived from the class of @s4 models @mamba, combining aspects of recur
     columns: (0.32fr, 0.95fr, 1fr),
     align: center,
     gutter: 2em,
-    figure(image("graphics/s4_continuous.svg", height: 4cm), caption: subcaptionlong[S4 Cont.]), <fig:s4_continuous>,
-    figure(image("graphics/s4_discrete_recurrent.svg", height: 4cm), caption: subcaption[S4 Discrete (Recurrent)]), <fig:s4_discrete_recurrent>,
-    figure(image("graphics/s4_discrete_convolutional.svg", height: 4cm), caption: subcaption[S4 Discrete (Convolutional)]), <fig:s4_discrete_convolutional>,
+    show-sub-caption: sub-caption-styling,
+    figure(image("graphics/s4_continuous.svg", height: 4cm), caption: [S4 Cont.]), <fig:s4_continuous>,
+    figure(image("graphics/s4_discrete_recurrent.svg", height: 4cm), caption: [S4 Discrete (Recurrent)]), <fig:s4_discrete_recurrent>,
+    figure(image("graphics/s4_discrete_convolutional.svg", height: 4cm), caption: [S4 Discrete (Convolutional)]), <fig:s4_discrete_convolutional>,
     caption: [Illustration of the continuous-time @s4 model in (a). (b) and (c) show how the discrete @s4 model can be represented equivalently by recurrence and convolution.]
   )]
 
@@ -409,8 +401,9 @@ The ability to select data in an input-dependent manner, along with the scan/pre
 #place(top + center)[#subpar.grid(
   columns: 2,
   gutter: 3em,
-  figure(image("graphics/recurrent.svg", height: 8cm, fit: "contain"), caption: subcaptionlong[Recurrent formulation for generating @s4 hidden states]), <fig:recurrent>,
-  figure(image("graphics/parallel_scan.svg", height: 8cm, fit: "contain"), caption: subcaptionlong[Scan/Prefix sum formulation]), <fig:parallel_scan>,
+  show-sub-caption: sub-caption-styling,
+  figure(image("graphics/recurrent.svg", height: 7cm, fit: "contain"), caption: [Recurrent formulation for generating @s4 hidden states]), <fig:recurrent>,
+  figure(image("graphics/parallel_scan.svg", height: 7cm, fit: "contain"), caption: [Scan/Prefix sum formulation]), <fig:parallel_scan>,
   caption: [Illustration of how the scan/prefix sum algorithm produces the same result as the recurrent (sequential) formulation in generating the @s4 hidden states in parallel. Note that, for example, $x_3$'s calculation begins before $x_2$ has been fully calculated.]
 )]
 
@@ -746,7 +739,7 @@ where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable param
   SymGatedGCN+MambaOnly tests whether the model can recover the overlap length and similarity metrics used earlier, from raw read data (or alternatively generate even richer embeddings).
 ]
 
-=== Graph Adaptive Layer Normalization <sec:granola>
+=== Graph Adaptive Normalization Layer <sec:granola>
 Normalization has been shown to be critical for enhancing the training stability, convergence behavior, and overall performance of neural networks. Conventional normalization techniques such as BatchNorm, InstanceNorm, and LayerNorm, have been widely adopted, but are not specifically designed to support graph-structured data. In fact, direct application of these standard normalization techniques can impair the expressive power of @gnn:pl, degrading performance significantly.
 
 Increasing the depth of a @gnn by stacking additional layers theoretically expands the class of functions it can represent, but repeated message passing operations can lead to node embeddings becoming indistinguishable---an effect known as over-smoothing. This observation is also theoretically motivated---graph convolution can be viewed as a type of Laplacian smoothing, and so its repeated application in @gnn layers leads to embeddings having similar values. Mitigating over-smoothing is the primary motivator for many graph-specific normalization layers (e.g. PairNorm and DiffGroupNorm).

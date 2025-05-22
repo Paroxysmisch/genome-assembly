@@ -157,5 +157,10 @@
     key: "rnf",
     short: "RNF",
     long: "Random Node Features"
+  ),
+  (
+    key: "mpnn",
+    short: "MPNN",
+    long: "Message Passing Neural Network"
   )
 )

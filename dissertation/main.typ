@@ -749,48 +749,66 @@ where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable param
 === Graph Adaptive Layer Normalization <sec:granola>
 Normalization has been shown to be critical for enhancing the training stability, convergence behavior, and overall performance of neural networks. Conventional normalization techniques such as BatchNorm, InstanceNorm, and LayerNorm, have been widely adopted, but are not specifically designed to support graph-structured data. In fact, direct application of these standard normalization techniques can impair the expressive power of @gnn:pl, degrading performance significantly.
 
-Increasing the depth of a @gnn by stacking additional layers theoretically expands the class of functions it can represent, but repeated message passing operations can lead to node embeddings becoming indistinguishable---an effect known as over-smoothing. This observation is also theoretically motivated---graph convolution can be viewed as a type of Laplacian smoothing, and so its repeated applications in @gnn layers leads to embeddings having similar values. Mitigating over-smoothing is the primary motivator for many graph-specific normalization layers (e.g. PairNorm and DiffGroupNorm).
+Increasing the depth of a @gnn by stacking additional layers theoretically expands the class of functions it can represent, but repeated message passing operations can lead to node embeddings becoming indistinguishable---an effect known as over-smoothing. This observation is also theoretically motivated---graph convolution can be viewed as a type of Laplacian smoothing, and so its repeated application in @gnn layers leads to embeddings having similar values. Mitigating over-smoothing is the primary motivator for many graph-specific normalization layers (e.g. PairNorm and DiffGroupNorm).
 
-Unfortunately, despite numerous efforts to develop graph-based normalization schemes, no method consistently outperforms the alternatives in all tasks and benchmarks. Furthermore, normalization schemes extended from traditional schemes such as BatchNorm and InstanceNorm, often reduce the expressive power of the @gnn. The @granola authors postulate that there are two main reasons why these alternative schemes do not provide an unambiguous performance improvement across domains. Firstly, many methods use shared affine normalization parameters across all graphs, failing to adapt to input graph-specific characteristics. Secondly, special regard should be given to the expressive power of the normalization layer itself.
+Unfortunately, despite numerous efforts to develop graph-based normalization schemes, no method consistently outperforms the alternatives in all tasks and benchmarks. Furthermore, normalization schemes extended from traditional schemes such as BatchNorm and InstanceNorm, often reduce the expressive power of the @gnn.
 
-Since commonly used @gnn architectures are at most as powerful as the @wl graph isomorphism heuristic, any normalization layer designed using them will be unable to distinguish all input graphs, and therefore will fail to adapt the normalization parameters correctly to suit the input. More expressive architectures such as $k$-GNNs, whose design is motivated by the generalization of 1-@wl to $k$−tuples of nodes ($k$-WL), are accompanied by unacceptable computation and memory costs (e.g. $cal(O)(|V|^k)$ memory for higher-order MPNNs, where $V$ is the number of nodes in the graph).
+The @granola authors postulate that there are two main reasons why these alternative schemes do not provide an unambiguous performance improvement across domains. Firstly, many methods use shared affine normalization parameters across all graphs, failing to adapt to input graph-specific characteristics. Secondly, special regard should be given to the expressive power of the normalization layer itself to distinguish non-isomorphic graphs, and then correctly tailor affine parameters to suit the input.
 
-@rnf is an easy to compute (and memory efficient), yet theoretically grounded alternative technique involving concatenating a different randomly generated vector to each node feature. This simple addition not only allows distinguishing between 1-@wl indistinguishable graph pairs based on fixed local substructures, but @gnn:pl augmented with @rnf are provably universal (with high probability), and thus can approximate any function defined on graphs of fixed order.
-
+We begin by providing more details regarding the first point. Let $G = (bold(A), bold(X))$ denote a graph with $N in NN$ nodes, with adjacency matrix $bold(A) in RR^(N times N)$, and node feature matrix $bold(X) in RR^(N times D)$, where $D$ is the hidden embedding dimension. The pre-normalized node features for the $b$-th graph in a batch (batch size $B$), after the application of the $(l-1)$th @gnn layer is given by $tilde(bold(H))_b^l$:
 $
   tilde(bold(H))_b^l = "GNN"_"Layer"^(l - 1) (bold(A)_b, bold(H)_b^(l - 1))
 $
-
+A general update rule to produce normalized node features $bold(H)^l$ over the batch of graphs is then given by: 
 $
   bold(H)^l = phi.alt ("Norm" (tilde(bold(H))^l; l))
 $
-
+where $"Norm"$ refers to a normalization layer, and $phi.alt$ is some activation function. Normalization layers based on standardization of inputs are given by first shifting each input element $tilde(h)_(b, n, c)^l$ by mean $mu_(b, n, c)$, and scaling by standard deviation $sigma_(b, n, c)$. Then, the result is modified by some learnable affine parameters $gamma_c^l, beta_c^l in RR$:
 $
-  "Norm"(tilde(h)_(b, n, c)^l; tilde(bold(H))^l, l) = gamma_c^l (tilde(h)_(b, n, c)^l - mu_(b, n, c)) / sigma_(b, n, c) + beta_c^l
+  "Norm"(tilde(h)_(b, n, d)^l; tilde(bold(H))^l, l) = gamma_d^l (tilde(h)_(b, n, d)^l - mu_(b, n, d)) / sigma_(b, n, d) + beta_d^l
+$ <eq:normalization_framework>
+
+Note how the learnable affine parameters $gamma_d^l, beta_d^l$ do not depend on $b$, nor $n$. This means that they are not adaptive to the input-graph.
+
+BatchNorm, where statistics are computed across all nodes and graphs in the batch, but separately across the hidden dimension, can then be given by substituting the following mean and standard deviation into @eq:normalization_framework:
+$
+  mu_(b, n, d) = 1/(B N) sum_(b = 1)^B sum_(n = 1)^N tilde(h)_(b, n, d)^l #h(3em) sigma^2_(b, n, d) = 1/(B N) sum_(b = 1)^B sum_(n = 1)^N (tilde(h)_(b, n, d)^l - mu_(b, n, d))^2
 $
 
 #let granola = [#set text(size: 0.9em)
 #algorithm-figure([@granola Layer], {
   import algorithmic: *
-  Procedure([@granola], ([Node features $tilde(bold(H))_b^l in RR^(n times d)$ from $"GNN"_"Layer"^(l - 1)$],), {
+  Procedure([@granola], ([Node features $tilde(bold(H))_b^l in RR^(N times D)$ from $"GNN"_"Layer"^(l - 1)$],), {
     Comment[Returns normalized node features]
-    Comment[Batch size $b$, number of nodes $n$, hidden dimension size $d$, @gnn layer $l$]
+    Comment[$b$th graph in the batch, number of nodes $N$, hidden dimension size $D$, @gnn layer $l$]
     State[]
-    State[Sample @rnf $bold(R)_b^l in RR^(n times d)$]
+    State[Sample @rnf $bold(R)_b^l in RR^(N times D)$]
     State[]
-    Comment[Concatenate @rnf with $tilde(bold(H))_b^l in RR^(n times d)$ and pass through @granola's expressive @gnn]
+    Comment[Concatenate @rnf with $tilde(bold(H))_b^l in RR^(N times D)$ and pass through @granola's expressive @gnn]
     Assign[#v(0.5em) $bold(Z)_b^l$][$"GNN"_"Norm"^l (bold(A)_b, tilde(bold(H))_b^l || bold(Z)_b^l)$ #v(0.5em)]
     State[]
     Comment[Calculate affine parameters that are specific to the input graph]
     Assign[#v(0.5em) $gamma_(b, n)^l$][$f_1(z_(b, n)^l)$ #v(0.5em)]
     Assign[#v(0.5em) $beta_(b, n)^l$][$f_2(z_(b, n)^l)$ #v(0.5em)]
     State[]
-    State[Compute mean $mu_(b, n, d)$ and standard deviation $sigma_(b, n, d)$ of $tilde(bold(H))_b^l in RR^(n times d)$ across the hidden dimension $d$]
+    State[Compute mean $mu_(b, n, d)$ and standard deviation $sigma_(b, n, d)$ of $tilde(bold(H))_b^l in RR^(N times D)$ across the hidden dimension]
     State[]
     Return[$gamma_(b, n, d)^l (tilde(h)_(b, n, d)^l - mu_(b, n, d)) / sigma_(b, n, d) + beta_(b, n, d)^l$]
   })
 }) <alg:granola>]
 #place(top + center)[#granola]
+
+Having motivated the need for input-specific affine parameters, we need a method of calculating them from the input graph---this is simply another @gnn. Since commonly used @gnn architectures are at most as powerful as the @wl graph isomorphism heuristic, any normalization layer designed using them will be unable to distinguish all input graphs, and therefore will fail to adapt the normalization parameters correctly to suit the input.
+
+More expressive architectures such as $k$-GNNs, whose design is motivated by the generalization of 1-@wl to $k$−tuples of nodes ($k$-WL), are accompanied by unacceptable computation and memory costs (e.g. $cal(O)(|V|^k)$ memory for higher-order @mpnn:pl, where $V$ is the number of nodes in the graph).
+
+@rnf is an easy to compute (and memory efficient), yet theoretically grounded alternative involving concatenating a different randomly generated vector to each node feature. This simple addition not only allows distinguishing between 1-@wl indistinguishable graph pairs based on fixed local substructures, but @gnn:pl augmented with @rnf are provably universal (with high probability), and thus can approximate any function defined on graphs of fixed order. In order to be maximally expressive, @granola uses an @mpnn equipped with @rnf.
+
+@granola facilitates an adaptive normalization layer by allowing its affine parameters $gamma_(b, n, d)^l, beta_(b, n, d)^l in RR$ to be dependent on the input-graph, by calculating them using a maximally expressive, shallow @gnn layer---$"GNN"_"Norm"$. A detailed overview of @granola is found in @alg:granola.
+
+#modelexplanation[
+  @granola has the potential to significantly improve the performance on this task as each overlap graph contains a unique set of artifacts (including none at all), so input-adaptivity is important.
+]
 
 Brief overview of the entire process
 

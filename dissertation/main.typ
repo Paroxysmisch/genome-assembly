@@ -613,28 +613,28 @@ noting that these node features are calculated before graph masking and partitio
 Henceforth, $z_(i j)$ and $x_i$ will together be referred to as the standard input features.
 
 === Standard input embedding <sec:standard_input_embedding>
-The embedding of the standard input features into the initial hidden representations $h_i^0 in bb(R)^d$ for node $i$ at layer $0$, and $e_(s t)^0 in bb(R)^d$ for the edge $s -> t$ (where $s$ and $t$ are nodes) at layer 0 are computed as:
+The embedding of the standard input features into the initial hidden representations $h_i^0 in bb(R)^D$ for node $i$ at layer $0$, and $e_(i j)^0 in bb(R)^D$ for the edge $i -> j$ (where $i$ and $j$ are nodes) at layer 0 are computed as:
 $
   h_i^0 &= W_2^"n" (thin "ReLU" (W_1^"n" x_i + b_1^"n")) + b_2^"n" \
-  e_(s t)^0 &= W_2^"e" (thin "ReLU" (W_1^"e" z_(i j) + b_1^"e")) + b_2^"e"
+  e_(i j)^0 &= W_2^"e" (thin "ReLU" (W_1^"e" z_(i j) + b_1^"e")) + b_2^"e"
 $
-where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable parameters for transforming the node and edge features respectively ($W_1^"n", W_1^"e" in bb(R)^(d times 2)$, $W_2^"n", W_2^"e" in bb(R)^(d times d)$, and $b_1^"n", b_1^"e", b_2^"n", b_2^"e" in bb(R)^d$), and $d$ is the hidden dimension.
+where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable parameters for transforming the node and edge features respectively ($W_1^"n", W_1^"e" in bb(R)^(D times 2)$, $W_2^"n", W_2^"e" in bb(R)^(D times D)$, and $b_1^"n", b_1^"e", b_2^"n", b_2^"e" in bb(R)^D$), and $D$ is the hidden dimension.
 
-We refer to this formulation for $h_i^0$ and $e_(s t)^0$ as the standard input embedding.
+We refer to this formulation for $h_i^0$ and $e_(i j)^0$ as the standard input embedding.
 
 === SymGatedGCN
-The @symgatedgcn formulation is taken from prior work on neural genome assembly @lovro, and acts as a baseline model for this project. Let the hidden representations of node $i$ and edge $e_(s t): s -> t$ at layer $l$ be $h_i^l$ and $e_(s t)^l$ respectively. Additionally, let $j$ denote node $i$'s predecessors and $k$ denote its successors. Each @symgatedgcn layer then transforms the hidden node and edge embeddings as follows:
+The @symgatedgcn formulation is taken from prior work on neural genome assembly @lovro, and acts as a baseline model for this project. Let the hidden representations of node $i$ and edge $e_(i j): i -> j$ at layer $l in {1, 2, ..., L}$ be $h_i^l$ and $e_(i j)^l$ respectively. Additionally, let $p$ denote node $i$'s predecessors and $s$ denote its successors. Each @symgatedgcn layer then transforms the hidden node and edge embeddings as follows:
 #let relu = [$"ReLU"$]
 #let norm = [$"Norm"$]
 $
-  h_i^(l + 1) = h_i^l + #relu (#norm (A_1^l h_i^l + sum_(j -> i) eta_(j i)^("f", l + 1) dot.circle A_2^l h_j^l + sum_(i -> k) eta_(i k)^("b", l + 1) dot.circle A_2^l h_j^l))
+  h_i^(l + 1) = h_i^l + #relu (#norm (A_1^l h_i^l + sum_(p -> i) eta_(p i)^("f", l + 1) dot.circle A_2^l h_p^l + sum_(i -> s) eta_(i s)^("b", l + 1) dot.circle A_3^l h_s^l))
 $
 $
-  e_(s t)^(l + 1) = e_(s t)^l + #relu (#norm (B_1^l e_(s t)^l + B_2^l h_s^l + B_3^l h_t^l))
+  e_(i j)^(l + 1) = e_(i j)^l + #relu (#norm (B_1^l e_(i j)^l + B_2^l h_i^l + B_3^l h_j^l))
 $ <eq:edge_features>
-where all $A, B in RR^(d times d)$ are learnable parameters with hidden dimension $d$, $dot.circle$ denotes the Hadamard product, #relu stands for Rectified Linear Unit, and #norm refers to the normalization layer used---this is discussed in more detail in @sec:granola. Note that the standard input embeddings (@sec:standard_input_embedding) are used for $h_i^0$ and $e_(s t)^0$. $eta_(j i)^("f", l)$ and $eta_(i k)^("b", l)$ refer to the forward, and backward gating functions respectively. The edge gates are defined according to the GatedGCN:
+where all $A, B in RR^(D times D)$ are learnable parameters with hidden dimension $D$, $dot.circle$ denotes the Hadamard product, #relu stands for Rectified Linear Unit, and #norm refers to the normalization layer used---this is discussed in more detail in @sec:granola. Note that the standard input embeddings (@sec:standard_input_embedding) are used for $h_i^0$ and $e_(i j)^0$. $eta_(p i)^("f", l)$ and $eta_(i s)^("b", l)$ refer to the forward, and backward gating functions respectively. The edge gates are defined according to the GatedGCN:
 $
-  eta_(j i)^("f", l) = sigma(e_(j i)^l) / (sum_(j' -> i) sigma (e_(j' i)^l) + epsilon.alt) in [0, 1]^d, #h(2.5em) eta_(i k)^("b", l) = sigma(e_(i k)^l) / (sum_(i -> k') sigma (e_(i k')^l) + epsilon.alt) in [0, 1]^d
+  eta_(p i)^("f", l) = sigma(e_(p i)^l) / (sum_(p' -> i) sigma (e_(p' i)^l) + epsilon.alt) in [0, 1]^D, #h(2.5em) eta_(i s)^("b", l) = sigma(e_(i s)^l) / (sum_(i -> s') sigma (e_(i s')^l) + epsilon.alt) in [0, 1]^D
 $
 where $sigma$ represents the sigmoid function, $epsilon.alt$ is a small value added to prevent division by 0, and $j' -> i$ represents all edges where the destination node is $i$. Likewise, $i -> k'$ represents all edges where the source node is $i$.
 
@@ -643,7 +643,7 @@ where $sigma$ represents the sigmoid function, $epsilon.alt$ is a small value ad
 ]
 
 #modelexplanation[
-  Most conventional @gnn layers are designed to operate on undirected graphs, and therefore do not account for directional information intrinsic to overlap graphs. This limitation is problematic, since the overlap graph encodes the directional path reflecting the linear structure of the genome from start to end. @symgatedgcn aims to address this lack of expressivity by distinguishing the messages passed along the edges $(sum_(j -> i) eta_(j i)^("f", l + 1) dot.circle A_2^l h_j^l)$, to those passed along the reversed direction of the edges $(sum_(i -> k) eta_(i k)^("b", l + 1) dot.circle A_2^l h_j^l)$.
+  Most conventional @gnn layers are designed to operate on undirected graphs, and therefore do not account for directional information intrinsic to overlap graphs. This limitation is problematic, since the overlap graph encodes the directional path reflecting the linear structure of the genome from start to end. @symgatedgcn aims to address this lack of expressivity by distinguishing the messages passed along the edges $(sum_(p -> i) eta_(p i)^("f", l + 1) dot.circle A_2^l h_p^l)$, to those passed along the reversed direction of the edges $(sum_(i -> s) eta_(i s)^("b", l + 1) dot.circle A_3^l h_s^l)$.
 ]
 
 === GAT+Edge
@@ -651,7 +651,7 @@ The standard @gat @gat-paper architecture only focusses on node features, and so
 
 First, updated edge features are calculated identically to @symgatedgcn (@eq:edge_features).
 
-In contrast to the @gat architecture with a single shared attention mechanism, there are now two mechanisms, $a^"n"$ and $a^"e"$, which compute the attention coefficients for nodes and edges respectively ($a^"n", a^"e": RR^d times RR^d times RR^d -> RR$). Each mechanism is implemented via separate, single-layer feed-forward neural networks. The attention coefficients are given as follows:
+In contrast to the @gat architecture with a single shared attention mechanism, there are now two mechanisms, $a^"n"$ and $a^"e"$, which compute the attention coefficients for nodes and edges respectively ($a^"n", a^"e": RR^D times RR^D times RR^D -> RR$). Each mechanism is implemented via separate, single-layer feed-forward neural networks. The attention coefficients are given as follows:
 $
   c_(i j)^"n" &= a^"n" (h_j^l || e_(j i)^l || h_i^l) \
   c_(i j)^"e" &= a^"e" (h_j^l || e_(j i)^l || h_i^l) \
@@ -661,19 +661,21 @@ $
   alpha_(i j)^"n" &= "softmax"_j (c_(i j)^"n") = (exp (c_(i j)^"n")) / (sum_(k in neighborhood_i) exp (c_(i k)^"n")) \
   alpha_(i j)^"e" &= "softmax"_j (c_(i j)^"e") = (exp (c_(i j)^"e")) / (sum_(k in neighborhood_i) exp (c_(i k)^"e")) \
 $
-The updated node features are then calculated by first weighing the node and edge features by their corresponding normalized attention coefficients. Next, these node and edge features are concatenated, and passed through another single-layer feed-forward neural network, #smallcaps[Mix-Node-Edge-Information]:
+The updated node features are then calculated by first weighing the node and edge features by their corresponding normalized attention coefficients. Next, these node and edge features are concatenated, and passed through another single-layer feed-forward neural network, #smallcaps[Mix-Node-Edge-Info]:
 $
   
-  h_i^(l + 1) = #smallcaps[Mix-Node-Edge-Information] (lr(sigma (sum_(j in neighborhood_i) alpha_(i j)^"n" bold(W)^"n" h_j^l ) ||) thin sigma (sum_(j in neighborhood_i) alpha_(i j)^"e" bold(W)^"e" e_(j i)^l ))
+  h_i^(l + 1) = #smallcaps[Mix-Node-Edge-Info] (lr(sigma (sum_(j in neighborhood_i) alpha_(i j)^"n" bold(W)^"n" h_j^l ) ||) thin sigma (sum_(j in neighborhood_i) alpha_(i j)^"e" bold(W)^"e" e_(j i)^l ))
 $
-where $bold(W)^"n", bold(W)^"e" in RR^(d times d)$ are parameterized weight matrices.
+where $bold(W)^"n", bold(W)^"e" in RR^(D times D)$ are parameterized weight matrices.
 
 #modelexplanation[
-  We refer to our custom attention-based formulation, which incorporates edge features, as GAT+Edge. This architecture extends the original @gat by not only implicitly enabling assignment of different importances to nodes of the same neighborhood, but also across edges. Importantly, this addresses a key limitation of the standard @gcn architecture, but note that this is mitigated with the gating mechanism introduced with GatedGCN. Additionally, GAT+Edge remains a computationally efficient architecture.
+  We refer to our custom attention-based formulation, which incorporates edge features, as GAT+Edge. Although there exist alternative @gat implementations incorporating edge features into the attention calculation, like PyTorch Geometric's @pytorch-geometric GATConv, GATConv does not allow edge to node messaging passing.
+  
+  Furthermore, a key theoretical limitation of the @gcn and @symgatedgcn architectures is that the transformations applied to the different nodes and edges in the neighborhood are the same. GAT+Edge, like the original @gat architecture it extends, implicitly enables assignment of different importances to nodes (and with GAT+Edge, edges) of the same neighborhood. Additionally, GAT+Edge remains a computationally efficient architecture.
 ]
 
 === SymGAT+Edge
-With the design of this architecture, we aim to combine the symmetry feature from @symgatedgcn with the GAT+Edge architecture mentioned previously. This is done by first calculating the updated edge features $e_(s t)^(l + 1)$ identically to @symgatedgcn (@eq:edge_features).
+With the design of this architecture, we aim to combine the symmetry feature from @symgatedgcn with the GAT+Edge architecture mentioned previously. This is done by first calculating the updated edge features $e_(i j)^(l + 1)$ identically to @symgatedgcn (@eq:edge_features).
 
 Next, a copy of the input graph $G = (V, E)$ is made, $G_"rev" = (V, E_"rev")$, such that:
 $ forall i, j in V. thick i -> j in E <==> j -> i in E_"rev" $
@@ -697,22 +699,22 @@ As a result, we turn to the Mamba architecture, which with its selectivity mecha
 
 Additionally, another issue mitigated by the use of Mamba is that there is no canonical tokenization for a sequence of nucleotides. Operating directly on the nucleotide sequence is important for de novo sequencing, where we have no knowledge of the underlying genome, due to the absence of a reference. The Mamba model has been previously shown to operate well directly on nucleotide sequences on tasks involving @dna modelling.
 
-The SymGatedGCN+Mamba model uses the standard input features (from @sec:standard_input_features) in addition to the Mamba encoding of the reads as additional node features. Assume we are given an overlap graph $G = (V, E)$. For read $r_i$, represented by node $v_i$, the Mamba read encoding node feature $m_i in bb(R)^d$ is generated as follows ($d$ is size of the hidden dimension).
+The SymGatedGCN+Mamba model uses the standard input features (from @sec:standard_input_features) in addition to the Mamba encoding of the reads as additional node features. Assume we are given an overlap graph $G = (V, E)$. For read $r_i in {"A, T, C, G"}^T$, represented by node $v_i$, the Mamba read encoding node feature $m_i in bb(R)^D$ is generated as follows ($D$ is size of the hidden dimension).
 
-First, read $r_i in {"A, T, C, G"}^N$, which is a string of nucleotides of length $N$, is one-hot encoded to produce $r_i^"one-hot" in {0, 1}^(N times 4)$:
+First, read $r_i in {"A, T, C, G"}^T$, which is a string of nucleotides of length $T$, is one-hot encoded to produce $r_i^"one-hot" in {0, 1}^(T times 4)$:
 $
-  r_(i, j)^"one-hot" = cases(
-    (0, 0, 0, 1) "if " r_(i j) = "A",
-    (0, 0, 1, 0) "if " r_(i j) = "T",
-    (0, 1, 0, 0) "if " r_(i j) = "C",
-    (1, 0, 0, 0) "if " r_(i j) = "G",
+  r_(i, t)^"one-hot" = cases(
+    (0, 0, 0, 1) "if " r_(i t) = "A",
+    (0, 0, 1, 0) "if " r_(i t) = "T",
+    (0, 1, 0, 0) "if " r_(i t) = "C",
+    (1, 0, 0, 0) "if " r_(i t) = "G",
   )
 $
-where $j$ refers to the $j$th nucleotide in $r_i$. Next, the one-hot encoded representation is expanded to the hidden dimension $d$ via a learned parameter matrix $bold(W)^"expand" in 4 times d$, and then the read is encoded into $r_i^"encoded" in n times d$ by #smallcaps[Mamba]:
+where $t in {1, 2, ..., T}$ refers to the $t$th nucleotide in $r_i$. Next, the one-hot encoded representation is expanded to the hidden dimension $D$ via a learned parameter matrix $bold(W)^"expand" in 4 times D$, and then the read is encoded into $r_i^"encoded" in T times D$ by #smallcaps[Mamba]:
 $
   r_i^"encoded" = #smallcaps[Mamba] (r_i bold(W)^"expand")
 $
-Note that $r_i^"encoded"$ is a matrix that varies in size with the length of the read. In order to obtain a fixed length hidden encoding of the read, we simply take the last row of this matrix (indexing from 1):
+_Note that $r_i^"encoded"$ is a matrix that varies in size with the length of the read._ In order to obtain a fixed length, _whole_ read encoding, we take the last row of this matrix (indexing from 1):
 $
   m_i = r_i^"encoded" [n]
 $
@@ -720,21 +722,21 @@ $
 The initial node and edge hidden embeddings are then given by:
 $
   h_i^0 &= W_2^"n" (thin "ReLU" (W_1^"n" (x_i || m_i) + b_1^"n")) + b_2^"n" \
-  e_(s t)^0 &= W_2^"e" (thin "ReLU" (W_1^"e" z_(i j) + b_1^"e")) + b_2^"e"
+  e_(i j)^0 &= W_2^"e" (thin "ReLU" (W_1^"e" z_(i j) + b_1^"e")) + b_2^"e"
 $
-where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable parameters for transforming the node and edge features respectively ($W_1^"n" in bb(R)^(2 + d times d), W_1^"e" in bb(R)^(d times 2)$, $W_2^"n", W_2^"e" in bb(R)^(d times d)$, and $b_1^"n", b_1^"e", b_2^"n", b_2^"e" in bb(R)^d$), and $d$ is the hidden dimension. $||$ denotes the concatenation operator.
+where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable parameters for transforming the node and edge features respectively ($W_1^"n" in bb(R)^(2 + D times D), W_1^"e" in bb(R)^(D times 2)$, $W_2^"n", W_2^"e" in bb(R)^(D times D)$, and $b_1^"n", b_1^"e", b_2^"n", b_2^"e" in bb(R)^D$), and $D$ is the hidden dimension. $||$ denotes the concatenation operator.
 
 #modelexplanation[
   The primary goal of SymGatedGCN+Mamba is to explore whether the model can exploit the raw read data to generate new (node) features that are useful in resolving overlap graph artifacts. Mamba was chosen as the read encoding model of choice due to its near-linear time complexity, long-range dependency modelling capabilities, and promising results on adjacent @dna modelling tasks.
 ]
 
 === SymGatedGCN+MambaOnly
-We use the same Mamba read encoding node feature $m_i in bb(R)^d$ as in SymGatedGCN+Mamba, but remove the dependency on standard edge features (@sec:standard_input_features). The initial node and edge embeddings are now given as:
+We use the same Mamba read encoding node feature $m_i in bb(R)^D$ as in SymGatedGCN+Mamba, but remove the dependency on standard edge features (@sec:standard_input_features). The initial node and edge embeddings are now given as:
 $
   h_i^0 &= W_2^"n" (thin "ReLU" (W_1^"n" (x_i) + b_1^"n")) + b_2^"n" \
-  e_(s t)^0 &= W_2^"e" (thin "ReLU" (W_1^"e" (m_i || m_j) + b_1^"e")) + b_2^"e"
+  e_(i j)^0 &= W_2^"e" (thin "ReLU" (W_1^"e" (m_i || m_j) + b_1^"e")) + b_2^"e"
 $
-where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable parameters for transforming the node and edge features respectively ($W_1^"n" in bb(R)^(d times 2), W_1^"e" in bb(R)^(d times 2d)$, $W_2^"n", W_2^"e" in bb(R)^(d times d)$, and $b_1^"n", b_1^"e", b_2^"n", b_2^"e" in bb(R)^d$), and $d$ is the hidden dimension. $||$ denotes the concatenation operator.
+where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable parameters for transforming the node and edge features respectively ($W_1^"n" in bb(R)^(D times 2), W_1^"e" in bb(R)^(D times 2D)$, $W_2^"n", W_2^"e" in bb(R)^(D times D)$, and $b_1^"n", b_1^"e", b_2^"n", b_2^"e" in bb(R)^D$), and $D$ is the hidden dimension. $||$ denotes the concatenation operator.
 
 #modelexplanation[
   SymGatedGCN+MambaOnly tests whether the model can recover the overlap length and similarity metrics used earlier, from raw read data (or alternatively generate even richer embeddings).
@@ -764,7 +766,7 @@ $ <eq:normalization_framework>
 
 Note how the learnable affine parameters $gamma_d^l, beta_d^l$ do not depend on $b$, nor $n$. This means that they are not adaptive to the input-graph.
 
-BatchNorm, where statistics are computed across all nodes and graphs in the batch, but separately across the hidden dimension, can then be given by substituting the following mean and standard deviation into @eq:normalization_framework:
+In BatchNorm, statistics are computed across all nodes and graphs in the batch, but separately across the hidden dimension. BatchNorm can then be derived by substituting the following mean and standard deviation into @eq:normalization_framework:
 $
   mu_(b, n, d) = 1/(B N) sum_(b = 1)^B sum_(n = 1)^N tilde(h)_(b, n, d)^l #h(3em) sigma^2_(b, n, d) = 1/(B N) sum_(b = 1)^B sum_(n = 1)^N (tilde(h)_(b, n, d)^l - mu_(b, n, d))^2
 $
@@ -796,36 +798,13 @@ Having motivated the need for input-specific affine parameters, we need a method
 
 More expressive architectures such as $k$-GNNs @kgnn-paper, whose design is motivated by the generalization of 1-@wl to $k$−tuples of nodes ($k$-WL), are accompanied by unacceptable computation and memory costs (e.g. $cal(O)(|V|^k)$ memory for higher-order @mpnn:pl, where $V$ is the number of nodes in the graph).
 
-@rnf @rnf-paper is an easy to compute (and memory efficient), yet theoretically grounded alternative involving concatenating a different randomly generated vector to each node feature. This simple addition not only allows distinguishing between 1-@wl indistinguishable graph pairs based on fixed local substructures, but @gnn:pl augmented with @rnf are provably universal (with high probability), and thus can approximate any function defined on graphs of fixed order @rnf-power. In order to be maximally expressive, @granola uses an @mpnn @gnn-survey equipped with @rnf.
+@rnf @rnf-paper is an easy to compute (and memory efficient), yet theoretically grounded alternative involving concatenating a different randomly generated vector to each node feature. This simple addition not only allows distinguishing between 1-@wl indistinguishable graph pairs based on fixed local substructures, but @gnn:pl augmented with @rnf are provably universal (with high probability), and thus can approximate any function defined on graphs of fixed order @rnf-power. In order to be maximally expressive, @granola uses an @mpnn @gnn-survey equipped with @rnf. It is important to node that @rnf breaks the invariance property of @gnn:pl, which is a strong inductive bias, however preserves it in expectation @rnf-power.
 
 @granola facilitates an adaptive normalization layer by allowing its affine parameters $gamma_(b, n, d)^l, beta_(b, n, d)^l in RR$ to be dependent on the input-graph, by calculating them using a maximally expressive, shallow @gnn layer---$"GNN"_"Norm"$. A detailed overview of @granola is found in @alg:granola.
 
 #modelexplanation[
   @granola has the potential to significantly improve the performance on this task as each overlap graph contains a unique set of artifacts (including none at all), so input-adaptivity is important.
 ]
-
-Brief overview of the entire process
-
-Detailed explanation of the dataset generation, which involves simuation of the reads, preprocessing the real reads, constructing the graph
-
-Also discussion of the input features provided to the GNN
-  - Emphasis on the use of the actual read data
-
-Discussion of the GNN architecture
-  - Overview of SymGatedGCN---particularly the importance of the Sym part
-  - Overview of the new GAT, and SymGAT architectures, that also use the edge features (the original GAT model does not use)
-  - Overview of GRANOLA---how it uses MPNN + RNF was maximizing expressiveness
-
-Discussion of Mamba SSM
-  - Why it was chosen over say using attention
-  - Problems with tokenization of DNA
-
-Explanation of the decoding process to reconstruct the genome
-
-Under each model architecture, have a box for why there is that change
-
-At the beginning of this entire section, story of we're trying to integrate extra ultra-long data -> might require better gnns
-  - But, in evaluation, since these new gnns are at the same expressivity level in the wl heirarchy, and this is a very structural problem, there is no benefit
 
 
 #pagebreak()

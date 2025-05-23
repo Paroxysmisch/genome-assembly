@@ -258,10 +258,10 @@ Firstly, identifying correct overlaps among ultra-long reads is particularly cha
 
 #place(top + center)[#figure(
   image("graphics/hifiasm_ul.svg"),
-  caption: [Double graph framework used in Hifiasm (UL) to integrate @ont @ul reads with long-read information. (A) A string graph from only @pacbio @hifi reads is constructed, and ultra-long reads aligned to these long reads. (B) Ultra-long reads are translated from base-space to integer-space. (C) Overlaps between ultra-long reads are calculated in integer space, and an integer graph created. Contigs are then found in this integer graph. (D) The ultra-long contigs are integrated into the @hifi string graph. (E) Additional graph cleaning can be performed using ultra-long data. For example, the number of ultra-long reads supporting each edge can be tracked. In the case of the bubble, no ultra-long reads supported the alternative path, hence resolving the bubble. Figure adapted from @double-graph.]
+  caption: [Double graph framework used in `Hifiasm` (UL) to integrate @ont @ul reads with long-read information. (A) A string graph from only @pacbio @hifi reads is constructed, and ultra-long reads aligned to these long reads. (B) Ultra-long reads are translated from base-space to integer-space. (C) Overlaps between ultra-long reads are calculated in integer space, and an integer graph created. Contigs are then found in this integer graph. (D) The ultra-long contigs are integrated into the @hifi string graph. (E) Additional graph cleaning can be performed using ultra-long data. For example, the number of ultra-long reads supporting each edge can be tracked. In the case of the bubble, no ultra-long reads supported the alternative path, hence resolving the bubble. Figure adapted from @double-graph.]
 ) <fig:hifiasm_ul>]
 
-An alternative approach, employed by Hifiasm (UL) @double-graph, which is the assembler utilized by this project, is the double graph framework (illustrated in @fig:hifiasm_ul) that exploits all information contained in both sets of reads. The @pacbio @hifi long-reads are initially used to create a string graph---an assembly graph preserving read information. Next, the @ont @ul reads are aligned to these @pacbio @hifi reads. This alignment information is then used to map the ultra-long reads from base-space into integer space---instead of each ultra-long read being a sequence of nucleotides, it is now a sequence of integer node identifiers from the @hifi string graph.
+An alternative approach, employed by `Hifiasm` (UL) @double-graph, which is the assembler utilized by this project, is the double graph framework (illustrated in @fig:hifiasm_ul) that exploits all information contained in both sets of reads. The @pacbio @hifi long-reads are initially used to create a string graph---an assembly graph preserving read information. Next, the @ont @ul reads are aligned to these @pacbio @hifi reads. This alignment information is then used to map the ultra-long reads from base-space into integer space---instead of each ultra-long read being a sequence of nucleotides, it is now a sequence of integer node identifiers from the @hifi string graph.
 
 Each ultra-long read in integer space is only $10$s of node identifiers long, instead of $100$s of @kb, allowing for inexpensive all-to-all overlap calculation that is also accurate---the underlying nucleotide information is from the much more accurate @hifi reads. With ultra-long overlaps calculated, an ultra-long integer (overlap) graph can be constructed, that is then used to extract ultra-long integer contigs. These ultra-long contigs can then be incorporated into the original @hifi string graph. During this integration, the additional information provided by the ultra-long contigs can help clean the original @hifi assembly (as shown in @fig:hifiasm_ul (D)).
 
@@ -351,7 +351,7 @@ It has been proven @gin-paper that the @gnn formulation laid out in @section:gnn
 @gnn expressivity is an important topic for solving problems on graphs that require identifying and differentiating graph structure. Since the layout problem in genome assembly is fundamentally about graph structure, this is a critical area of interest.
 
 == Mamba Selective State Space Model
-Mamba is derived from the class of @s4 models @mamba, combining aspects of recurrent, convolutional, and classical state space models. While @s4 models have a recurrent formulation, a parallelizable convolutional operation applied to a sequence yields the identical result, making them much faster than previous @rnn architectures, such as @lstm networks.
+Mamba is derived from the class of @s4 models @mamba, combining aspects of recurrent, convolutional, and classical state space models. While @s4 models have a recurrent formulation, a parallelizable convolutional operation applied to a sequence yields the identical result, making them much faster than previous @rnn architectures, such as @lstm @lstm-review networks.
 
 // #grid(
 //   columns: (1.3fr, 1fr),
@@ -444,23 +444,23 @@ The ability to select data in an input-dependent manner, along with the scan/pre
 // #pagebreak()
 
 = Design and implementation
-Ultra-long reads have have demonstrated significant advantages in resolving complex artifacts in overlap graphs and repeating regions in genomes, and prior work has presented @gnn:pl as a viable method for improving the layout phase in the @olc algorithm. We are interested in investigating the utility of @gnn:pl in leveraging ultra-long read data to advance the capabilities of neural genome assembly methods.
+Ultra-long reads have have demonstrated significant advantages in resolving complex artifacts in overlap graphs and repeating regions in genomes, and prior work @lovro @lovrolong has presented @gnn:pl as a viable method for improving the layout phase in the @olc algorithm. We are interested in investigating the utility of @gnn:pl in leveraging ultra-long read data to advance the capabilities of neural genome assembly methods.
 
 The integration of ultra-long reads with conventional long-read data alters the structural properties of the resulting overlap graphs. This motivates exploring alternative @gnn architectures that may better exploit the additional information available. In this chapter, we detail our training and inference setup, discuss the various @gnn architectures tested, and explain our integration method of raw read data into the model.
 #place(top + center)[#figure(
   image("graphics/overview.svg"),
-  caption: [(A) Simulated @pacbio @hifi reads are generated from a reference genome via PBSIM. Additional @ont @ul reads may also be generated. Alternatively, real read data can also be provided. The reads are then passed to Hifiasm, which constructs the corresponding overlap graph. (B) Ground-truth edge labels are computed corresponding to the optimal assembly. During training only, the overlap graph is masked and partitioned. Masking allows for data augmentation by simulating varying read coverage from $times 30$ to $times 60$. Partitioning is required to fit onto @gpu memory. (C) Features are extracted from the overlap graph according to the model used, and edge probability predictions are made by the model. Note the reversed compliment is only used by some of the @gnn models. The loss in computed relative to the ground-truth labels. (D) The genome is reconstructed via greedy decoding.]
+  caption: [(A) Simulated @pacbio @hifi reads are generated from a reference genome via `PBSIM3`. Additional @ont @ul reads may also be generated. Alternatively, real read data can also be provided. The reads are then passed to `Hifiasm`, which constructs the corresponding overlap graph. (B) Ground-truth edge labels are computed corresponding to the optimal assembly. During training only, the overlap graph is masked and partitioned. Masking allows for data augmentation by simulating varying read coverage (number of times each base is sampled on average) from $times #h(0em) 30$ to $times #h(0em) 60$. Partitioning is required to fit onto @gpu memory. (C) Features are extracted from the overlap graph according to the model used, and edge probability predictions are made by the model. Note the reversed compliment is only used by some of the @gnn models. The loss in computed relative to the ground-truth labels. (D) The genome is reconstructed via greedy decoding.]
 ) <fig:overview>]
 
 == Training and inference setup
 We detail the training and inference pipeline next. A detailed illustration can be found in @fig:overview.
 
 === Generating the overlap graph
-The first step of generating an overlap graph is gathering the raw read data. Since we are unable to produce our own sequencing data, reads from the CHM13v2 @t2t human genome assembly are instead simulated. This simulation is performed using a utility called PBSIM3 that emulates the read profile of @pacbio @hifi long-reads according to fastq data (fastq is a format for storing the sequencing data, in addition to per-base quality scores that are crucial for our simulation) from the sequencing of the HG002 draft human reference. When simulating reads, a $times #h(0em) 60$ coverage factor is used (enough reads to cover the genome $60$ times over).
+The first step of generating an overlap graph is gathering the raw read data. Since we are unable to produce our own sequencing data, reads from the CHM13v2 @t2t human genome assembly (`BioProject PRJNA559484` @chm13-acrocentric) are instead simulated. This simulation is performed using a utility called `PBSIM3` @pbsim3 that emulates the read profile of @pacbio @hifi long-reads according to `fastq` data (`fastq` is a format for storing the sequencing data, in addition to per-base quality scores that are crucial for our simulation) from the sequencing of the HG002 draft human reference @hg002-github. When simulating reads, a $times #h(0em) 60$ coverage factor is used (enough reads to cover the genome $60$ times over).
 
-For training, we choose chromosomes 19 and 15, representing both non-acrocentric, and acrocentric chromosomes (an acrocentric chromosome is one where the centromere, the region of a chromosome that holds sister chromatids together, is not located centrally in the chromsome, but towards one end). For validation and test, we likewise choose chromsomes 11 and 22, and chromosomes 9 and 21, respectively. Note that the chromosomes chosen represent the most difficult ones during assembly due to the tangles often present in their real-life overlap graphs. Additionally, the centromeric region of each of these chromosomes is extracted for generating reads, where most complexity arises. By training on only a small portion of the chromosomes present in the genome, we demonstrate the positive generalization capabilities of our neural method.
+For training, we choose chromosomes 19 and 15, representing both non-acrocentric, and acrocentric chromosomes. An acrocentric chromosome is one where the centromere, the region of a chromosome that holds sister chromatids together, is not located centrally on the chromosome, but towards one end. For validation and test, we likewise choose chromosomes 11 and 22, and chromosomes 9 and 21, respectively. Note that the chromosomes chosen for both training and evaluation, represent the most difficult ones during assembly due to the tangles often present in their real-life overlap graphs. Additionally, the centromeric region of each of these chromosomes is extracted for generating reads, where most assembly complexity arises @chm13-acrocentric. By training on only a small portion of the chromosomes present in the genome, we demonstrate the positive generalization capabilities of our neural method.
 
-Once the reads are generated, Hifiasm, a de novo assembler specifically designed for @pacbio @hifi read data, is used to generate the overlap graph. Note that no traditional graph simplification algorithms like transitive edge removal, dead-end trimming, or bubble removal, are applied. Also, it is important to note that the overlap graph produced is a symmetric overlap graph as the reads can belong to either strand of the @dna. The symmetric overlap graph consists of one graph, and its dual that contains a duplicate set of nodes representing the same reads, but with the edges reversed. This is due to an interesting property during sequencing where reads from the dual @dna strand are sequenced in reverse order along the length of the @dna.
+Once the reads are generated, `Hifiasm` @hifiasm-paper, a de novo assembler specifically designed for @pacbio @hifi read data, is used to generate the overlap graph. Note that no traditional graph simplification algorithms like transitive edge removal, dead-end trimming, or bubble removal, are applied. Also, it is important to note that the overlap graph produced is a symmetric overlap graph as the reads can belong to either strand of the @dna. The symmetric overlap graph consists of one graph, and its dual that contains a duplicate set of nodes representing the same reads, but with the edges reversed. This is due to an interesting property during sequencing where reads from the dual @dna strand are sequenced in reverse order along the length of the @dna.
 
 === Overlap graph ground-truth label generation
 We refer to whether an edge belongs to the finally assembly as a boolean _label_, which is the target the @gnn aims to predict. There are two conditions for an edge to be valid (i.e. labeled true): (1) The reads the edge states overlap must be sampled from the same strand of @dna (@eq:same_strand) and have a valid overlap (@eq:valid_overlap), and (2) the edge must not lead to a read that is a dead-end. Formally, the first condition states that for reads $A$ and $B$, with edge $A -> B$:
@@ -474,7 +474,7 @@ A_"end" &> B_"start",
 A_"end" &< B_"end") "(valid overlap)"
 $ <eq:valid_overlap>
 
-where $X_"strand"$, $X_"start"$, $X_"end"$ refer to the strand, starting, and ending positions in the actual genome for some read $X$. Edges not satisfying this first condition are marked with the label false. Note that since the reads are simulated, we know the true strand and positions along the genome they are sampled from. To find the edges also satisfying the second property, we follow the algorithm laid out in @alg:find-optimal-edges.
+where $X_"strand"$, $X_"start"$, $X_"end"$ refer to the strand, starting, and ending positions in the actual genome for some read $X$. Edges not satisfying this first condition are marked with the label false. Note that since the reads are simulated, we know the true strand and positions along the genome they are sampled from. To find the edges also satisfying the second property, we follow the algorithm laid out in @alg:find-optimal-edges (and used by prior neural genome assembly work @lovro).
 #let algorithm_1 = [#set text(size: 0.9em)
 #algorithm-figure("Find-Optimal-Assembly", {
   import algorithmic: *
@@ -516,7 +516,7 @@ We start from the edge whose starting read is at the lowest position along the g
 === Overlap graph masking and partitioning
 Masking and partitioning is performed during training only, with the entire graph used for performing inference. Masking is performed as a form a data augmentation to cheaply produce different sets of reads and the corresponding overlap graph. For every training step, $0$--$20%$ of the overlap graph's nodes, and corresponding edges, are removed. This simulates varying levels of read coverage up to the original $times #h(0em) 60$.
 
-Additionally, since the entire overlap graph contains $>100,000$ nodes, and cannot fit onto @gpu memory, METIS partitioning is used to divide the overlap graph. Note that inference is performed on the @cpu, which is able to access the system's main memory, and so graph partitioning is not required.
+Additionally, since the entire overlap graph contains $>100,000$ nodes, and cannot fit onto @gpu memory, `METIS` @metis-paper partitioning is used to divide the overlap graph. Note that inference is performed on the @cpu, which is able to access the system's abundant main memory, and so graph partitioning is not required.
 
 === Feature extraction and running the models
 We leave discussion of the node and edge features extracted from the overlap graph and raw read data to later sections, since they depend on the model architecture used. The models then take the overlap graph, and these node and edge features as input, producing for each edge, a probability of that edge belonging to the final assembly.
@@ -590,7 +590,7 @@ Once a probability has been assigned to each edge representing its likelihood of
 }) <alg:greedy-decode-contigs>]
 #place(top + center)[#algorithm_2]
 
-Recall that we are interested in finding a Hamiltonian path through the overlap graph to recover the genome. In an ideal scenario, where all neural network edge predictions are accurate and the graph contains no artifacts, a simple greedy traversal (forwards and backwards) starting from any positively predicted edge would suffice to reconstruct the genome. However, due to prediction errors and noise in the graph, neither of these conditions are met in practice, and so we use the greedy decoding algorithm shown in @alg:greedy-decode-contigs.
+Recall that we are interested in finding a Hamiltonian path through the overlap graph to recover the genome. In an ideal scenario, where all neural network edge predictions are accurate and the graph contains no artifacts, a simple greedy traversal (forwards and backwards) starting from any positively predicted edge would suffice to reconstruct the genome. However, due to prediction errors and noise in the graph, neither of these conditions are met in practice, and so we use the greedy decoding algorithm shown in @alg:greedy-decode-contigs (and used by prior neural genome assembly work @lovro).
 
 @alg:greedy-decode-contigs first samples multiple high-probability seed edges and then greedily chooses a sequence of edges both forwards and backwards from each seed edge, forming a path through the assembly graph. The longest resulting path is selected and overlapping reads along that path merged into a contig. Nodes along the selected path are marked as visited to prevent their reuse in subsequent searches, and the process repeats until no path above a fixed length threshold can be found.
 
@@ -614,15 +614,15 @@ Henceforth, $z_(i j)$ and $x_i$ will together be referred to as the standard inp
 === Standard input embedding <sec:standard_input_embedding>
 The embedding of the standard input features into the initial hidden representations $h_i^0 in bb(R)^d$ for node $i$ at layer $0$, and $e_(s t)^0 in bb(R)^d$ for the edge $s -> t$ (where $s$ and $t$ are nodes) at layer 0 are computed as:
 $
-  h_i^0 &= W_2^"n" (W_1^"n" x_i + b_1^"n") + b_2^"n" \
-  e_(s t)^0 &= W_2^"e" (W_1^"e" z_(i j) + b_1^"e") + b_2^"e"
+  h_i^0 &= W_2^"n" (thin "ReLU" (W_1^"n" x_i + b_1^"n")) + b_2^"n" \
+  e_(s t)^0 &= W_2^"e" (thin "ReLU" (W_1^"e" z_(i j) + b_1^"e")) + b_2^"e"
 $
 where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable parameters for transforming the node and edge features respectively ($W_1^"n", W_1^"e" in bb(R)^(d times 2)$, $W_2^"n", W_2^"e" in bb(R)^(d times d)$, and $b_1^"n", b_1^"e", b_2^"n", b_2^"e" in bb(R)^d$), and $d$ is the hidden dimension.
 
 We refer to this formulation for $h_i^0$ and $e_(s t)^0$ as the standard input embedding.
 
 === SymGatedGCN
-Let the hidden representations of node $i$ and edge $e_(s t): s -> t$ at layer $l$ be $h_i^l$ and $e_(s t)^l$ respectively. Additionally, let $j$ denote node $i$'s predecessors and $k$ denote its successors. Each @symgatedgcn layer then transforms the hidden node and edge embeddings as follows:
+The @symgatedgcn formulation is taken from prior work on neural genome assembly @lovro, and acts as a baseline model for this project. Let the hidden representations of node $i$ and edge $e_(s t): s -> t$ at layer $l$ be $h_i^l$ and $e_(s t)^l$ respectively. Additionally, let $j$ denote node $i$'s predecessors and $k$ denote its successors. Each @symgatedgcn layer then transforms the hidden node and edge embeddings as follows:
 #let relu = [$"ReLU"$]
 #let norm = [$"Norm"$]
 $
@@ -646,7 +646,7 @@ where $sigma$ represents the sigmoid function, $epsilon.alt$ is a small value ad
 ]
 
 === GAT+Edge
-The standard @gat architecture only focusses on node features, and so we extend this architecture to update edge features, include them in the attention calculation, and use them to also update the node features.
+The standard @gat @gat-paper architecture only focusses on node features, and so we extend this architecture to update edge features, include them in the attention calculation, and use them to also update the node features.
 
 First, updated edge features are calculated identically to @symgatedgcn (@eq:edge_features).
 
@@ -682,15 +682,15 @@ $
 $
 
 #modelexplanation[
-  Integrating the symmetry feature from @symgatedgcn into GAT+Edge, to form SymGAT+Edge, helps to increase expressivity as messages passed along edges cannot be distinguished from messages passed along the reversed direction by the attention mechanism either. 
+  Integrating the symmetry feature from @symgatedgcn into GAT+Edge, to form SymGAT+Edge, helps to increase expressivity as messages passed along edges cannot be distinguished from messages passed along the reversed direction by the attention mechanism either. The model is just provided with a graph, with no information regarding the directionality of the edges.
 ]
 
 === SymGatedGCN+Mamba
 The standard input features (@sec:standard_input_features) used in prior work on neural genome assembly extract normalized overlap length and similarity from pairs of overlapping reads. However, the models have access to only these summary statistics, not the raw nucleotide read data, which could enable the model to extract more complex features, for example by capturing some notion of what is biologically plausible.
 
-While encoder-only Transformers are the contemporary choice for sequence-to-embedding tasks like this, a fundamental drawback makes them unsuitable---their quadratic complexity with respect to the sequence length. Each read is upto $10s$ of @kb long for @pacbio @hifi reads, and there are $1000$s of reads even in the partitioned overlap graph used during training (note that we cannot partition the graph to an arbitrarily small number of nodes without sustaining major losses in performance as context around the graph artifact is lost).
+While standard encoder-only Transformers @transformer-paper are the contemporary choice for sequence-to-embedding tasks like this @bert-paper, a fundamental drawback makes them unsuitable---their quadratic complexity with respect to the sequence length. Each read is upto $10s$ of @kb long for @pacbio @hifi reads, and there are $1000$s of reads even in the partitioned overlap graph used during training (note that we cannot partition the graph to an arbitrarily small number of nodes without sustaining major losses in performance as context around the graph artifact is lost).
 
-On the other hand, @rnn architectures such as @lstm have linear complexity, but have traditionally struggled with modelling such long sequences. The key to the efficacy of Transformers, is the self-attention mechanism's ability to effectively route information from across the sequence, regardless of the distance.
+On the other hand, @rnn architectures such as @lstm @lstm-review have linear complexity, but have traditionally struggled with modelling such long sequences. The key to the efficacy of Transformers, is the self-attention mechanism's ability to effectively route information from across the sequence, regardless of the distance.
 
 As a result, we turn to the Mamba architecture, which with its selectivity mechanism and parallel scan implementation, is able to model complex, long sequences, without the computational cost of Transformers.
 
@@ -698,7 +698,7 @@ Additionally, another issue mitigated by the use of Mamba is that there is no ca
 
 The SymGatedGCN+Mamba model uses the standard input features (from @sec:standard_input_features) in addition to the Mamba encoding of the reads as additional node features. Assume we are given an overlap graph $G = (V, E)$. For read $r_i$, represented by node $v_i$, the Mamba read encoding node feature $m_i in bb(R)^d$ is generated as follows ($d$ is size of the hidden dimension).
 
-First, read $r_i in {"A, T, C, G"}^n$, which is a string of nucleotides of length $n$, is one-hot encoded to produce $r_i^"one-hot" in {0, 1}^(n times 4)$:
+First, read $r_i in {"A, T, C, G"}^N$, which is a string of nucleotides of length $N$, is one-hot encoded to produce $r_i^"one-hot" in {0, 1}^(N times 4)$:
 $
   r_(i, j)^"one-hot" = cases(
     (0, 0, 0, 1) "if " r_(i j) = "A",
@@ -718,8 +718,8 @@ $
 
 The initial node and edge hidden embeddings are then given by:
 $
-  h_i^0 &= W_2^"n" (W_1^"n" (x_i || m_i) + b_1^"n") + b_2^"n" \
-  e_(s t)^0 &= W_2^"e" (W_1^"e" z_(i j) + b_1^"e") + b_2^"e"
+  h_i^0 &= W_2^"n" (thin "ReLU" (W_1^"n" (x_i || m_i) + b_1^"n")) + b_2^"n" \
+  e_(s t)^0 &= W_2^"e" (thin "ReLU" (W_1^"e" z_(i j) + b_1^"e")) + b_2^"e"
 $
 where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable parameters for transforming the node and edge features respectively ($W_1^"n" in bb(R)^(2 + d times d), W_1^"e" in bb(R)^(d times 2)$, $W_2^"n", W_2^"e" in bb(R)^(d times d)$, and $b_1^"n", b_1^"e", b_2^"n", b_2^"e" in bb(R)^d$), and $d$ is the hidden dimension. $||$ denotes the concatenation operator.
 
@@ -730,8 +730,8 @@ where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable param
 === SymGatedGCN+MambaOnly
 We use the same Mamba read encoding node feature $m_i in bb(R)^d$ as in SymGatedGCN+Mamba, but remove the dependency on standard edge features (@sec:standard_input_features). The initial node and edge embeddings are now given as:
 $
-  h_i^0 &= W_2^"n" (W_1^"n" (x_i) + b_1^"n") + b_2^"n" \
-  e_(s t)^0 &= W_2^"e" (W_1^"e" (m_i || m_j) + b_1^"e") + b_2^"e"
+  h_i^0 &= W_2^"n" (thin "ReLU" (W_1^"n" (x_i) + b_1^"n")) + b_2^"n" \
+  e_(s t)^0 &= W_2^"e" (thin "ReLU" (W_1^"e" (m_i || m_j) + b_1^"e")) + b_2^"e"
 $
 where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable parameters for transforming the node and edge features respectively ($W_1^"n" in bb(R)^(d times 2), W_1^"e" in bb(R)^(d times 2d)$, $W_2^"n", W_2^"e" in bb(R)^(d times d)$, and $b_1^"n", b_1^"e", b_2^"n", b_2^"e" in bb(R)^d$), and $d$ is the hidden dimension. $||$ denotes the concatenation operator.
 
@@ -740,13 +740,13 @@ where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable param
 ]
 
 === Graph Adaptive Normalization Layer <sec:granola>
-Normalization has been shown to be critical for enhancing the training stability, convergence behavior, and overall performance of neural networks. Conventional normalization techniques such as BatchNorm, InstanceNorm, and LayerNorm, have been widely adopted, but are not specifically designed to support graph-structured data. In fact, direct application of these standard normalization techniques can impair the expressive power of @gnn:pl, degrading performance significantly.
+Normalization has been shown to be critical for enhancing the training stability, convergence behavior, and overall performance of neural networks. Conventional normalization techniques such as BatchNorm @batch-norm, InstanceNorm @instancenorm, and LayerNorm @layernorm, have been widely adopted, but are not specifically designed to support graph-structured data. In fact, direct application of these standard normalization techniques can impair the expressive power of @gnn:pl, degrading performance significantly @granola-paper.
 
-Increasing the depth of a @gnn by stacking additional layers theoretically expands the class of functions it can represent, but repeated message passing operations can lead to node embeddings becoming indistinguishable---an effect known as over-smoothing. This observation is also theoretically motivated---graph convolution can be viewed as a type of Laplacian smoothing, and so its repeated application in @gnn layers leads to embeddings having similar values. Mitigating over-smoothing is the primary motivator for many graph-specific normalization layers (e.g. PairNorm and DiffGroupNorm).
+Increasing the depth of a @gnn by stacking additional layers theoretically expands the class of functions it can represent, but repeated message passing operations can lead to node embeddings becoming indistinguishable---an effect known as over-smoothing @pairnorm. This observation is also theoretically motivated---graph convolution can be viewed as a type of Laplacian smoothing @laplacian-smoothing, and so its repeated application in @gnn layers leads to embeddings having similar values. Mitigating over-smoothing is the primary motivator for many graph-specific normalization layers (e.g. PairNorm @pairnorm and DiffGroupNorm @diffgroupnorm).
 
-Unfortunately, despite numerous efforts to develop graph-based normalization schemes, no method consistently outperforms the alternatives in all tasks and benchmarks. Furthermore, normalization schemes extended from traditional schemes such as BatchNorm and InstanceNorm, often reduce the expressive power of the @gnn.
+Unfortunately, despite numerous efforts to develop graph-based normalization schemes, no method consistently outperforms the alternatives in all tasks and benchmarks. Furthermore, normalization schemes extended from traditional schemes such as BatchNorm and InstanceNorm, often reduce the expressive power of the @gnn @granola-paper.
 
-The @granola authors postulate that there are two main reasons why these alternative schemes do not provide an unambiguous performance improvement across domains. Firstly, many methods use shared affine normalization parameters across all graphs, failing to adapt to input graph-specific characteristics. Secondly, special regard should be given to the expressive power of the normalization layer itself to distinguish non-isomorphic graphs, and then correctly tailor affine parameters to suit the input.
+The @granola @granola-paper authors postulate that there are two main reasons why these alternative schemes do not provide an unambiguous performance improvement across domains. Firstly, many methods use shared affine normalization parameters across all graphs, failing to adapt to input graph-specific characteristics. Secondly, special regard should be given to the expressive power of the normalization layer itself to distinguish non-isomorphic graphs, and then correctly tailor affine parameters to suit the input.
 
 We begin by providing more details regarding the first point. Let $G = (bold(A), bold(X))$ denote a graph with $N in NN$ nodes, with adjacency matrix $bold(A) in RR^(N times N)$, and node feature matrix $bold(X) in RR^(N times D)$, where $D$ is the hidden embedding dimension. The pre-normalized node features for the $b$-th graph in a batch (batch size $B$), after the application of the $(l-1)$th @gnn layer is given by $tilde(bold(H))_b^l$:
 $
@@ -791,11 +791,11 @@ $
 }) <alg:granola>]
 #place(top + center)[#granola]
 
-Having motivated the need for input-specific affine parameters, we need a method of calculating them from the input graph---this is simply another @gnn. Since commonly used @gnn architectures are at most as powerful as the @wl graph isomorphism heuristic, any normalization layer designed using them will be unable to distinguish all input graphs, and therefore will fail to adapt the normalization parameters correctly to suit the input.
+Having motivated the need for input-specific affine parameters, we need a method of calculating them from the input graph---this is simply another @gnn. Since commonly used @gnn architectures are at most as powerful as the @wl graph isomorphism heuristic @gin-paper, any normalization layer designed using them will be unable to distinguish all input graphs, and therefore will fail to adapt the normalization parameters correctly to suit the input.
 
-More expressive architectures such as $k$-GNNs, whose design is motivated by the generalization of 1-@wl to $k$−tuples of nodes ($k$-WL), are accompanied by unacceptable computation and memory costs (e.g. $cal(O)(|V|^k)$ memory for higher-order @mpnn:pl, where $V$ is the number of nodes in the graph).
+More expressive architectures such as $k$-GNNs @kgnn-paper, whose design is motivated by the generalization of 1-@wl to $k$−tuples of nodes ($k$-WL), are accompanied by unacceptable computation and memory costs (e.g. $cal(O)(|V|^k)$ memory for higher-order @mpnn:pl, where $V$ is the number of nodes in the graph).
 
-@rnf is an easy to compute (and memory efficient), yet theoretically grounded alternative involving concatenating a different randomly generated vector to each node feature. This simple addition not only allows distinguishing between 1-@wl indistinguishable graph pairs based on fixed local substructures, but @gnn:pl augmented with @rnf are provably universal (with high probability), and thus can approximate any function defined on graphs of fixed order. In order to be maximally expressive, @granola uses an @mpnn equipped with @rnf.
+@rnf @rnf-paper is an easy to compute (and memory efficient), yet theoretically grounded alternative involving concatenating a different randomly generated vector to each node feature. This simple addition not only allows distinguishing between 1-@wl indistinguishable graph pairs based on fixed local substructures, but @gnn:pl augmented with @rnf are provably universal (with high probability), and thus can approximate any function defined on graphs of fixed order @rnf-power. In order to be maximally expressive, @granola uses an @mpnn @gnn-survey equipped with @rnf.
 
 @granola facilitates an adaptive normalization layer by allowing its affine parameters $gamma_(b, n, d)^l, beta_(b, n, d)^l in RR$ to be dependent on the input-graph, by calculating them using a maximally expressive, shallow @gnn layer---$"GNN"_"Norm"$. A detailed overview of @granola is found in @alg:granola.
 

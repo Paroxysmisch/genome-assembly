@@ -107,6 +107,7 @@ Date [date]
 #show figure.caption: set text(size: 0.9em)
 #show figure.caption: set align(left)
 #let sub-caption-styling = (num, it) => [#set align(center); #num #it.body #v(0.5em)]
+#show smallcaps: set text(font: "New Computer Modern")
 
 = Introduction
 == Motivation
@@ -379,7 +380,7 @@ Mamba is derived from the class of @s4 models @mamba, combining aspects of recur
 
 Moreover, these models have principled mechanisms for long-range dependency modelling @ssm-long-range, and perform well in benchmarks such as Long Range Arena @long-range-arena. Their speed and ability to capture long-range dependencies make them compelling for sequence modelling tasks.
 
-Formally, S4 models, defined with continuous-time parameters $(Delta, bold(A), bold(B), bold(C)))$ can be formulated as follows:
+Formally, S4 models, defined with continuous-time parameters $(Delta, bold(A), bold(B), bold(C))$ can be formulated as follows:
 $ h'(t) = bold(A) h(t) + bold(B) x(t) #h(5em) y(t) = bold(C) h(t) $
 // $ y(t) = bold(C) h(t) $
 
@@ -456,7 +457,7 @@ The integration of ultra-long reads with conventional long-read data alters the 
 We detail the training and inference pipeline next. A detailed illustration can be found in @fig:overview.
 
 === Generating the overlap graph
-The first step of generating an overlap graph is gathering the raw read data. Since we are unable to produce our own sequencing data, reads from the CHM13v2 @t2t human genome assembly (`BioProject PRJNA559484` @chm13-acrocentric) are instead simulated. This simulation is performed using a utility called `PBSIM3` @pbsim3 that emulates the read profile of @pacbio @hifi long-reads according to `fastq` data (`fastq` is a format for storing the sequencing data, in addition to per-base quality scores that are crucial for our simulation) from the sequencing of the HG002 draft human reference @hg002-github. When simulating reads, a $times #h(0em) 60$ coverage factor is used (enough reads to cover the genome $60$ times over).
+The first step of generating an overlap graph is gathering the raw read data. Since we are unable to produce our own sequencing data, reads from the `CHM13v2` @t2t human genome assembly (`BioProject PRJNA559484` @chm13-acrocentric) are instead simulated. This simulation is performed using a utility called `PBSIM3` @pbsim3 that emulates the read profile of @pacbio @hifi long-reads according to `fastq` data (`fastq` is a format for storing the sequencing data, in addition to per-base quality scores that are crucial for our simulation) from the sequencing of the `HG002` draft human reference @hg002-github. When simulating reads, a $times #h(0em) 60$ coverage factor is used (enough reads to cover the genome $60$ times over).
 
 For training, we choose chromosomes 19 and 15, representing both non-acrocentric, and acrocentric chromosomes. An acrocentric chromosome is one where the centromere, the region of a chromosome that holds sister chromatids together, is not located centrally on the chromosome, but towards one end. For validation and test, we likewise choose chromosomes 11 and 22, and chromosomes 9 and 21, respectively. Note that the chromosomes chosen for both training and evaluation, represent the most difficult ones during assembly due to the tangles often present in their real-life overlap graphs. Additionally, the centromeric region of each of these chromosomes is extracted for generating reads, where most assembly complexity arises @chm13-acrocentric. By training on only a small portion of the chromosomes present in the genome, we demonstrate the positive generalization capabilities of our neural method.
 
@@ -486,7 +487,7 @@ where $X_"strand"$, $X_"start"$, $X_"end"$ refer to the strand, starting, and en
       Comment[Decompose the connected-component into nodes and edges]
       Assign[$V$, $E$][_connected_component_]
       State[]
-      Comment[Start search from the read at the lowest position along the genome sequence]
+      Comment[Start search from the (node corresponding to) read #linebreak() at the lowest position along the genome sequence]
       Assign[_lowest-read-node_][$"argmin"_(v thin in thin V)$ #FnInline[get-read-start-loc-for-node][$v$]]
       State[]
       Comment[Perform the forward @bfs]
@@ -494,7 +495,7 @@ where $X_"strand"$, $X_"start"$, $X_"end"$ refer to the strand, starting, and en
       Assign[_visited-edges-forward_][${}$]
       Assign[_visited-nodes-forward_, _visited-edges-forward_][#linebreak() #h(2em) #FnInline[@bfs][_connected-component_, start=_lowest-read-node_]]
       State[]
-      Comment[Start the reverse search from the _visited_ read at the highest position]
+      Comment[Start the reverse search from the (node corresponding to) _visited_ read #linebreak() at the highest position along the genome sequence]
       Assign[_highest-read-node_][$"argmax"_(v thin in italic("visited-nodes-forward"))$ #FnInline[get-read-start-loc-for-node][$v$]]
       State[]
       Comment[Perform the reverse @bfs]
@@ -514,7 +515,7 @@ where $X_"strand"$, $X_"start"$, $X_"end"$ refer to the strand, starting, and en
 We start from the edge whose starting read is at the lowest position along the genome and perform a @bfs from it, storing the visited nodes. From this set of visited nodes, another @bfs is performed starting from the node representing the read at the highest genomic position. Edges traversed by both of the @bfs:pl belong to the optimal assembly (called _optimal-edges_). If there are multiple connected components in the overlap graph, the process is repeated. The _optimal-edges_ are labeled as belonging to the final assembly (true)---all other edges are labeled false.
 
 === Overlap graph masking and partitioning
-Masking and partitioning is performed during training only, with the entire graph used for performing inference. Masking is performed as a form a data augmentation to cheaply produce different sets of reads and the corresponding overlap graph. For every training step, $0$--$20%$ of the overlap graph's nodes, and corresponding edges, are removed. This simulates varying levels of read coverage up to the original $times #h(0em) 60$.
+Masking and partitioning are performed during training only, with the entire graph used for performing inference. Masking is performed as a form a data augmentation to cheaply produce different sets of reads and the corresponding overlap graph. For every training step, $0$--$20%$ of the overlap graph's nodes, and corresponding edges, are removed. This simulates varying levels of read coverage (number of times each base in the genome is sampled on average) up to the original $times #h(0em) 60$.
 
 Additionally, since the entire overlap graph contains $>100,000$ nodes, and cannot fit onto @gpu memory, `METIS` @metis-paper partitioning is used to divide the overlap graph. Note that inference is performed on the @cpu, which is able to access the system's abundant main memory, and so graph partitioning is not required.
 
@@ -590,7 +591,7 @@ Once a probability has been assigned to each edge representing its likelihood of
 }) <alg:greedy-decode-contigs>]
 #place(top + center)[#algorithm_2]
 
-Recall that we are interested in finding a Hamiltonian path through the overlap graph to recover the genome. In an ideal scenario, where all neural network edge predictions are accurate and the graph contains no artifacts, a simple greedy traversal (forwards and backwards) starting from any positively predicted edge would suffice to reconstruct the genome. However, due to prediction errors and noise in the graph, neither of these conditions are met in practice, and so we use the greedy decoding algorithm shown in @alg:greedy-decode-contigs (and used by prior neural genome assembly work @lovro).
+Recall that we are interested in finding a Hamiltonian path through the overlap graph to recover the genome. In an ideal scenario, where all neural network edge predictions are accurate and the graph contains no artifacts, a simple greedy traversal (forwards and backwards) starting from any positively predicted edge would suffice to reconstruct the genome. However, due to prediction errors and noise in the graph, neither of these conditions are met in practice, and so we use the greedy decoding algorithm shown in @alg:greedy-decode-contigs, and illustrated in @fig:overview(D) (and used by prior neural genome assembly work @lovro).
 
 @alg:greedy-decode-contigs first samples multiple high-probability seed edges and then greedily chooses a sequence of edges both forwards and backwards from each seed edge, forming a path through the assembly graph. The longest resulting path is selected and overlapping reads along that path merged into a contig. Nodes along the selected path are marked as visited to prevent their reuse in subsequent searches, and the process repeats until no path above a fixed length threshold can be found.
 
@@ -631,9 +632,9 @@ $
 $
   e_(s t)^(l + 1) = e_(s t)^l + #relu (#norm (B_1^l e_(s t)^l + B_2^l h_s^l + B_3^l h_t^l))
 $ <eq:edge_features>
-where all $A, B in RR^(d times d)$ are learnable parameters with hidden dimension $d$, #relu stands for Rectified Linear Unit, and #norm refers to the normalization layer used---this is discussed in more detail in @sec:granola. Note that the standard input embeddings (@sec:standard_input_embedding) are used for $h_i^0$ and $e_(s t)^0$. $eta_(j i)^("f", l)$ and $eta_(i k)^("b", l)$ refer to the forward, and backward gating functions respectively. The edge gates are defined according to the GatedGCN:
+where all $A, B in RR^(d times d)$ are learnable parameters with hidden dimension $d$, $dot.circle$ denotes the Hadamard product, #relu stands for Rectified Linear Unit, and #norm refers to the normalization layer used---this is discussed in more detail in @sec:granola. Note that the standard input embeddings (@sec:standard_input_embedding) are used for $h_i^0$ and $e_(s t)^0$. $eta_(j i)^("f", l)$ and $eta_(i k)^("b", l)$ refer to the forward, and backward gating functions respectively. The edge gates are defined according to the GatedGCN:
 $
-  eta_(j i)^("f", l) = sigma (e_(j i)^l) / (sum_(j' -> i) sigma (e_(j' i)^l) + epsilon.alt) in [0, 1]^d, #h(2.5em) eta_(i k)^("b", l) = sigma (e_(i k)^l) / (sum_(i -> k') sigma (e_(i k')^l) + epsilon.alt) in [0, 1]^d
+  eta_(j i)^("f", l) = sigma(e_(j i)^l) / (sum_(j' -> i) sigma (e_(j' i)^l) + epsilon.alt) in [0, 1]^d, #h(2.5em) eta_(i k)^("b", l) = sigma(e_(i k)^l) / (sum_(i -> k') sigma (e_(i k')^l) + epsilon.alt) in [0, 1]^d
 $
 where $sigma$ represents the sigmoid function, $epsilon.alt$ is a small value added to prevent division by 0, and $j' -> i$ represents all edges where the destination node is $i$. Likewise, $i -> k'$ represents all edges where the source node is $i$.
 
@@ -660,10 +661,10 @@ $
   alpha_(i j)^"n" &= "softmax"_j (c_(i j)^"n") = (exp (c_(i j)^"n")) / (sum_(k in neighborhood_i) exp (c_(i k)^"n")) \
   alpha_(i j)^"e" &= "softmax"_j (c_(i j)^"e") = (exp (c_(i j)^"e")) / (sum_(k in neighborhood_i) exp (c_(i k)^"e")) \
 $
-The updated node features are then calculated by first weighing the node and edge features by their corresponding normalized attention coefficients. Next, these node and edge features are concatenated, and passed through another single-layer feed-forward neural network, $"mix-node-edge-information"$:
+The updated node features are then calculated by first weighing the node and edge features by their corresponding normalized attention coefficients. Next, these node and edge features are concatenated, and passed through another single-layer feed-forward neural network, #smallcaps[Mix-Node-Edge-Information]:
 $
   
-  h_i^(l + 1) = "mix-node-edge-information"(lr(sigma (sum_(j in neighborhood_i) alpha_(i j)^"n" bold(W)^"n" h_j^l ) ||) thin sigma (sum_(j in neighborhood_i) alpha_(i j)^"e" bold(W)^"e" e_(j i)^l ))
+  h_i^(l + 1) = #smallcaps[Mix-Node-Edge-Information] (lr(sigma (sum_(j in neighborhood_i) alpha_(i j)^"n" bold(W)^"n" h_j^l ) ||) thin sigma (sum_(j in neighborhood_i) alpha_(i j)^"e" bold(W)^"e" e_(j i)^l ))
 $
 where $bold(W)^"n", bold(W)^"e" in RR^(d times d)$ are parameterized weight matrices.
 
@@ -682,13 +683,13 @@ $
 $
 
 #modelexplanation[
-  Integrating the symmetry feature from @symgatedgcn into GAT+Edge, to form SymGAT+Edge, helps to increase expressivity as messages passed along edges cannot be distinguished from messages passed along the reversed direction by the attention mechanism either. The model is just provided with a graph, with no information regarding the directionality of the edges.
+  Integrating the symmetry feature from @symgatedgcn into GAT+Edge, to form SymGAT+Edge, helps to increase expressivity as messages passed along edges cannot be distinguished from messages passed along the reversed direction by the attention mechanism either. The model is just provided with a graph, with no information regarding what constitutes a forward and reverse edge.
 ]
 
 === SymGatedGCN+Mamba
 The standard input features (@sec:standard_input_features) used in prior work on neural genome assembly extract normalized overlap length and similarity from pairs of overlapping reads. However, the models have access to only these summary statistics, not the raw nucleotide read data, which could enable the model to extract more complex features, for example by capturing some notion of what is biologically plausible.
 
-While standard encoder-only Transformers @transformer-paper are the contemporary choice for sequence-to-embedding tasks like this @bert-paper, a fundamental drawback makes them unsuitable---their quadratic complexity with respect to the sequence length. Each read is upto $10s$ of @kb long for @pacbio @hifi reads, and there are $1000$s of reads even in the partitioned overlap graph used during training (note that we cannot partition the graph to an arbitrarily small number of nodes without sustaining major losses in performance as context around the graph artifact is lost).
+While standard encoder-only Transformers @transformer-paper are the contemporary choice for sequence-to-embedding tasks like this @bert-paper, a fundamental drawback makes them unsuitable---their quadratic complexity with respect to the sequence length. Subquadratic-time attention mechanisms have been unable to match the performance of the original attention mechanism on modalities such as language @mamba. Each read is upto $10s$ of @kb long for @pacbio @hifi reads, and there are $1000$s of reads even in the partitioned overlap graph used during training (note that we cannot partition the graph to an arbitrarily small number of nodes without sustaining major losses in performance as context around the graph artifact is lost).
 
 On the other hand, @rnn architectures such as @lstm @lstm-review have linear complexity, but have traditionally struggled with modelling such long sequences. The key to the efficacy of Transformers, is the self-attention mechanism's ability to effectively route information from across the sequence, regardless of the distance.
 
@@ -707,9 +708,9 @@ $
     (1, 0, 0, 0) "if " r_(i j) = "G",
   )
 $
-where $j$ refers to the $j$th nucleotide in $r_i$. Next, the one-hot encoded representation is expanded to the hidden dimension $d$ via a learned parameter matrix $bold(W)^"expand" in 4 times d$, and then the read is encoded into $r_i^"encoded" in n times d$ by Mamba:
+where $j$ refers to the $j$th nucleotide in $r_i$. Next, the one-hot encoded representation is expanded to the hidden dimension $d$ via a learned parameter matrix $bold(W)^"expand" in 4 times d$, and then the read is encoded into $r_i^"encoded" in n times d$ by #smallcaps[Mamba]:
 $
-  r_i^"encoded" = "Mamba"(r_i bold(W)^"expand")
+  r_i^"encoded" = #smallcaps[Mamba] (r_i bold(W)^"expand")
 $
 Note that $r_i^"encoded"$ is a matrix that varies in size with the length of the read. In order to obtain a fixed length hidden encoding of the read, we simply take the last row of this matrix (indexing from 1):
 $

@@ -350,7 +350,7 @@ def train(cfg):
     hidden_edge_scores = cfg.num_hidden_edge_scores
     decay = cfg.decay
     wandb_mode = "online"
-    wandb_project = "new-genome-assembly"
+    wandb_project = "mamba"
     alpha = cfg.alpha
     mask_frac_low = cfg.mask_frac_low
     mask_frac_high = cfg.mask_frac_high
@@ -373,7 +373,7 @@ def train(cfg):
     time_start = datetime.now()
     timestamp = time_start.strftime('%Y-%b-%d-%H-%M-%S')
 
-    out = timestamp
+    # out = timestamp
 
     ds_train = SubgraphDataset(cfg, True, mask_frac_low, mask_frac_high, num_nodes_per_cluster)
     ds_valid = SubgraphDataset(cfg, False, mask_frac_low, mask_frac_high, num_nodes_per_cluster)
@@ -387,7 +387,8 @@ def train(cfg):
         print(models_path)
         os.makedirs(models_path)
 
-    out = out + f'_model={cfg.model_type.value.__name__}_seed={seed}'
+    # out = out + f'_model={cfg.model_type.value.__name__}_seed={seed}'
+    out = f'model={cfg.model_type.value.__name__}_seed={seed}_train={cfg.training_chromosomes[0]}_valid={cfg.validation_chromosomes[0]}_data={cfg.data_dir[:-1]}_nodes={cfg.num_nodes_per_cluster}'
 
     model_path = os.path.join(models_path, f'model_{out}.pt')    
     print(f'MODEL PATH: {model_path}')
@@ -417,7 +418,7 @@ def train(cfg):
     validation_step = 0
 
     try:
-        with wandb.init(project=wandb_project, config=cfg.model_dump(), mode=wandb_mode, name=out):
+        with wandb.init(entity="paroxysmisch-university-of-cambridge", project=wandb_project, config=cfg.model_dump(), mode=wandb_mode, name=out):
             wandb.watch(model, criterion, log='all', log_freq=1000)
 
             for epoch in range(start_epoch, num_epochs):

@@ -14,5 +14,6 @@ hydra-core
 omegaconf
 wandb
 scikit-learn
+seaborn[stats]
 -f https://data.dgl.ai/wheels/torch-2.4/cu124/repo.html
 dgl

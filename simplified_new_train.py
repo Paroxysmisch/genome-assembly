@@ -636,7 +636,8 @@ def train(cfg):
                     if len(loss_per_epoch_valid) == 1 or len(loss_per_epoch_valid) > 1 and loss_per_epoch_valid[-1] < min(loss_per_epoch_valid[:-1]):
                         torch.save(model.state_dict(), model_path)
 
-                        artifact = wandb.Artifact(name=f"best-model-{out}", type="model")
+                        out_eq_replaced_dot = out.replace('=', '.')
+                        artifact = wandb.Artifact(name=f"best-model-{out_eq_replaced_dot}", type="model")
                         artifact.add_file(model_path)
                         wandb.log_artifact(artifact, aliases=["best", "latest"])
                         wandb.run.summary[f"best_model_artifact"] = f"best-model-{out}:latest"

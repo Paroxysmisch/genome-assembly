@@ -422,6 +422,8 @@ def train(cfg):
 
             for epoch in range(start_epoch, num_epochs):
                 train_loss_epoch, train_fp_rate_epoch, train_fn_rate_epoch = [], [], []
+                train_acc_epoch, train_precision_epoch, train_recall_epoch, train_f1_epoch = [], [], [], []
+                train_acc_inv_epoch, train_precision_inv_epoch, train_recall_inv_epoch, train_f1_inv_epoch = [], [], [], []
 
                 model.train()
 
@@ -473,6 +475,7 @@ def train(cfg):
                             "f1_inv": f1_inv,
                             "lr_value": optimizer.param_groups[0]['lr'],
                             "training_step": training_step,
+                            "training_epoch": epoch,
                         }
                     )
                     training_step += 1
@@ -481,10 +484,28 @@ def train(cfg):
                     train_fp_rate_epoch.append(fp_rate)
                     train_fn_rate_epoch.append(fn_rate)
 
+                    train_acc_epoch.append(acc)
+                    train_precision_epoch.append(precision)
+                    train_recall_epoch.append(recall)
+                    train_f1_epoch.append(f1)
+                    train_acc_inv_epoch.append(acc_inv)
+                    train_precision_inv_epoch.append(precision_inv)
+                    train_recall_inv_epoch.append(recall_inv)
+                    train_f1_inv_epoch.append(f1_inv)
+
                 train_loss_epoch = statistics.mean(train_loss_epoch)
                 train_fp_rate_epoch = statistics.mean(train_fp_rate_epoch)
                 train_fn_rate_epoch = statistics.mean(train_fn_rate_epoch)
                 loss_per_epoch_train.append(train_loss_epoch)
+
+                train_acc_epoch = statistics.mean(train_acc_epoch)
+                train_precision_epoch = statistics.mean(train_precision_epoch)
+                train_recall_epoch = statistics.mean(train_recall_epoch)
+                train_f1_epoch = statistics.mean(train_f1_epoch)
+                train_acc_inv_epoch = statistics.mean(train_acc_inv_epoch)
+                train_precision_inv_epoch = statistics.mean(train_precision_inv_epoch)
+                train_recall_inv_epoch = statistics.mean(train_recall_inv_epoch)
+                train_f1_inv_epoch = statistics.mean(train_f1_inv_epoch)
 
                 elapsed = utils.timedelta_to_str(datetime.now() - time_start)
                 print(f'\n==> TRAINING (all training graphs): Epoch = {epoch}')
@@ -495,6 +516,14 @@ def train(cfg):
                         "train_loss_epoch": train_loss_epoch,
                         "train_fp_rate_epoch": train_fp_rate_epoch,
                         "train_fn_rate_epoch": train_fn_rate_epoch,
+                        "train_acc_epoch": train_acc_epoch,
+                        "train_precision_epoch": train_precision_epoch,
+                        "train_recall_epoch": train_recall_epoch,
+                        "train_f1_epoch": train_f1_epoch,
+                        "train_acc_inv_epoch": train_acc_inv_epoch,
+                        "train_precision_inv_epoch": train_precision_inv_epoch,
+                        "train_recall_inv_epoch": train_recall_inv_epoch,
+                        "train_f1_inv_epoch": train_f1_inv_epoch,
                         "epoch": epoch,
                     },
                 )
@@ -509,6 +538,8 @@ def train(cfg):
                     model.eval()
 
                     validation_loss_epoch, validation_fp_rate_epoch, validation_fn_rate_epoch = [], [], []
+                    validation_acc_epoch, validation_precision_epoch, validation_recall_epoch, validation_f1_epoch = [], [], [], []
+                    validation_acc_inv_epoch, validation_precision_inv_epoch, validation_recall_inv_epoch, validation_f1_inv_epoch = [], [], [], []
 
                     for batch in ds_valid:
                         sub_g, pe, e, rev_sub_g, rev_pe, rev_e, labels = batch
@@ -551,6 +582,7 @@ def train(cfg):
                                 "validation_recall_inv": recall_inv,
                                 "validation_f1_inv": f1_inv,
                                 "validation_step": validation_step,
+                                "validation_epoch": epoch,
                             }
                         )
                         validation_step += 1
@@ -559,10 +591,28 @@ def train(cfg):
                         validation_fp_rate_epoch.append(fp_rate)
                         validation_fn_rate_epoch.append(fn_rate)
 
+                        validation_acc_epoch.append(acc)
+                        validation_precision_epoch.append(precision)
+                        validation_recall_epoch.append(recall)
+                        validation_f1_epoch.append(f1)
+                        validation_acc_inv_epoch.append(acc_inv)
+                        validation_precision_inv_epoch.append(precision_inv)
+                        validation_recall_inv_epoch.append(recall_inv)
+                        validation_f1_inv_epoch.append(f1_inv)
+
                     validation_loss_epoch = statistics.mean(validation_loss_epoch)
                     validation_fp_rate_epoch = statistics.mean(validation_fp_rate_epoch)
                     validation_fn_rate_epoch = statistics.mean(validation_fn_rate_epoch)
                     loss_per_epoch_valid.append(validation_loss_epoch)
+
+                    validation_acc_epoch = statistics.mean(validation_acc_epoch)
+                    validation_precision_epoch = statistics.mean(validation_precision_epoch)
+                    validation_recall_epoch = statistics.mean(validation_recall_epoch)
+                    validation_f1_epoch = statistics.mean(validation_f1_epoch)
+                    validation_acc_inv_epoch = statistics.mean(validation_acc_inv_epoch)
+                    validation_precision_inv_epoch = statistics.mean(validation_precision_inv_epoch)
+                    validation_recall_inv_epoch = statistics.mean(validation_recall_inv_epoch)
+                    validation_f1_inv_epoch = statistics.mean(validation_f1_inv_epoch)
 
                     print(f'\n==> VALIDATION (all validation graphs): Epoch = {epoch}')
                     print(f'Loss: {validation_loss_epoch:.4f}, fp_rate(GT=0): {validation_fp_rate_epoch:.4f}, fn_rate(GT=1): {validation_fn_rate_epoch:.4f}')
@@ -571,12 +621,26 @@ def train(cfg):
                             "validation_loss_epoch": validation_loss_epoch,
                             "validation_fp_rate_epoch": validation_fp_rate_epoch,
                             "validation_fn_rate_epoch": validation_fn_rate_epoch,
+                            "validation_acc_epoch": validation_acc_epoch,
+                            "validation_precision_epoch": validation_precision_epoch,
+                            "validation_recall_epoch": validation_recall_epoch,
+                            "validation_f1_epoch": validation_f1_epoch,
+                            "validation_acc_inv_epoch": validation_acc_inv_epoch,
+                            "validation_precision_inv_epoch": validation_precision_inv_epoch,
+                            "validation_recall_inv_epoch": validation_recall_inv_epoch,
+                            "validation_f1_inv_epoch": validation_f1_inv_epoch,
                             "epoch": epoch,
                         },
                     )
 
                     if len(loss_per_epoch_valid) == 1 or len(loss_per_epoch_valid) > 1 and loss_per_epoch_valid[-1] < min(loss_per_epoch_valid[:-1]):
                         torch.save(model.state_dict(), model_path)
+
+                        artifact = wandb.Artifact(name=f"best-model-{out}", type="model")
+                        artifact.add_file(model_path)
+                        wandb.log_artifact(artifact, aliases=["best", "latest"])
+                        wandb.run.summary[f"best_model_artifact"] = f"best-model-{out}:latest"
+
                         print(f'Epoch {epoch}: Model saved!')
                     save_checkpoint(epoch, model, optimizer, loss_per_epoch_valid[-1], 0.0, out, ckpt_path)
                     scheduler.step(validation_loss_epoch)

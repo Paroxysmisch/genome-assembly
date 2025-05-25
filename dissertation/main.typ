@@ -155,7 +155,7 @@ Deep learning has successfully addressed various genome assembly challenges, oft
 
 Prior work has used @gnn:pl to neurally executed common graph algorithms @neural-graph-algorithms, including the @tsp @tsp-gnn and Hamiltonian Path @inter-homo-gnn (which can be reduced to @tsp in polynomial time) problem. We cannot simply use state-of-the-art neural Travelling Salesman solvers (like the use of Graph Transformers @tsp-graph-transformer) due to the size of overlap graphs (thousands of edges and millions of nodes) being much larger than those used during research for creating these models. Secondly, these models utilize node coordinate information that is not available in the overlap graph. Lastly, these models assume the input graphs are error-free---this is not true for overlap graphs.
 
-The neural execution paradigm has also been successful in simulating some of the deterministic simplification algorithms used on the overlap graph, including transitive edge, dead-end/tip, and bubble removal, showcasing the potential of @gnn:pl for artifact resolution in overlap graphs (more precisely, the layout phase of the @olc algorithm, detailed in @sec:olc). Importantly, building on this, and the framework laid out by neural @tsp solving @tsp-gcn, @gnn:pl have been employed for direct artifact resolution in overlap graphs @lovro , without trying to replicate the result of a fixed existing algorithm, or heuristic. This was shown to improve assembly contiguity, and reduce mismatches and indels (erroneous insertions/deletions) in the reconstructed genome.
+The neural execution paradigm has also been successful in simulating some of the deterministic simplification algorithms used on the overlap graph, including transitive edge, dead-end/tip, and bubble removal, showcasing the potential of @gnn:pl for artifact resolution in overlap graphs (more precisely, the layout phase of the @olc algorithm, detailed in @sec:olc). Importantly, building on this, and the framework laid out by neural @tsp solving @tsp-gcn, @gnn:pl have been employed for direct artifact resolution in overlap graphs @lovro, without trying to replicate the result of a fixed existing algorithm, or heuristic. This was shown to improve assembly contiguity, and reduce mismatches and indels (erroneous insertions/deletions) in the reconstructed genome.
 
 == Aims
 While previous work @lovro has paved the way to replace the combination of algorithms and heuristics traditionally used during the layout phase of the @olc algorithm, this project aims to build on these advancements with three aims:
@@ -167,19 +167,29 @@ While previous work @lovro has paved the way to replace the combination of algor
 + Evaluating the feasibility of an end-to-end neural approach to the genome assembly problem that goes beyond isolated improvements to various sub-tasks, such as layout.
 
 == Key contributions
+The key contributions of this project are as follows:
 
++ Extension of the @gat architecture, called GAT+Edge, to update edge features, and incorporate them into message passing.
 
-Motivation
-  - Applications
-    - Could talk about in the future being able to integrate other types of read data
++ Combining this new architecture with the symmetry feature of @symgatedgcn introduced in prior work @lovro, to form SymGAT.
+
++ Evaluating the performance of these new architectures against @symgatedgcn.
+
++ Investigating the integration of ultra-long read data, by combining them into existing overlap graphs generated from long-reads only, and testing the performance of various @gnn architectures on this extended overlap graph.
+
++ Creating a proof-of-concept for purely neural genome assembly that does not rely on overlap graphs, or the @olc algorithm.
+
+// Motivation
+//   - Applications
+//     - Could talk about in the future being able to integrate other types of read data
   
-  - Existing methods
-    - Little work done on using neural networks
-    - Talk about the heuristics that are used possibly
+//   - Existing methods
+//     - Little work done on using neural networks
+//     - Talk about the heuristics that are used possibly
 
-Outline
-  - Aims
-  - Key contributions
+// Outline
+//   - Aims
+//   - Key contributions
 
 #pagebreak()
 
@@ -693,7 +703,7 @@ Next, a copy of the input graph $G = (V, E)$ is made, $G_"rev" = (V, E_"rev")$, 
 $ forall i, j in V. thick i -> j in E <==> j -> i in E_"rev" $
 $G_"rev"$ is equivalent to the original graph $G$, with the direction of all edges reversed. GAT+Edge then individually takes $G$ and $G_"rev"$ as input, producing a pair of new node features $h_i^("f", l + 1)$ and $h_i^("b", l + 1)$ respectively. These are then combined to produced to new hidden node state as follows:
 $
-  h_i^(l + 1) = h_i^l + #relu (#norm h_i^("f", l + 1) + h_i^("b", l + 1) )
+  h_i^(l + 1) = h_i^l + #relu (#norm (h_i^("f", l + 1) + h_i^("b", l + 1)))
 $
 
 #modelexplanation[
@@ -713,42 +723,50 @@ Additionally, another issue mitigated by the use of Mamba is that there is no ca
 
 The SymGatedGCN+Mamba model uses the standard input features (from @sec:standard_input_features) in addition to the Mamba encoding of the reads as additional node features. Assume we are given an overlap graph $G = (V, E)$. For read $r_i in {"A, T, C, G"}^T$, represented by node $v_i$, the Mamba read encoding node feature $m_i in bb(R)^D$ is generated as follows ($D$ is size of the hidden dimension).
 
-First, read $r_i in {"A, T, C, G"}^T$, which is a string of nucleotides of length $T$, is one-hot encoded to produce $r_i^"one-hot" in {0, 1}^(T times 4)$:
+First, read $r_i in {"A, T, C, G"}^T$, which is a string of nucleotides of length $T$, is one-hot encoded to produce $r_i^"one-hot" in {0, 1}^(4 times T)$:
 $
   r_(i, t)^"one-hot" = cases(
-    (0, 0, 0, 1) "if " r_(i t) = "A",
-    (0, 0, 1, 0) "if " r_(i t) = "T",
-    (0, 1, 0, 0) "if " r_(i t) = "C",
-    (1, 0, 0, 0) "if " r_(i t) = "G",
+    (0, 0, 0, 1)^"T" "if " r_(i t) = "A",
+    (0, 0, 1, 0)^"T" "if " r_(i t) = "T",
+    (0, 1, 0, 0)^"T" "if " r_(i t) = "C",
+    (1, 0, 0, 0)^"T" "if " r_(i t) = "G",
   )
 $
-where $t in {1, 2, ..., T}$ refers to the $t$th nucleotide in $r_i$. Next, the one-hot encoded representation is expanded to the hidden dimension $D$ via a learned parameter matrix $bold(W)^"expand" in 4 times D$, and then the read is encoded into $r_i^"encoded" in T times D$ by #smallcaps[Mamba]:
+where $t in {1, 2, ..., T}$ refers to the $t$th nucleotide in $r_i$. $"T"$ is the transpose operator. Next, the one-hot encoded representation is expanded to the hidden dimension $D$ via a learned parameter matrix $bold(W)^"expand" in D times 4$, and then the read is encoded into $r_i^"encoded" in D times T$ by #smallcaps[Mamba]:
 $
-  r_i^"encoded" = #smallcaps[Mamba] (r_i bold(W)^"expand")
+  r_i^"encoded" = #smallcaps[Mamba] (bold(W)^"expand" r_i)
 $
 _Note that $r_i^"encoded"$ is a matrix that varies in size with the length of the read._ In order to obtain a fixed length, _whole_ read encoding, we take the last row of this matrix (indexing from 1):
 $
   m_i = r_i^"encoded" [n]
 $
 
-The initial node and edge hidden embeddings are then given by:
+The node embeddings are then updated to incorporate the information from the Mamba embedding, forming an intermediate node embedding $h_i '$:
 $
-  h_i^0 &= W_2^"n" (thin "ReLU" (W_1^"n" (x_i || m_i) + b_1^"n")) + b_2^"n" \
-  e_(i j)^0 &= W_2^"e" (thin "ReLU" (W_1^"e" z_(i j) + b_1^"e")) + b_2^"e"
+  h_i ' = W_2 (thin #relu (W_1 (h_i^l || m_i) + b_1)) + b_2
 $
-where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable parameters for transforming the node and edge features respectively ($W_1^"n" in bb(R)^(2 + D times D), W_1^"e" in bb(R)^(D times 2)$, $W_2^"n", W_2^"e" in bb(R)^(D times D)$, and $b_1^"n", b_1^"e", b_2^"n", b_2^"e" in bb(R)^D$), and $D$ is the hidden dimension. $||$ denotes the concatenation operator.
+where all $W, b$ represent learnable parameters ($W_1 in RR^(D times 2D)$, $W_2 in RR^(D times D)$, and $b_1, b_2 in RR^D$), and $D$ is the hidden dimension. $||$ denotes the concatenation operator.
+
+The intermediate node embeddings, and the unmodified edge embeddings $e_(i j)^l$ are then passed to a @symgatedgcn layer, that outputs $h_i^(l + 1)$ and $e_(i j)^(l + 1)$, and acts as the output of SymGatedGCN+Mamba.
 
 #modelexplanation[
   The primary goal of SymGatedGCN+Mamba is to explore whether the model can exploit the raw read data to generate new (node) features that are useful in resolving overlap graph artifacts. Mamba was chosen as the read encoding model of choice due to its near-linear time complexity, long-range dependency modelling capabilities, and promising results on adjacent @dna modelling tasks.
 ]
 
 === SymGatedGCN+MambaOnly
-We use the same Mamba read encoding node feature $m_i in bb(R)^D$ as in SymGatedGCN+Mamba, but remove the dependency on standard edge features (@sec:standard_input_features). The initial node and edge embeddings are now given as:
+We use the same Mamba read encoding node feature $m_i in bb(R)^D$ as in SymGatedGCN+Mamba, but remove the dependency on standard edge features (@sec:standard_input_features). We no longer form an intermediate node embedding, but instead calculate an intermediate edge embedding $e_(i j) '$:
 $
-  h_i^0 &= W_2^"n" (thin "ReLU" (W_1^"n" (x_i) + b_1^"n")) + b_2^"n" \
-  e_(i j)^0 &= W_2^"e" (thin "ReLU" (W_1^"e" (m_i || m_j) + b_1^"e")) + b_2^"e"
+  e_(i j) ' = W_2 (thin #relu (W_1 (m_i || m_j) + b_1)) + b_2
 $
-where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable parameters for transforming the node and edge features respectively ($W_1^"n" in bb(R)^(D times 2), W_1^"e" in bb(R)^(D times 2D)$, $W_2^"n", W_2^"e" in bb(R)^(D times D)$, and $b_1^"n", b_1^"e", b_2^"n", b_2^"e" in bb(R)^D$), and $D$ is the hidden dimension. $||$ denotes the concatenation operator.
+where all $W, b$ represent learnable parameters ($W_1 in RR^(D times 2D)$, $W_2 in RR^(D times D)$, and $b_1, b_2 in RR^D$), and $D$ is the hidden dimension. $||$ denotes the concatenation operator.
+
+The unmodified node embeddings $h_i^l$, and the intermediate edge embeddings are then passed to a @symgatedgcn layer, that outputs $h_i^(l + 1)$ and $e_(i j)^(l + 1)$, and acts as the output of SymGatedGCN+MambaOnly.
+
+// $
+//   h_i^0 &= W_2^"n" (thin "ReLU" (W_1^"n" (x_i) + b_1^"n")) + b_2^"n" \
+//   e_(i j)^0 &= W_2^"e" (thin "ReLU" (W_1^"e" (m_i || m_j) + b_1^"e")) + b_2^"e"
+// $
+// where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable parameters for transforming the node and edge features respectively ($W_1^"n" in bb(R)^(D times 2), W_1^"e" in bb(R)^(D times 2D)$, $W_2^"n", W_2^"e" in bb(R)^(D times D)$, and $b_1^"n", b_1^"e", b_2^"n", b_2^"e" in bb(R)^D$), and $D$ is the hidden dimension. $||$ denotes the concatenation operator.
 
 #modelexplanation[
   SymGatedGCN+MambaOnly tests whether the model can recover the overlap length and similarity metrics used earlier, from raw read data (or alternatively generate even richer embeddings).

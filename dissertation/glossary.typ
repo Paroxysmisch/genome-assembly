@@ -162,5 +162,10 @@
     key: "mpnn",
     short: "MPNN",
     long: "Message Passing Neural Network"
+  ),
+  (
+    key: "tsp",
+    short: "TSP",
+    long: "Travelling Salesman Problem"
   )
 )

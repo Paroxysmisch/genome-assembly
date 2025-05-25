@@ -124,9 +124,9 @@ Historically, hierarchical sequencing and @wgs have been the two predominant ass
 
 Due to its high cost and labour-intensive nature, heirarchical sequencing has largely been replaced by @wgs, where the genome is randomly fragmented into individually sequenced smaller segments called reads @wgs1 @wgs2. These reads are then reassembled into a complete genome by identifying overlaps between them. Unlike hierarchical sequencing, @wgs must consider overlaps between reads spanning the entire genome, not just localized regions, which significantly increases computational complexity.
 
-A fundamental part of @wgs is the creation of the overlap graph @overlapgraphsdetailed @lovro @overlapgraph, in which each vertex is a read. There exists a directed edge between the vertex of read $A$ and of read $B$ if the suffix of $A$ can be aligned to (i.e. overlaps with) the prefix $B$. However, in practice, this overlap graph is not perfect. Due to the computational cost of exact overlap calculations and the inherent noise in sequencing technologies, overlaps are imprecise.
+A fundamental part of @wgs is the creation of the overlap graph @overlapgraphsdetailed @lovro @overlapgraph, in which each vertex is a read. There exists a directed edge between the vertex of read $A$ and of read $B$ if the suffix of $A$ can be aligned to (i.e. overlaps with) the prefix $B$. The genome can then be reconstructed by finding a Hamiltonian path (a path that visits every vertex/read in the graph exactly once) through this overlap graph.
 
-Additional challenges include errors in base-calling (translating the electrical signals into a sequence of nucleotides: @nuc_a, @nuc_g, @nuc_c, @nuc_t) the raw read data, long repetitive regions in the genome, and other sequencing artifacts---all of which introduce spurious nodes and edges into the graph, which must be cleaned up @lovro.
+However, in practice, this overlap graph is not perfect. Due to the computational cost of exact overlap calculations and the inherent noise in sequencing technologies, overlaps are imprecise. Additional challenges include errors in base-calling (translating the electrical signals into a sequence of nucleotides: @nuc_a, @nuc_g, @nuc_c, @nuc_t) the raw read data, long repetitive regions in the genome, and other sequencing artifacts---all of which introduce spurious nodes and edges into the graph, which must be cleaned up @lovro.
 
 #place(top + center)[#figure(image("graphics/artifacts.svg", width: 90%), caption: [Elementary artifact types encountered in overlap graphs. Each node in this example overlap graph represents a read, and the edges correspond to overlaps between those reads.]) <fig:common_artifacts>]
 
@@ -151,8 +151,20 @@ Consequently, despite the utility of heuristic algorithms, these methods often s
 )]
 
 == Related work
+Deep learning has successfully addressed various genome assembly challenges, often resulting in state-of-the-art results across multiple sub-tasks. Neural networks have been applied to improve basecalling @neural-basecalling, which is the computational process by which the raw electrical signals output by the sequencing hardware are converted into the nucleotide sequences called reads. This improves the quality of the reads, reducing errors in the overlap graph subsequently generated. Transformer encoder @transformer-paper models have been used for sequence correction @neural-consensus, vastly enhancing assembly contiguity, gene completeness, base accuracy, and reducing false gene duplications and variant calling (identifying differences between the sequenced and reference genome) errors.
+
+Prior work has used @gnn:pl to neurally executed common graph algorithms @neural-graph-algorithms, including the @tsp @tsp-gnn and Hamiltonian Path @inter-homo-gnn (which can be reduced to @tsp in polynomial time) problem. We cannot simply use state-of-the-art neural Travelling Salesman solvers (like the use of Graph Transformers @tsp-graph-transformer) due to the size of overlap graphs (thousands of edges and millions of nodes) being much larger than those used during research for creating these models. Secondly, these models utilize node coordinate information that is not available in the overlap graph. Lastly, these models assume the input graphs are error-free---this is not true for overlap graphs.
+
+The neural execution paradigm has also been successful in simulating some of the deterministic simplification algorithms used on the overlap graph, including transitive edge, dead-end/tip, and bubble removal, showcasing the potential of @gnn:pl for artifact resolution in overlap graphs (more precisely, the layout phase of the @olc algorithm, detailed in @sec:olc). Importantly, building on this, and the framework laid out by neural @tsp solving @tsp-gcn, @gnn:pl have been employed for direct artifact resolution in overlap graphs @lovro , without trying to replicate the result of a fixed existing algorithm, or heuristic. This was shown to improve assembly contiguity, and reduce mismatches and indels (erroneous insertions/deletions) in the reconstructed genome.
 
 == Aims
+While previous work @lovro has paved the way to replace the combination of algorithms and heuristics traditionally used during the layout phase of the @olc algorithm, this project aims to build on these advancements with three aims:
+
++ Investigating the efficacy of state-of-the-art @gnn layers that hold promise for furthering performance. 
+
++ Integrating ultra-long sequencing data into the @gnn\-based genome assembly pipeline, as this new data type offers new opportunities for resolving complex graph artifacts, particularly repeating regions in the genome that were previously difficult to address.
+
++ Evaluating the feasibility of an end-to-end neural approach to the genome assembly problem that goes beyond isolated improvements to various sub-tasks, such as layout.
 
 == Key contributions
 
@@ -174,7 +186,7 @@ Outline
 = Background
 
 
-== Overlap-Layout-Consensus //https://bio.libretexts.org/Bookshelves/Computational_Biology/Book%3A_Computational_Biology_-_Genomes_Networks_and_Evolution_(Kellis_et_al.)/05%3A_Genome_Assembly_and_Whole-Genome_Alignment/5.02%3A_Genome_Assembly_I-_Overlap-Layout-Consensus_Approach
+== Overlap-Layout-Consensus <sec:olc>//https://bio.libretexts.org/Bookshelves/Computational_Biology/Book%3A_Computational_Biology_-_Genomes_Networks_and_Evolution_(Kellis_et_al.)/05%3A_Genome_Assembly_and_Whole-Genome_Alignment/5.02%3A_Genome_Assembly_I-_Overlap-Layout-Consensus_Approach
 The fundamental problem in genome sequencing is that no current technology that can read continuously from one end of the genome to the other @t2t-genome-assembly. Instead, sequencing technologies only produce relatively short contiguous fragments called reads. Most chromosomes are $>10$ @mb long, and can be up to $1$ @gb long @t2t-genome-assembly, while even current long-read sequencing technologies only produce accurate reads up to a few $10$s of @kb @nanopore-ul. Thus assembling the genome requires an algorithm to combine these shorter reads. @olc @olc-algorithm is the predominant approach for genome assembly with long reads. In this section, we discuss the three phases of @olc in more detail.
 
 #let kmer = [$k$-mer]
@@ -236,7 +248,7 @@ Fortunately, the repeat copies forming these extended repeat regions are inexact
 
 Recall that @t2t assembly is a gapless reconstruction of the genome. Although long-read technology was introduced in 2010, supported by the arrival of single-molecule sequencing @single-molecule-1 @single-molecule-2, their error rate ($~10%$) was too high to resolve complex genomic section @t2t-genome-assembly, like those exhibited by repeating regions. This resulted in fragmented, and incomplete assembly. Accurate long-read technology was only available since 2019 @long-reads, revolutionizing genome assembly, and making possible the first @t2t human genome assembly in 2021 @t2t-chm13.
 
-== Sequencing technology
+== Sequencing technology <sec:sequencing-technology>
 There are three key characteristics of sequencing reads that are often traded-off during genome assembly: length, accuracy, and evenness of representation. The ideal sequencing technology produces long, highly accurate reads, with uniform coverage across the genome---avoiding gaps in low-coverage regions, and conserving computational resources in over-represented areas. Contemporary efforts targeting de novo @t2t assembly focus on accurate long-read technology @long-reads-leading that produces contiguous sequences spanning $>=10$ @kb in length, with @pacbio and @ont being the two companies leading their development.
 
 @pacbio's @hifi @hifi-and-ul read technology is the current core data type for high-quality genome assembly, due to its potential to generate reads spanning $10$--$20$ @kb in length, with an error rate $<0.5%$, replacing the previous continuous long-read solution that had an error rate $>10%$ @long-reads. Despite the success of long-read technology in achieving @t2t assemblies, the advent of ultra-long read technology is fast becoming a compelling additional data type to improve assembly reliability. @ont's @ul @hifi-and-ul sequencing technology is central in the generation of ultra-long read data, producing reads $>100$ @kb in length @ul-verko @double-graph @t2t-chm13, however with significantly lower accuracy ($90$--$95%$) than the @hifi solution.

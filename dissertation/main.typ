@@ -44,7 +44,7 @@
 #let title(content) = [#v(8em) #text(size: 2em)[#content]]
 
 #counter(page).update(1)
-#set page(numbering: "i", background: none)
+#set page(numbering: "I", background: none)
 
 #title[Declaration]
 
@@ -97,7 +97,6 @@ Date [date]
   #v(2em)
 ]
 
-#counter(page).update(1)
 #set page(numbering: "1")
 #set math.equation(numbering: "(1)")
 #show: word-count
@@ -109,6 +108,7 @@ Date [date]
 #let sub-caption-styling = (num, it) => [#set align(center); #num #it.body #v(0.5em)]
 #show smallcaps: set text(font: "New Computer Modern")
 
+#counter(page).update(1)
 = Introduction
 == Motivation
 Genome assembly has remained a central subject in computational biology for the past four decades @t2t-genome-assembly, as accurate reconstruction of an organism’s genome is essential in understanding its biology and evolution @t2t-evolution. By enabling researchers to map and analyze an organism's @dna, including genes, regulatory elements, and non-coding regions (segments that do not directly encode proteins), we gain insight into the organism's traits, development, and overall function. Comparative analyses of genome assemblies across species also sheds light on evolutionary relationships, and has applications to fields such as genome-assisted breeding of more resistant crops @t2t-unlocks-organization-function.
@@ -119,8 +119,8 @@ A @t2t assembly is essential in gaining complete insight into an organism's geno
 
 In this project, we demonstrate how machine learning is an effective tool in improving de novo (without relying on a pre-existing reference genome) @t2t assembly, by increasing accuracy, scalability, and speed, as well as reducing costs.
 
-== Existing methods <sec:existing_methods>
-Historically, hierarchical sequencing and @wgs have been the two predominant assembly strategies @t2t-genome-assembly. Hierarchical sequencing involves cloning, sequencing, and assembly of tiled genomic fragments that are aligned against a physical or genetic genome map, with the human reference genome GRCh38 being primarily constructed with this method @grch38. 
+== A short history of Genome Assembly <sec:existing_methods>
+Hierarchical sequencing and @wgs have been the two predominant assembly strategies @t2t-genome-assembly. Hierarchical sequencing involves cloning, sequencing, and assembly of tiled genomic fragments that are aligned against a physical or genetic genome map, with the human reference genome GRCh38 being primarily constructed with this method @grch38. 
 
 Due to its high cost and labour-intensive nature, heirarchical sequencing has largely been replaced by @wgs, where the genome is randomly fragmented into individually sequenced smaller segments called reads @wgs1 @wgs2. These reads are then reassembled into a complete genome by identifying overlaps between them. Unlike hierarchical sequencing, @wgs must consider overlaps between reads spanning the entire genome, not just localized regions, which significantly increases computational complexity.
 
@@ -160,7 +160,7 @@ The neural execution paradigm has also been successful in simulating some of the
 == Aims
 While previous work @lovro has paved the way to replace the combination of algorithms and heuristics traditionally used during the layout phase of the @olc algorithm, this project aims to build on these advancements with three aims:
 
-+ Investigating the efficacy of state-of-the-art @gnn layers that hold promise for furthering performance. 
++ Investigating the efficacy of more advanced @gnn layers that hold promise for furthering performance. 
 
 + Integrating ultra-long sequencing data into the @gnn\-based genome assembly pipeline, as this new data type offers new opportunities for resolving complex graph artifacts, particularly repeating regions in the genome that were previously difficult to address.
 
@@ -172,6 +172,8 @@ The key contributions of this project are as follows:
 + Extension of the @gat architecture, called GAT+Edge, to update edge features, and incorporate them into message passing.
 
 + Combining this new architecture with the symmetry feature of @symgatedgcn introduced in prior work @lovro, to form SymGAT.
+
++ Incorporating much richer features by utilizing the raw nucleotide read data directly, resulting in the SymGatedGCN+Mamba and SymGatedGCN+MambaEdge models.
 
 + Evaluating the performance of these new architectures against @symgatedgcn.
 
@@ -244,11 +246,11 @@ This project targets this layout phase with the use of @gnn:pl @gnn-survey. The 
 #place(top + center)[#figure(
   image("graphics/consensus.svg"),
   caption: [The consensus phase is responsible for the correction of per-base errors within contigs identified by the layout phase. Nucleotides in #text(fill: red)[red] highlight differences compared to the majority at that position.]
-)]
+) <fig:consensus>]
 
 Each path found in the previous layout phase corresponds to a contig---a contiguous sequence of @dna constructed from the set of overlapping reads in the path, representing a region of the genome. However, recall that the reads are erroneous, and overlaps are inexact---consensus is the step to address per-base errors.
 
-At any particular location within the contig, there may be multiple overlapping reads. These reads need to be aligned at the base level, and then consensus on each nucleotide reached to produce the final contig. There are multiple methods of achieving consensus post read alignment. For example, a simple majority vote can be taken for each nucleotide position, or a weighted scheme, using nucleotide quality scores as weights.
+At any particular location within the contig, there may be multiple overlapping reads. These reads need to be aligned to the assembled contig at the base level, and then consensus on each nucleotide reached to produce the final contig (illustrated in @fig:consensus). There are multiple methods of achieving consensus post read alignment. For example, a simple majority vote can be taken for each nucleotide position, or a weighted scheme, using nucleotide quality scores as weights.
 
 == Repeating regions and the need for accurate long-read technology <sec:need_long_reads>
 // https://pmc.ncbi.nlm.nih.gov/articles/PMC1226196/
@@ -617,7 +619,7 @@ Recall that we are interested in finding a Hamiltonian path through the overlap 
 
 @alg:greedy-decode-contigs first samples multiple high-probability seed edges and then greedily chooses a sequence of edges both forwards and backwards from each seed edge, forming a path through the assembly graph. The longest resulting path is selected and overlapping reads along that path merged into a contig. Nodes along the selected path are marked as visited to prevent their reuse in subsequent searches, and the process repeats until no path above a fixed length threshold can be found.
 
-== Model architectures
+== Model architecture
 === Standard input features <sec:standard_input_features>
 Assume we are given an overlap graph $G = (V, E)$. For two overlapping reads $r_i$ and $r_j$, represented by nodes $v_i$ and $v_j$, and connected by edge $e_(i j): i -> j$ the edge feature $z_(i j) in bb(R)^2$ is defined as follows:
 $ z_(i j) = &("normalized" italic("overlap length") "between" r_i "and" r_j, \
@@ -719,7 +721,7 @@ On the other hand, @rnn architectures such as @lstm @lstm-review have linear com
 
 As a result, we turn to the Mamba architecture, which with its selectivity mechanism and parallel scan implementation, is able to model complex, long sequences, without the computational cost of Transformers.
 
-Additionally, another issue mitigated by the use of Mamba is that there is no canonical tokenization for a sequence of nucleotides. Operating directly on the nucleotide sequence is important for de novo sequencing, where we have no knowledge of the underlying genome, due to the absence of a reference. The Mamba model has been previously shown to operate well directly on nucleotide sequences on tasks involving @dna modelling.
+Additionally, another issue mitigated by the use of Mamba is that there is no canonical tokenization for a sequence of nucleotides. Operating directly on the nucleotide sequence is important for de novo sequencing, where we have no knowledge of the underlying genome, due to the absence of a reference. The Mamba model has been previously shown to operate well directly on nucleotide sequences on tasks involving @dna modelling @mamba.
 
 The SymGatedGCN+Mamba model uses the standard input features (from @sec:standard_input_features) in addition to the Mamba encoding of the reads as additional node features. Assume we are given an overlap graph $G = (V, E)$. For read $r_i in {"A, T, C, G"}^T$, represented by node $v_i$, the Mamba read encoding node feature $m_i in bb(R)^D$ is generated as follows ($D$ is size of the hidden dimension).
 
@@ -732,7 +734,7 @@ $
     (1, 0, 0, 0)^"T" "if " r_(i t) = "G",
   )
 $
-where $t in {1, 2, ..., T}$ refers to the $t$th nucleotide in $r_i$. $"T"$ is the transpose operator. Next, the one-hot encoded representation is expanded to the hidden dimension $D$ via a learned parameter matrix $bold(W)^"expand" in D times 4$, and then the read is encoded into $r_i^"encoded" in D times T$ by #smallcaps[Mamba]:
+where $t in {1, 2, ..., T}$ refers to the $t$th nucleotide in $r_i$. $"T"$ is the transpose operator. Next, the one-hot encoded representation is expanded to the hidden dimension $D$ via a learned parameter matrix $bold(W)^"expand" in RR^(D times 4)$, and then the read is encoded into $r_i^"encoded" in RR^(D times T)$ by #smallcaps[Mamba]:
 $
   r_i^"encoded" = #smallcaps[Mamba] (bold(W)^"expand" r_i)
 $
@@ -753,14 +755,14 @@ The intermediate node embeddings, and the unmodified edge embeddings $e_(i j)^l$
   The primary goal of SymGatedGCN+Mamba is to explore whether the model can exploit the raw read data to generate new (node) features that are useful in resolving overlap graph artifacts. Mamba was chosen as the read encoding model of choice due to its near-linear time complexity, long-range dependency modelling capabilities, and promising results on adjacent @dna modelling tasks.
 ]
 
-=== SymGatedGCN+MambaOnly
+=== SymGatedGCN+MambaEdge
 We use the same Mamba read encoding node feature $m_i in bb(R)^D$ as in SymGatedGCN+Mamba, but remove the dependency on standard edge features (@sec:standard_input_features). We no longer form an intermediate node embedding, but instead calculate an intermediate edge embedding $e_(i j) '$:
 $
   e_(i j) ' = W_2 (thin #relu (W_1 (m_i || m_j) + b_1)) + b_2
 $
 where all $W, b$ represent learnable parameters ($W_1 in RR^(D times 2D)$, $W_2 in RR^(D times D)$, and $b_1, b_2 in RR^D$), and $D$ is the hidden dimension. $||$ denotes the concatenation operator.
 
-The unmodified node embeddings $h_i^l$, and the intermediate edge embeddings are then passed to a @symgatedgcn layer, that outputs $h_i^(l + 1)$ and $e_(i j)^(l + 1)$, and acts as the output of SymGatedGCN+MambaOnly.
+The unmodified node embeddings $h_i^l$, and the intermediate edge embeddings are then passed to a @symgatedgcn layer, that outputs $h_i^(l + 1)$ and $e_(i j)^(l + 1)$, and acts as the output of SymGatedGCN+MambaEdge.
 
 // $
 //   h_i^0 &= W_2^"n" (thin "ReLU" (W_1^"n" (x_i) + b_1^"n")) + b_2^"n" \
@@ -769,7 +771,14 @@ The unmodified node embeddings $h_i^l$, and the intermediate edge embeddings are
 // where all $W^"n"$ and $b^"n"$, and $W^"e"$ and $b^"e"$ represent learnable parameters for transforming the node and edge features respectively ($W_1^"n" in bb(R)^(D times 2), W_1^"e" in bb(R)^(D times 2D)$, $W_2^"n", W_2^"e" in bb(R)^(D times D)$, and $b_1^"n", b_1^"e", b_2^"n", b_2^"e" in bb(R)^D$), and $D$ is the hidden dimension. $||$ denotes the concatenation operator.
 
 #modelexplanation[
-  SymGatedGCN+MambaOnly tests whether the model can recover the overlap length and similarity metrics used earlier, from raw read data (or alternatively generate even richer embeddings).
+  SymGatedGCN+MambaEdge tests whether the model can recover the overlap length and similarity metrics used earlier, from raw read data (or alternatively generate even richer embeddings).
+]
+
+=== SymGatedGCN+RandomEdge
+We use the same formulation as SymGatedGCN+MambaEdge, but replace the Mamba read encoding node feature $m_i in RR^D$ with a $D$-dimensional standard Normal distribution sample, such that $m_i ~ cal(N)(mu, Sigma)$, where $mu = bold(0) in RR^D$ and $Sigma = "diag"(bold(1)) in RR^(D times D)$.
+
+#modelexplanation[
+  SymGatedGCN+RandomEdge tests whether the features encoded by Mamba are useful, by offering a performance lower-bound point of comparison. At its simplest, an untrained Mamba model acts as a neural hashing function, and so SymGatedGCN+MambaEdge should perform at least as well as SymGatedGCN+RandomEdge.
 ]
 
 === Graph Adaptive Normalization Layer <sec:granola>
@@ -828,7 +837,7 @@ Having motivated the need for input-specific affine parameters, we need a method
 
 More expressive architectures such as $k$-GNNs @kgnn-paper, whose design is motivated by the generalization of 1-@wl to $k$−tuples of nodes ($k$-WL), are accompanied by unacceptable computation and memory costs (e.g. $cal(O)(|V|^k)$ memory for higher-order @mpnn:pl, where $V$ is the number of nodes in the graph).
 
-@rnf @rnf-paper is an easy to compute (and memory efficient), yet theoretically grounded alternative involving concatenating a different randomly generated vector to each node feature. This simple addition not only allows distinguishing between 1-@wl indistinguishable graph pairs based on fixed local substructures, but @gnn:pl augmented with @rnf are provably universal (with high probability), and thus can approximate any function defined on graphs of fixed order @rnf-power. In order to be maximally expressive, @granola uses an @mpnn @gnn-survey equipped with @rnf. It is important to node that @rnf breaks the invariance property of @gnn:pl, which is a strong inductive bias, however preserves it in expectation @rnf-power.
+@rnf @rnf-paper is an easy to compute (and memory efficient), yet theoretically grounded alternative involving concatenating a different randomly generated vector to each node feature. This simple addition not only allows distinguishing between 1-@wl indistinguishable graph pairs based on fixed local substructures, but @gnn:pl augmented with @rnf are provably universal (with high probability), and thus can approximate any function defined on graphs of fixed order @rnf-power. In order to be maximally expressive, @granola uses an @mpnn @gnn-survey equipped with @rnf. It is important to note that @rnf breaks the invariance property of @gnn:pl, which is a strong inductive bias, however preserves it in expectation @rnf-power.
 
 @granola facilitates an adaptive normalization layer by allowing its affine parameters $gamma_(b, n, d)^l, beta_(b, n, d)^l in RR$ to be dependent on the input-graph, by calculating them using a maximally expressive, shallow @gnn layer---$"GNN"_"Norm"$. A detailed overview of @granola is found in @alg:granola.
 
@@ -836,10 +845,30 @@ More expressive architectures such as $k$-GNNs @kgnn-paper, whose design is moti
   @granola has the potential to significantly improve the performance on this task as each overlap graph contains a unique set of artifacts (including none at all), so input-adaptivity is important.
 ]
 
+=== Complete model architecture
+The complete model consists of three parts. The first is an encoder layer, whose implementation is the feed-forward network described in @sec:standard_input_embedding, and converts the standard input features (@sec:standard_input_features) into the initial node and edge embeddings. The second part is the @gnn itself, that consists of 8 @gnn layers. If @granola is enabled, @granola layers are added after each @gnn layer too. The last part is the predictor layer that outputs the edge logits $e_(i j)^"logits"$ as follows:
+$
+  e_(i j)^"logits" = W_3 (thin #relu (W_2 (thin #relu (W_1 (h_i^"last" || h_j^"last" || e_(i j)^"last") + b_1)) + b_2)) + b_3
+$
+where all $W, b$ represent learnable parameters ($W_1 in RR^(D times 3D)$, $W_2 in RR^(32 times D)$, $W_3 in RR^(1 times 32)$, $b_1 in RR^D$, $b_2 in RR^32$, and $b_3 in RR$), and $D$ is the hidden dimension. $||$ denotes the concatenation operator. $h_i^"last"$, $h_j^"last"$ are the final-layer node embeddings, and $e_(i j)^"last"$ refers to the final-layer edge embeddings.
+
 
 #pagebreak()
 
 = Evaluation
+
+#subpar.grid(
+  columns: 3,
+  column-gutter: -1em,
+  show-sub-caption: sub-caption-styling,
+  figure(image("graphics/base/key=validation_acc_epoch_train=19_valid=11_data=chm13htert-data_nodes=2000.png"), caption: [Validation Accuracy #linebreak() (Chromosome 11)]),
+  figure(image("graphics/base/key=validation_fp_rate_epoch_train=19_valid=11_data=chm13htert-data_nodes=2000.png"), caption: [Validation False Positive #linebreak() (Chromosome 11)]),
+  figure(image("graphics/base/key=validation_fn_rate_epoch_train=19_valid=11_data=chm13htert-data_nodes=2000.png"), caption: [Validation False Negative #linebreak() (Chromosome 11)]),
+  figure(image("graphics/base/key=validation_acc_epoch_train=15_valid=22_data=chm13htert-data_nodes=2000.png"), caption: [Validation Accuracy #linebreak() (Chromosome 22)]),
+  figure(image("graphics/base/key=validation_fp_rate_epoch_train=15_valid=22_data=chm13htert-data_nodes=2000.png"), caption: [Validation False Positive #linebreak() (Chromosome 22)]),
+  figure(image("graphics/base/key=validation_fn_rate_epoch_train=15_valid=22_data=chm13htert-data_nodes=2000.png"), caption: [Validation False Negative #linebreak() (Chromosome 22)]),
+  caption: [All three models (@symgatedgcn, GAT+Edge, SymGAT+Edge) tested on overlap graphs generated solely using @pacbio @hifi reads perform similarly across both chromosomes 11 and 22. The darker line indicates the mean across $5$ runs, with the highlighted region indicating a $95%$ confidence interval. Full data can be found in [?].]
+)
 
 #pagebreak()
 

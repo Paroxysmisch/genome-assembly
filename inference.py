@@ -21,8 +21,9 @@ import torch.nn.functional as F
 import dgl
 
 import utils
-from simplified_new_train import TrainingConfig
+from simplified_new_train import TrainingConfig, omega_to_pydantic
 from torch.utils import data
+from models import ModelType
 
 DEBUG = False
 RANDOM = False
@@ -496,12 +497,12 @@ def get_contigs_greedy(g, succs, preds, edges, len_threshold, nb_paths=50, use_l
     return all_contigs
 
 
-def inference(dataset, chromosome, model_path, assembler, savedir, device='cpu', dropout=None):
+def inference(dataset, chromosome, model_name, model_path, assembler, savedir, device='cpu', dropout=None):
     """Using a pretrained model, get walks and contigs on new data."""
     seed = 42
 
     strategy = 'greedy'
-    nb_paths = 100
+    nb_paths = 10
     len_threshold = 70_000
     use_labels = False
     load_checkpoint = True
@@ -568,18 +569,21 @@ def inference(dataset, chromosome, model_path, assembler, savedir, device='cpu',
                 #     False, # We do not want use_cuda for the Mamba models, since we are performing inference on the CPU
                 # )
                 # pe, e = calculate_node_and_edge_features(g) # Should be handled automatically by the lightning module
-                breakpoint()
-                # model = Model.load_from_checkpoint(
-                #     "genome-assembly/9yo6tvta/checkpoints/epoch=49-step=6400.ckpt"
-                #     # "lightning_logs/version_119/checkpoints/epoch=19-step=2560.ckpt",
-                #     # "lightning_logs/version_116/checkpoints/epoch=19-step=2560.ckpt",
-                #     # "lightning_logs/version_115/checkpoints/epoch=19-step=2560.ckpt",
-                # )
-                model = None
+                model_string_to_enum = {
+                    "SymGatedGCN": ModelType.SymGatedGCN,
+                    "GAT": ModelType.GAT,
+                    "SymGAT": ModelType.SymGAT,
+                    "SymGatedGCNMamba": ModelType.SymGatedGCNMamba,
+                    "SymGatedGCNMambaOnly": ModelType.SymGatedGCNMambaOnly,
+                    "SymGatedGCNRandomEdge": ModelType.SymGatedGCNRandomEdge,
+                }
+                cfg.model_type = model_string_to_enum[model_name]
+                model = cfg.model_type.value(cfg.num_node_features, cfg.num_edge_features, cfg.num_intermediate_hidden_features, cfg.num_hidden_features, cfg.num_layers, cfg.num_hidden_edge_scores, cfg.batch_norm, dropout=None, rnf=cfg.rnf, granola=cfg.granola)
+                model.load_state_dict(torch.load(model_path, weights_only=True))
                 model.eval()
                 model.to(device)
                 print(f'Computing the scores with the model...\n')
-                edge_predictions = model(g)
+                edge_predictions = model(g, pe, e).squeeze(-1)
                 # g.edata['score'] = edge_predictions.squeeze()
                 g.edata['score'] = edge_predictions
                 torch.save(g.edata['score'], os.path.join(inference_dir, f'{idx}_predicts.pt'))
@@ -656,17 +660,12 @@ if __name__ == '__main__':
     parser.add_argument('--data', type=str, help='Path to the dataset')
     parser.add_argument('--chr', type=int, help='Chromosome')
     parser.add_argument('--out', type=str, help='Output directory')
-    parser.add_argument('--model', type=str, default=None, help='Path to the model')
+    parser.add_argument('--model_name', type=str, help='Name of the model')
+    parser.add_argument('--model_path', type=str, help='Path to the model')
     args = parser.parse_args()
 
-    # python3 inference.py --data chm13htert-data/ --chr 21 --out tetestestet/
+    # python3 inference.py --data chm13htert-data/ --chr 21 --out tetestestet/ --model_name SymGatedGCN --model_path './artifacts/models/model_model=SymGatedGCNModel_seed=0_train=19_valid=11_data=chm13htert-data_nodes=2000.pt'
     # dataset = "chm13htert-data/"
-    dataset = args.data
-    chromosome = 21
     asm = "hifiasm"
-    out = args.out
-    model = args.model
-    if not model:
-        model = 'weights/weights.pt'
 
-    inference(dataset=dataset, chromosome=chromosome, assembler=asm, model_path=model, savedir=out)
+    inference(dataset=args.data, chromosome=args.chr, assembler=asm, model_path=args.model_path, savedir=args.out, model_name=args.model_name)

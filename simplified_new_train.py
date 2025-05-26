@@ -350,15 +350,15 @@ def train(cfg):
     hidden_edge_scores = cfg.num_hidden_edge_scores
     decay = cfg.decay
     wandb_mode = "online"
-    wandb_project = "mamba"
+    wandb_project = "granola-ul"
     alpha = cfg.alpha
     mask_frac_low = cfg.mask_frac_low
     mask_frac_high = cfg.mask_frac_high
     num_nodes_per_cluster = cfg.num_nodes_per_cluster
     dropout = None
 
-    checkpoints_path = os.path.abspath("artifacts/checkpoints")
-    models_path = os.path.abspath("artifacts/models")
+    checkpoints_path = os.path.abspath(f"artifacts/checkpoints/{wandb_project}")
+    models_path = os.path.abspath(f"artifacts/models/{wandb_project}")
 
     print(f'----- TRAIN -----')
     print(f'\nSaving checkpoints: {checkpoints_path}')

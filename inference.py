@@ -12,7 +12,7 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from multiprocessing import Manager
 from dgl import load_graphs
-from lightning_modules import TrainingConfig, calculate_node_and_edge_features, Model
+# from lightning_modules import TrainingConfig, calculate_node_and_edge_features, Model
 import dataset as my_dataset
 import evaluate
 
@@ -21,11 +21,146 @@ import torch.nn.functional as F
 import dgl
 
 import utils
+from simplified_new_train import TrainingConfig
+from torch.utils import data
 
 DEBUG = False
 RANDOM = False
 p_threshold = 0.06
 early_stopping = False
+
+
+def preprocess_graph(g):
+    g = g.int()
+    g.ndata['x'] = torch.ones(g.num_nodes(), 1)
+    ol_len = g.edata['overlap_length'].float()
+    ol_sim = g.edata['overlap_similarity']
+    ol_len = (ol_len - ol_len.mean()) / ol_len.std()
+    g.edata['e'] = torch.cat((ol_len.unsqueeze(-1), ol_sim.unsqueeze(-1)), dim=1)
+    return g
+
+
+def add_positional_encoding(g):
+    g.ndata['in_deg'] = g.in_degrees().float()
+    g.ndata['out_deg'] = g.out_degrees().float()
+    return g
+
+class SubgraphDatasetNoMetis(data.Dataset):
+    def mask_graph_strandwise(self, g, fraction):
+        keep_node_idx_half = torch.rand(g.num_nodes() // 2) < fraction
+        keep_node_idx = torch.empty(keep_node_idx_half.size(0) * 2, dtype=keep_node_idx_half.dtype)
+        keep_node_idx[0::2] = keep_node_idx_half
+        keep_node_idx[1::2] = keep_node_idx_half
+        sub_g = dgl.node_subgraph(g, keep_node_idx, store_ids=True)
+        print(f'Masking fraction: {fraction}')
+        print(f'Original graph: N={g.num_nodes()}, E={g.num_edges()}')
+        print(f'Subsampled graph: N={sub_g.num_nodes()}, E={sub_g.num_edges()}')
+        return sub_g
+
+    def repartition(self):
+        self.num_subgraphs_accessed = 0
+        self.subgraphs = []
+
+        for graph, graph_reads in zip(self.graphs, self.reads):
+            graph = graph.long()
+
+            sub_gs = [graph]
+            transformed_sub_gs = []
+
+            for sub_g in sub_gs:
+                e = graph.edata['e']
+                pe_in = graph.ndata['in_deg'].unsqueeze(1)
+                pe_in = (pe_in - pe_in.mean()) / pe_in.std()
+                pe_out = graph.ndata['out_deg'].unsqueeze(1)
+                pe_out = (pe_out - pe_out.mean()) / pe_out.std()
+                pe = torch.cat((pe_in, pe_out), dim=1)
+                labels = graph.edata['y']
+
+                rev_sub_g = dgl.reverse(sub_g, True, True)
+                rev_e = graph.edata['e']
+                pe_out = graph.ndata['in_deg'].unsqueeze(1)
+                pe_out = (pe_out - pe_out.mean()) / pe_out.std()
+                pe_in = graph.ndata['out_deg'].unsqueeze(1)
+                pe_in = (pe_in - pe_in.mean()) / pe_in.std()
+                rev_pe = torch.cat((pe_in, pe_out), dim=1)
+
+                # Add the read data
+                sub_g.ndata['read_length'] = torch.min(torch.tensor(self.max_length), graph.ndata['read_length'])
+                rev_sub_g.ndata['read_length'] = torch.min(torch.tensor(self.max_length), graph.ndata['read_length'])
+                sub_g.ndata['read_data'] = graph_reads
+                rev_sub_g.ndata['read_data'] = graph_reads
+                transformed_sub_gs.append((sub_g, pe, e, rev_sub_g, rev_pe, rev_e, labels))
+
+            self.subgraphs += transformed_sub_gs
+
+        if self.shuffle:
+            random.shuffle(self.subgraphs)
+
+    def __init__(self, cfg, is_train=True, mask_frac_low=80, mask_frac_high=100, num_nodes_per_cluster=2000, npc_lower_bound=1, npc_upper_bound=1, shuffle=True):
+        self.mask_frac_low = mask_frac_low
+        self.mask_frac_high = mask_frac_high
+        self.num_nodes_per_cluster = num_nodes_per_cluster
+        self.npc_lower_bound = npc_lower_bound
+        self.npc_upper_bound = npc_upper_bound
+        self.shuffle = shuffle
+        self.is_train = is_train
+
+        self.graphs = []
+        self.subgraphs = []
+        if self.is_train:
+            for chromosome in cfg.training_chromosomes:
+                (loaded_graph,), _ = dgl.load_graphs(os.path.join(cfg.data_dir, f'chr{str(chromosome)}/', 'hifiasm/processed/0.dgl'))
+                loaded_graph = preprocess_graph(loaded_graph)
+                loaded_graph = add_positional_encoding(loaded_graph)
+                self.graphs.append(loaded_graph)
+        else:
+            for chromosome in cfg.validation_chromosomes:
+                (loaded_graph,), _ = dgl.load_graphs(os.path.join(cfg.data_dir, f'chr{str(chromosome)}/', 'hifiasm/processed/0.dgl'))
+                loaded_graph = preprocess_graph(loaded_graph)
+                loaded_graph = add_positional_encoding(loaded_graph)
+                self.graphs.append(loaded_graph)
+
+        self.pos_to_neg_ratio = sum([((torch.round(g.edata['y'])==1).sum() / (torch.round(g.edata['y'])==0).sum()).item() for g in self.graphs]) / len(self.graphs)
+
+        self.max_length = 4000
+        self.reads = []
+        chromosomes = cfg.training_chromosomes if self.is_train else cfg.validation_chromosomes
+        for chromosome in chromosomes:
+            reads_path = os.path.join(cfg.data_dir, f'chr{str(chromosome)}/', 'hifiasm/info/0_reads.pkl')
+            with open(reads_path, "rb") as f:
+                reads_dict = pickle.load(f)
+
+                # Pad reads with 'N' to max_length
+                padded_reads = [read.ljust(self.max_length, 'N')[:self.max_length] for read in reads_dict.values()]
+
+                # Create ASCII mapping
+                mapping = torch.full((128,), -1, dtype=torch.long)  # default -1 for unknowns
+                mapping[ord('A')] = 0
+                mapping[ord('C')] = 1
+                mapping[ord('G')] = 2
+                mapping[ord('T')] = 3
+                mapping[ord('N')] = 0  # Special padding token
+
+                # Convert characters to integers
+                reads_ascii = torch.tensor([list(map(ord, read)) for read in padded_reads])
+                reads_int = mapping[reads_ascii]
+
+                # One-hot encode
+                one_hot = torch.nn.functional.one_hot(reads_int, num_classes=4)  # 4 because N takes the same representation as A---fine as we truncate the Mamba output according to read_length
+
+                self.reads.append(one_hot.float())  # shape: (num_reads, max_length, 4)
+
+        self.num_subgraphs_accessed = 0
+        self.repartition()
+
+    def __len__(self):
+        return len(self.subgraphs)
+
+    def __getitem__(self, idx):
+        if self.num_subgraphs_accessed > len(self.subgraphs) and self.is_train:
+            self.repartition()
+        self.num_subgraphs_accessed += 1
+        return self.subgraphs[idx]
 
 def get_contig_length(walk, graph):
     total_length = 0
@@ -361,7 +496,7 @@ def get_contigs_greedy(g, succs, preds, edges, len_threshold, nb_paths=50, use_l
     return all_contigs
 
 
-def inference(data_path, model_path, assembler, savedir, device='cpu', dropout=None):
+def inference(dataset, chromosome, model_path, assembler, savedir, device='cpu', dropout=None):
     """Using a pretrained model, get walks and contigs on new data."""
     seed = 42
 
@@ -375,18 +510,7 @@ def inference(data_path, model_path, assembler, savedir, device='cpu', dropout=N
     time_start = datetime.now()
 
 
-    # dataset = my_dataset.Dataset.CHM13htert
-    dataset = my_dataset.Dataset.CHM13
-    chromosome = 18
-    raw_dir = dataset.value + "/raw/"
-    graph_path = raw_dir + "chr" + str(chromosome) + ".dgl"
-    reads_path = raw_dir + "chr" + str(chromosome) + "_reads.pkl"
-
-    (graph,), _ = load_graphs(graph_path)
-    ds = [(0, graph)]
-    reads_dict = None
-    with open(reads_path, "rb") as f:
-        reads_dict = pickle.load(f)
+    data_path = os.path.join(dataset, "chr" + str(chromosome))
 
     inference_dir = os.path.join(savedir, 'decode')
     if not os.path.isdir(inference_dir):
@@ -402,110 +526,119 @@ def inference(data_path, model_path, assembler, savedir, device='cpu', dropout=N
     elapsed = utils.timedelta_to_str(datetime.now() - time_start)
     print(f'\nelapsed time (loading network and data): {elapsed}\n')
 
-    for idx, g in ds:
-        node_ids = torch.arange(g.num_nodes())
-        g.ndata["read_data"] = my_dataset.gen_batch(reads_dict, node_ids)
+    cfg = TrainingConfig()
+    cfg.validation_chromosomes = [chromosome]
+    cfg.data_dir = dataset
 
-        # Get scores
-        print(f'==== Processing graph {idx} ====')
-        with torch.no_grad():
-            time_start_get_scores = datetime.now()
-            g = g.to(device)
+    ds = SubgraphDatasetNoMetis(cfg, False, 100, 100, 1000000, shuffle=False)
+    batch = ds.subgraphs[0]
+    sub_g, pe, e, rev_sub_g, rev_pe, rev_e, labels = batch
+    sub_g, pe, e, rev_sub_g, rev_pe, rev_e, labels = sub_g.to(device), pe.to(device), e.to(device), rev_sub_g.to(device), rev_pe.to(device), rev_e.to(device), labels.to(device)
+    g = sub_g
+    idx = 0
 
-            if use_labels:  # Debugging
-                print('Decoding with labels...')
-                g.edata['score'] = g.edata['y'].clone()
-            else:
-                print('Decoding with model scores...')
-                predicts_path = os.path.join(inference_dir, f'{idx}_predicts.pt')
-                if os.path.isfile(predicts_path):
-                    print(f'Loading the scores from:\n{predicts_path}\n')
-                    g.edata['score'] = torch.load(predicts_path)
-                elif RANDOM:
-                    g.edata['score'] = torch.ones_like(g.edata['prefix_length']) * 10
-                else:
-                    print(f'Loading model parameters from: {model_path}')
-                    # training_config = TrainingConfig()
-                    # model = TrainingConfig.model_type.value(
-                    #     training_config.num_node_features,
-                    #     training_config.num_edge_features,
-                    #     training_config.num_intermediate_hidden_features,
-                    #     training_config.num_hidden_features,
-                    #     training_config.num_layers,
-                    #     training_config.num_hidden_edge_scores,
-                    #     training_config.batch_norm,
-                    #     False, # We do not want use_cuda for the Mamba models, since we are performing inference on the CPU
-                    # )
-                    # pe, e = calculate_node_and_edge_features(g) # Should be handled automatically by the lightning module
-                    model = Model.load_from_checkpoint(
-                        "genome-assembly/9yo6tvta/checkpoints/epoch=49-step=6400.ckpt"
-                        # "lightning_logs/version_119/checkpoints/epoch=19-step=2560.ckpt",
-                        # "lightning_logs/version_116/checkpoints/epoch=19-step=2560.ckpt",
-                        # "lightning_logs/version_115/checkpoints/epoch=19-step=2560.ckpt",
-                    )
-                    model.eval()
-                    model.to(device)
-                    print(f'Computing the scores with the model...\n')
-                    edge_predictions = model(g)
-                    # g.edata['score'] = edge_predictions.squeeze()
-                    g.edata['score'] = edge_predictions
-                    torch.save(g.edata['score'], os.path.join(inference_dir, f'{idx}_predicts.pt'))
+    # Get scores
+    print(f'==== Processing graph {idx} ====')
+    with torch.no_grad():
+        time_start_get_scores = datetime.now()
+        g = g.to(device)
 
-            elapsed = utils.timedelta_to_str(datetime.now() - time_start_get_scores)
-            print(f'elapsed time (get_scores): {elapsed}')
-
-        # Load info data
-        print(f'Loading successors...')
-        with open(f'{data_path}/{assembler}/info/{idx}_succ.pkl', 'rb') as f_succs:
-            succs = pickle.load(f_succs)
-        print(f'Loading predecessors...')
-        with open(f'{data_path}/{assembler}/info/{idx}_pred.pkl', 'rb') as f_preds:
-            preds = pickle.load(f_preds)
-        print(f'Loading edges...')
-        with open(f'{data_path}/{assembler}/info/{idx}_edges.pkl', 'rb') as f_edges:
-            edges = pickle.load(f_edges)
-        print(f'Done loading the auxiliary graph data!')
-
-        # Get walks
-        time_start_get_walks = datetime.now()
-        
-        # Some prefixes can be <0 and that messes up the assemblies
-        g.edata['prefix_length'] = g.edata['prefix_length'].masked_fill(g.edata['prefix_length']<0, 0)
-        
-        if strategy == 'greedy':
-            walks = get_contigs_greedy(g, succs, preds, edges, len_threshold, nb_paths, use_labels, checkpoint_dir, load_checkpoint)
+        if use_labels:  # Debugging
+            print('Decoding with labels...')
+            g.edata['score'] = g.edata['y'].clone()
         else:
-            print('Invalid decoding strategy')
-            raise Exception
- 
-        elapsed = utils.timedelta_to_str(datetime.now() - time_start_get_walks)
-        print(f'elapsed time (get_walks): {elapsed}')
-        inference_path = os.path.join(inference_dir, f'{idx}_walks.pkl')
-        pickle.dump(walks, open(f'{inference_path}', 'wb'))
+            print('Decoding with model scores...')
+            predicts_path = os.path.join(inference_dir, f'{idx}_predicts.pt')
+            if os.path.isfile(predicts_path):
+                print(f'Loading the scores from:\n{predicts_path}\n')
+                g.edata['score'] = torch.load(predicts_path)
+            elif RANDOM:
+                g.edata['score'] = torch.ones_like(g.edata['prefix_length']) * 10
+            else:
+                print(f'Loading model parameters from: {model_path}')
+                # training_config = TrainingConfig()
+                # model = TrainingConfig.model_type.value(
+                #     training_config.num_node_features,
+                #     training_config.num_edge_features,
+                #     training_config.num_intermediate_hidden_features,
+                #     training_config.num_hidden_features,
+                #     training_config.num_layers,
+                #     training_config.num_hidden_edge_scores,
+                #     training_config.batch_norm,
+                #     False, # We do not want use_cuda for the Mamba models, since we are performing inference on the CPU
+                # )
+                # pe, e = calculate_node_and_edge_features(g) # Should be handled automatically by the lightning module
+                breakpoint()
+                # model = Model.load_from_checkpoint(
+                #     "genome-assembly/9yo6tvta/checkpoints/epoch=49-step=6400.ckpt"
+                #     # "lightning_logs/version_119/checkpoints/epoch=19-step=2560.ckpt",
+                #     # "lightning_logs/version_116/checkpoints/epoch=19-step=2560.ckpt",
+                #     # "lightning_logs/version_115/checkpoints/epoch=19-step=2560.ckpt",
+                # )
+                model = None
+                model.eval()
+                model.to(device)
+                print(f'Computing the scores with the model...\n')
+                edge_predictions = model(g)
+                # g.edata['score'] = edge_predictions.squeeze()
+                g.edata['score'] = edge_predictions
+                torch.save(g.edata['score'], os.path.join(inference_dir, f'{idx}_predicts.pt'))
 
-        print(f'Loading reads...')
-        with open(f'{data_path}/{assembler}/info/{idx}_reads.pkl', 'rb') as f_reads:
-            reads = pickle.load(f_reads)
-        print(f'Done!')
-        
-        time_start_get_contigs = datetime.now()
-        contigs = evaluate.walk_to_sequence(walks, g, reads, edges)
-        elapsed = utils.timedelta_to_str(datetime.now() - time_start_get_contigs)
-        print(f'elapsed time (get_contigs): {elapsed}')
+        elapsed = utils.timedelta_to_str(datetime.now() - time_start_get_scores)
+        print(f'elapsed time (get_scores): {elapsed}')
 
-        assembly_dir = os.path.join(savedir, f'assembly')
-        if not os.path.isdir(assembly_dir):
-            os.makedirs(assembly_dir)
-        evaluate.save_assembly(contigs, assembly_dir, idx)
-        walks_per_graph.append(walks)
-        contigs_per_graph.append(contigs)
+    # Load info data
+    print(f'Loading successors...')
+    with open(f'{data_path}/{assembler}/info/{idx}_succ.pkl', 'rb') as f_succs:
+        succs = pickle.load(f_succs)
+    print(f'Loading predecessors...')
+    with open(f'{data_path}/{assembler}/info/{idx}_pred.pkl', 'rb') as f_preds:
+        preds = pickle.load(f_preds)
+    print(f'Loading edges...')
+    with open(f'{data_path}/{assembler}/info/{idx}_edges.pkl', 'rb') as f_edges:
+        edges = pickle.load(f_edges)
+    print(f'Done loading the auxiliary graph data!')
 
-        num_contigs, longest_contig, reconstructed, n50, ng50 = evaluate.quick_evaluation(contigs, f"chr{chromosome}")
-        print(num_contigs, longest_contig, reconstructed, n50, ng50)
+    # Get walks
+    time_start_get_walks = datetime.now()
+    
+    # Some prefixes can be <0 and that messes up the assemblies
+    g.edata['prefix_length'] = g.edata['prefix_length'].masked_fill(g.edata['prefix_length']<0, 0)
+    
+    if strategy == 'greedy':
+        walks = get_contigs_greedy(g, succs, preds, edges, len_threshold, nb_paths, use_labels, checkpoint_dir, load_checkpoint)
+    else:
+        print('Invalid decoding strategy')
+        raise Exception
 
-        print('Running quast...')
-        quast_process = evaluate.run_quast(ref=f'evaluation-chromosomes/chr{chromosome}.fasta', asm=os.path.join(assembly_dir, f'{idx}_assembly.fasta'), out=os.path.join(assembly_dir, f'{idx}_quast') )
-        quast_process.wait()
+    elapsed = utils.timedelta_to_str(datetime.now() - time_start_get_walks)
+    print(f'elapsed time (get_walks): {elapsed}')
+    inference_path = os.path.join(inference_dir, f'{idx}_walks.pkl')
+    pickle.dump(walks, open(f'{inference_path}', 'wb'))
+
+    print(f'Loading reads...')
+    with open(f'{data_path}/{assembler}/info/{idx}_reads.pkl', 'rb') as f_reads:
+        reads = pickle.load(f_reads)
+    print(f'Done!')
+    
+    time_start_get_contigs = datetime.now()
+    contigs = evaluate.walk_to_sequence(walks, g, reads, edges)
+    elapsed = utils.timedelta_to_str(datetime.now() - time_start_get_contigs)
+    print(f'elapsed time (get_contigs): {elapsed}')
+
+    assembly_dir = os.path.join(savedir, f'assembly')
+    if not os.path.isdir(assembly_dir):
+        os.makedirs(assembly_dir)
+    evaluate.save_assembly(contigs, assembly_dir, idx)
+    walks_per_graph.append(walks)
+    contigs_per_graph.append(contigs)
+
+    num_contigs, longest_contig, reconstructed, n50, ng50 = evaluate.quick_evaluation(contigs, f"chr{chromosome}")
+    print(num_contigs, longest_contig, reconstructed, n50, ng50)
+
+    print('Running quast...')
+    quast_process = evaluate.run_quast(ref=f'evaluation-chromosomes/chr{chromosome}.fasta', asm=os.path.join(assembly_dir, f'{idx}_assembly.fasta'), out=os.path.join(assembly_dir, f'{idx}_quast') )
+    quast_process.wait()
 
     elapsed = utils.timedelta_to_str(datetime.now() - time_start)
     print(f'elapsed time (total): {elapsed}')
@@ -521,18 +654,19 @@ def inference(data_path, model_path, assembler, savedir, device='cpu', dropout=N
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--data', type=str, help='Path to the dataset')
-    parser.add_argument('--asm', type=str, help='Assembler used')
+    parser.add_argument('--chr', type=int, help='Chromosome')
     parser.add_argument('--out', type=str, help='Output directory')
     parser.add_argument('--model', type=str, default=None, help='Path to the model')
     args = parser.parse_args()
 
-    # data = args.data
-    # data = "chm13htert-data/chr19"
-    data = "chr18"
+    # python3 inference.py --data chm13htert-data/ --chr 21 --out tetestestet/
+    # dataset = "chm13htert-data/"
+    dataset = args.data
+    chromosome = 21
     asm = "hifiasm"
     out = args.out
     model = args.model
     if not model:
         model = 'weights/weights.pt'
 
-    inference(data_path=data, assembler=asm, model_path=model, savedir='test_save_dir_18')
+    inference(dataset=dataset, chromosome=chromosome, assembler=asm, model_path=model, savedir=out)

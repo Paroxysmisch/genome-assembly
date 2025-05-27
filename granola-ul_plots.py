@@ -11,12 +11,11 @@ import os
 
 api = wandb.Api()
 
-project_name = "base"
+project_name = "granola-ul"
 
 model_types = ["SymGatedGCNModel", "GATModel", "SymGATModel"]
-train = "19"
-valid = "11"
-data = "chm13htert-data"
+train = "15"
+valid = "22"
 nodes = "2000"
 
 model_type_mapping = {
@@ -49,19 +48,22 @@ keys = ["validation_loss_epoch", "validation_acc_epoch", "validation_recall_epoc
 for key in keys:
     print(key)
     plt.figure()
-    plot_name = f'key={key}_train={train}_valid={valid}_data={data}_nodes={nodes}'
+    plot_name = f'key={key}_train={train}_valid={valid}_nodes={nodes}'
     if not os.path.isdir(f'./plots/{project_name}'):
         os.makedirs(f'./plots/{project_name}')
 
-    for model_type in model_types:
+    model_type = "SymGatedGCNModel"
+    line_project_names = ["ul", "granola-ul"]
+    for line_project_name in line_project_names:
         all_data = []
+        data = "chm13htert-data" if line_project_name == "base" else "chm13htert-ul-data"
         for seed in range(5):
             filters = {
                 "displayName": f'model={model_type}_seed={seed}_train={train}_valid={valid}_data={data}_nodes={nodes}'
             }
             print(filters["displayName"])
 
-            runs = api.runs(path=f"paroxysmisch-university-of-cambridge/{project_name}", filters=filters)
+            runs = api.runs(path=f"paroxysmisch-university-of-cambridge/{line_project_name}", filters=filters)
             for run in runs:
                 history = run.history(keys=[key], x_axis='epoch', pandas=(True), samples=200)
                 all_data.append(history)
@@ -71,7 +73,8 @@ for key in keys:
         combined_df = combined_df.rename(columns=col_name_mapping)
         sns.set_style(style="whitegrid")
 
-        ax = sns.lineplot(data=combined_df, x="Epoch", y=col_name_mapping[key], errorbar=('ci', 95), estimator='mean', err_style='band', label=model_type_mapping[model_type])
+        label = model_type_mapping[model_type] + " (UL)" if line_project_name == "ul" else model_type_mapping[model_type] + " (UL+GRANOLA)"
+        ax = sns.lineplot(data=combined_df, x="Epoch", y=col_name_mapping[key], errorbar=('ci', 95), estimator='mean', err_style='band', label=label)
 
     plt.savefig(f'plots/{project_name}/{plot_name}.png', dpi=400)
 

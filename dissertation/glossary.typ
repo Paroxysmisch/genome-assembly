@@ -167,5 +167,25 @@
     key: "tsp",
     short: "TSP",
     long: "Travelling Salesman Problem"
-  )
+  ),
+  (
+    key: "fp",
+    short: "FP",
+    long: "False Positive"
+  ),
+  (
+    key: "fn",
+    short: "FN",
+    long: "False Negative"
+  ),
+  (
+    key: "tp",
+    short: "TP",
+    long: "True Positive"
+  ),
+  (
+    key: "tn",
+    short: "FN",
+    long: "True Negative"
+  ),
 )

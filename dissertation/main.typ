@@ -908,7 +908,7 @@ where all $W, b$ represent learnable parameters ($W_1 in RR^(D times 3D)$, $W_2 
 
 #table(
   columns: (auto, 1fr, 1fr, 1fr),
-  table.header([Metric (%)], [@symgatedgcn], [GAT+Edge], [SymGAT+Edge]),
+  table.header([Test Metric (%)], [@symgatedgcn], [GAT+Edge], [SymGAT+Edge]),
   [Accuracy], [#a_sd(0.9586893524716569, 0.008064994134126703)], [#a_sd(0.9360775474927554, 0.00794433727919651)], best[#a_sd(0.9648477350912572, 0.0067034830095140064)],
   [Precision], best[#a_sd(0.9995165691897043, 0.0002135035253943173)], [#a_sd(0.9954341333421655, 0.002905903316455245)], [#a_sd(0.9990626647918466, 0.0003915836978962343)],
   [Recall], [#a_sd(0.9580870593143731, 0.008378090132706588)], [#a_sd(0.9387612127112162, 0.010494042839725614)], best[#a_sd(0.9648459773312009, 0.006933219132265786)],
@@ -919,6 +919,22 @@ where all $W, b$ represent learnable parameters ($W_1 in RR^(D times 3D)$, $W_2 
 )
 
 ^ Trained on 15, tested on 21.
+#import "base_assembly_results.typ": *
+
+#let mean(array) = array.sum() / array.len()
+#let std(array) = calc.sqrt(mean(array.map(v => calc.pow(v - mean(array), 2))))
+#let a_sd_a(array, multiplier: 1) = [#strfmt("{:.1}", mean(array) * multiplier) $plus.minus$ #strfmt("{:.2}", std(array) * multiplier)]
+#table(
+  columns: (auto, 1fr, 1fr, 1fr),
+  table.header([Assembly Metric], [@symgatedgcn], [GAT+Edge], [SymGAT+Edge]),
+  [Num. contigs], [#a_sd_a(base-chr9-SymGatedGCN-contigs)], best[#a_sd_a(base-chr9-GAT-contigs)], [#a_sd_a(base-chr9-SymGAT-contigs)],
+  [Longest contig length], [#a_sd_a(base-chr9-SymGatedGCN-largest-contig, multiplier: 0.0000001)], best[#a_sd_a(base-chr9-GAT-largest-contig, multiplier: 0.0000001)], [#a_sd_a(base-chr9-SymGAT-largest-contig, multiplier: 0.0000001)],
+  [Genome fraction (%)], best[#a_sd_a(base-chr9-SymGatedGCN-genome-fraction)], [#a_sd_a(base-chr9-GAT-genome-fraction)], [#a_sd_a(base-chr9-SymGAT-genome-fraction)],
+  [NG50], [#a_sd_a(base-chr9-SymGatedGCN-ng50, multiplier: 0.0000001)], best[#a_sd_a(base-chr9-GAT-ng50, multiplier: 0.0000001)], [#a_sd_a(base-chr9-SymGAT-ng50, multiplier: 0.0000001)],
+  [NGA50], [#a_sd_a(base-chr9-SymGatedGCN-nga50, multiplier: 0.0000001)], [#a_sd_a(base-chr9-GAT-nga50, multiplier: 0.0000001)], best[#a_sd_a(base-chr9-SymGAT-nga50, multiplier: 0.0000001)],
+  [Num. Mismatches (per 100 @kb)], [#a_sd_a(base-chr9-SymGatedGCN-mismatches)], best[#a_sd_a(base-chr9-GAT-mismatches)], [#a_sd_a(base-chr9-SymGAT-mismatches)],
+  [Num. Indels (per 100 @kb)], best[#a_sd_a(base-chr9-SymGatedGCN-indels)], [#a_sd_a(base-chr9-GAT-indels)], [#a_sd_a(base-chr9-SymGAT-indels)],
+)
 // #show table.cell.where(y: 5): it => {
 //   table.cell(
 //     fill: gray,
@@ -954,6 +970,20 @@ where all $W, b$ represent learnable parameters ($W_1 in RR^(D times 3D)$, $W_2 
   highlight[F1 Inverse], highlight[#a_sd(0.5247472552791161, 0.0053616664852087735)], highlight(best[#a_sd(0.6035159891309024, 0.007614321070066256)]), highlight[#a_sd(0.5702396833678883, 0.012031478690339393)],
 )
 
+#import "ul_assembly_results.typ": *
+#import "granola_assembly_results.typ": *
+#table(
+  columns: (auto, 1fr, 1fr, 1fr),
+  table.header([Assembly Metric], [@symgatedgcn], [@symgatedgcn (UL)], [@symgatedgcn (UL+@granola)]),
+  [Num. contigs], [#a_sd_a(base-chr9-SymGatedGCN-contigs)], best[#a_sd_a(ul-chr9-SymGatedGCN-contigs)], [#a_sd_a(granola-ul-chr9-SymGatedGCN-contigs)],
+  [Longest contig length], best[#a_sd_a(base-chr9-SymGatedGCN-largest-contig, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-SymGatedGCN-largest-contig, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGatedGCN-largest-contig, multiplier: 0.0000001)],
+  highlight[Genome fraction (%)], highlight[#a_sd_a(base-chr9-SymGatedGCN-genome-fraction)], highlight(best[#a_sd_a(ul-chr9-SymGatedGCN-genome-fraction)]), highlight[#a_sd_a(granola-ul-chr9-SymGatedGCN-genome-fraction)],
+  [NG50], best[#a_sd_a(base-chr9-SymGatedGCN-ng50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-SymGatedGCN-ng50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGatedGCN-ng50, multiplier: 0.0000001)],
+  [NGA50], [#a_sd_a(base-chr9-SymGatedGCN-nga50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-SymGatedGCN-nga50, multiplier: 0.0000001)], best[#a_sd_a(granola-ul-chr9-SymGatedGCN-nga50, multiplier: 0.0000001)],
+  [Num. Mismatches (per 100 @kb)], [#a_sd_a(base-chr9-SymGatedGCN-mismatches)], [#a_sd_a(ul-chr9-SymGatedGCN-mismatches)], best[#a_sd_a(granola-ul-chr9-SymGatedGCN-mismatches)],
+  [Num. Indels (per 100 @kb)], best[#a_sd_a(base-chr9-SymGatedGCN-indels)], [#a_sd_a(ul-chr9-SymGatedGCN-indels)], [#a_sd_a(granola-ul-chr9-SymGatedGCN-indels)],
+)
+
 
 #table(
   columns: (auto, 1fr, 1fr, 1fr),
@@ -969,6 +999,18 @@ where all $W, b$ represent learnable parameters ($W_1 in RR^(D times 3D)$, $W_2 
 
 #table(
   columns: (auto, 1fr, 1fr, 1fr),
+  table.header([Assembly Metric], [GAT+Edge], [GAT+Edge (UL)], [GAT+Edge (UL+@granola)]),
+  [Num. contigs], best[#a_sd_a(base-chr9-GAT-contigs)], [#a_sd_a(ul-chr9-GAT-contigs)], [#a_sd_a(granola-ul-chr9-GAT-contigs)],
+  [Longest contig length], best[#a_sd_a(base-chr9-GAT-largest-contig, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-GAT-largest-contig, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-GAT-largest-contig, multiplier: 0.0000001)],
+  highlight[Genome fraction (%)], highlight[#a_sd_a(base-chr9-GAT-genome-fraction)], highlight[#a_sd_a(ul-chr9-GAT-genome-fraction)], highlight(best[#a_sd_a(granola-ul-chr9-GAT-genome-fraction)]),
+  [NG50], best[#a_sd_a(base-chr9-GAT-ng50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-GAT-ng50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-GAT-ng50, multiplier: 0.0000001)],
+  [NGA50], best[#a_sd_a(base-chr9-GAT-nga50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-GAT-nga50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-GAT-nga50, multiplier: 0.0000001)],
+  [Num. Mismatches (per 100 @kb)], best[#a_sd_a(base-chr9-GAT-mismatches)], [#a_sd_a(ul-chr9-GAT-mismatches)], [#a_sd_a(granola-ul-chr9-GAT-mismatches)],
+  [Num. Indels (per 100 @kb)], [#a_sd_a(base-chr9-GAT-indels)], [#a_sd_a(ul-chr9-GAT-indels)], best[#a_sd_a(granola-ul-chr9-GAT-indels)],
+)
+
+#table(
+  columns: (auto, 1fr, 1fr, 1fr),
   table.header([Metric (%)], [SymGAT+Edge], [SymGAT+Edge (UL)], [SymGAT+Edge (UL+@granola)]),
   [Accuracy], best[#a_sd(0.8420853457812795, 0.017519697090493506)], [#a_sd(0.8364363632334447, 0.003329035545859219)], [#a_sd(0.8146057362563088, 0.00581974743084867)],
   [Precision], best[#a_sd(0.9526119974753542, 0.001415315356238136)], [#a_sd(0.9203417460861938, 0.002873804276141712)], [#a_sd(0.9225942806952138, 0.0033192279524718615)],
@@ -977,6 +1019,18 @@ where all $W, b$ represent learnable parameters ($W_1 in RR^(D times 3D)$, $W_2 
   highlight[Precision Inverse], highlight[#a_sd(0.36794115048395104, 0.030808877124403163)], highlight(best[#a_sd(0.535446470191115, 0.008795377752307989)]), highlight[#a_sd(0.48738144691836205, 0.01073288066497148)],
   [Recall Inverse], [#a_sd(0.641026205681568, 0.017880694079863063)], [#a_sd(0.6517168777285816, 0.015402737588688454)], best[#a_sd(0.6744186766572746, 0.019091024109722618)],
   highlight[F1 Inverse], highlight[#a_sd(0.4665307562943479, 0.02181144060394172)], highlight(best[#a_sd(0.5877544298868103, 0.006282638788092146)]), highlight[#a_sd(0.5655748649808248, 0.002447230862814821)],
+)
+
+#table(
+  columns: (auto, 1fr, 1fr, 1fr),
+  table.header([Assembly Metric], [SymGAT+Edge], [SymGAT+Edge (UL)], [SymGAT+Edge (UL+@granola)]),
+  [Num. contigs], [#a_sd_a(base-chr9-SymGAT-contigs)], best[#a_sd_a(ul-chr9-SymGAT-contigs)], [#a_sd_a(granola-ul-chr9-SymGAT-contigs)],
+  [Longest contig length], [#a_sd_a(base-chr9-SymGAT-largest-contig, multiplier: 0.0000001)], best[#a_sd_a(ul-chr9-SymGAT-largest-contig, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGAT-largest-contig, multiplier: 0.0000001)],
+  highlight[Genome fraction (%)], highlight[#a_sd_a(base-chr9-SymGAT-genome-fraction)], highlight(best[#a_sd_a(ul-chr9-SymGAT-genome-fraction)]), highlight[#a_sd_a(granola-ul-chr9-SymGAT-genome-fraction)],
+  [NG50], [#a_sd_a(base-chr9-SymGAT-ng50, multiplier: 0.0000001)], best[#a_sd_a(ul-chr9-SymGAT-ng50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGAT-ng50, multiplier: 0.0000001)],
+  [NGA50], best[#a_sd_a(base-chr9-SymGAT-nga50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-SymGAT-nga50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGAT-nga50, multiplier: 0.0000001)],
+  [Num. Mismatches (per 100 @kb)], [#a_sd_a(base-chr9-SymGAT-mismatches)], best[#a_sd_a(ul-chr9-SymGAT-mismatches)], [#a_sd_a(granola-ul-chr9-SymGAT-mismatches)],
+  [Num. Indels (per 100 @kb)], [#a_sd_a(base-chr9-SymGAT-indels)], [#a_sd_a(ul-chr9-SymGAT-indels)], best[#a_sd_a(granola-ul-chr9-SymGAT-indels)],
 )
 
 ^ Trained on 15, tested on 9

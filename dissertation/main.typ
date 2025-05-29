@@ -163,16 +163,14 @@ While previous work @lovro has paved the way to replace the combination of algor
 
 + Investigating the efficacy of more advanced @gnn layers that hold promise for furthering performance. 
 
-+ Integrating ultra-long sequencing data into the @gnn\-based genome assembly pipeline, as this new data type offers new opportunities for resolving complex graph artifacts, particularly repeating regions in the genome that were previously difficult to address.
++ Integrating ultra-long sequencing data into the @gnn\-based genome assembly pipeline, which may necessitate more advanced @gnn layers. This new data type offers new opportunities for resolving complex graph artifacts, particularly repeating regions in the genome that were previously difficult to address.
 
 + Evaluating the feasibility of an end-to-end neural approach to the genome assembly problem that goes beyond isolated improvements to various sub-tasks, such as layout.
 
 == Key contributions
 The key contributions of this project are as follows:
 
-+ Extension of the @gat architecture, called GAT+Edge, to update edge features, and incorporate them into message passing.
-
-+ Combining this new architecture with the symmetry feature of @symgatedgcn introduced in prior work @lovro, to form SymGAT.
++ Extension of the @gat architecture, called GAT+Edge, supporting updating of edge features, and their incorporation into message passing. The symmetry feature of @symgatedgcn introduced in prior work @lovro is then combined with GAT+Edge, to form a new architecture called SymGAT.
 
 + Incorporating much richer features by utilizing the raw nucleotide read data directly, resulting in the SymGatedGCN+Mamba and SymGatedGCN+MambaEdge models.
 
@@ -284,10 +282,10 @@ Firstly, identifying correct overlaps among ultra-long reads is particularly cha
 
 #place(top + center)[#figure(
   image("graphics/hifiasm_ul.svg"),
-  caption: [Double graph framework used in `Hifiasm` (UL) to integrate @ont @ul reads with long-read information. (A) A string graph from only @pacbio @hifi reads is constructed, and ultra-long reads aligned to these long reads. (B) Ultra-long reads are translated from base-space to integer-space. (C) Overlaps between ultra-long reads are calculated in integer space, and an integer graph created. Contigs are then found in this integer graph. (D) The ultra-long contigs are integrated into the @hifi string graph. (E) Additional graph cleaning can be performed using ultra-long data. For example, the number of ultra-long reads supporting each edge can be tracked. In the case of the bubble, no ultra-long reads supported the alternative path, hence resolving the bubble. Figure adapted from @double-graph.]
+  caption: [Double graph framework used in `Hifiasm (UL)` to integrate @ont @ul reads with long-read information. (A) A string graph from only @pacbio @hifi reads is constructed, and ultra-long reads aligned to these long reads. (B) Ultra-long reads are translated from base-space to integer-space. (C) Overlaps between ultra-long reads are calculated in integer space, and an integer graph created. Contigs are then found in this integer graph. (D) The ultra-long contigs are integrated into the @hifi string graph. (E) Additional graph cleaning can be performed using ultra-long data. For example, the number of ultra-long reads supporting each edge can be tracked. In the case of the bubble, no ultra-long reads supported the alternative path, hence resolving the bubble. Figure adapted from @double-graph.]
 ) <fig:hifiasm_ul>]
 
-An alternative approach, employed by `Hifiasm` (UL) @double-graph, which is the assembler utilized by this project, is the double graph framework (illustrated in @fig:hifiasm_ul) that exploits all information contained in both sets of reads. The @pacbio @hifi long-reads are initially used to create a string graph---an assembly graph preserving read information. Next, the @ont @ul reads are aligned to these @pacbio @hifi reads. This alignment information is then used to map the ultra-long reads from base-space into integer space---instead of each ultra-long read being a sequence of nucleotides, it is now a sequence of integer node identifiers from the @hifi string graph.
+An alternative approach, employed by `Hifiasm (UL)` @double-graph, which is the assembler utilized by this project, is the double graph framework (illustrated in @fig:hifiasm_ul) that exploits all information contained in both sets of reads. The @pacbio @hifi long-reads are initially used to create a string graph---an assembly graph preserving read information. Next, the @ont @ul reads are aligned to these @pacbio @hifi reads. This alignment information is then used to map the ultra-long reads from base-space into integer space---instead of each ultra-long read being a sequence of nucleotides, it is now a sequence of integer node identifiers from the @hifi string graph.
 
 Each ultra-long read in integer space is only $10$s of node identifiers long, instead of $100$s of @kb, allowing for inexpensive all-to-all overlap calculation that is also accurate---the underlying nucleotide information is from the much more accurate @hifi reads. With ultra-long overlaps calculated, an ultra-long integer (overlap) graph can be constructed, that is then used to extract ultra-long integer contigs. These ultra-long contigs can then be incorporated into the original @hifi string graph. During this integration, the additional information provided by the ultra-long contigs can help clean the original @hifi assembly (as shown in @fig:hifiasm_ul (D)).
 
@@ -857,7 +855,63 @@ where all $W, b$ represent learnable parameters ($W_1 in RR^(D times 3D)$, $W_2 
 #pagebreak()
 
 = Evaluation
-#lorem(100)
+In this section, we present and discuss the results of four experiments. We:
+
++ Investigate whether alternative @gnn architectures (GAT+Edge and SymGAT+Edge) can outperform the baseline @symgatedgcn @lovro on the original task of identifying erroneous edges in overlap graphs consisting solely of @pacbio @hifi long-read data.
+
++ Explore if the integration of ultra-long reads (from @ont @ul) helps in improving assembly quality by both more effectively detecting erroneous edges, and its impact on assembly contiguity.
+
++ Examine if @granola can help improve performance, especially during inference where the input overlap graphs graphs are much larger than the partitioned subgraphs used during training.
+
++ Analyze the potential of Mamba in extracting richer features directly from raw nucleotide-level read data, and improving model performance.
+
+== Training, validation, and testing datasets
+@fig:dataset_summary provides details for the (maternal) chromosomes (and specifically the regions within them) used as the training, validation, and testing datasets. 
+
+Note that the chromosomes chosen for both training and evaluation represent the most difficult ones during assembly due to the tangles often present in their real-life overlap graphs. Also, both non-acrocentric, and acrocentric chromosomes are utilized. An acrocentric chromosome is one where the centromere, the region of a chromosome that holds sister chromatids together, is not located centrally on the chromosome, but towards one end.
+
+Furthermore, the centromeric region of each of these chromosomes is extracted for generating reads, where most assembly complexity arises @chm13-acrocentric. By training on only a small portion of the chromosomes present in the genome, we showcase the positive generalization capabilities of the @gnn\-based assembly paradigm.
+
+#show table.cell.where(y: 0): strong
+#set table(
+  stroke: (x, y) => if y == 0 {
+    (top: 0.7pt + black, bottom: 0.7pt + black)
+  },
+  align: (x, y) => { center }
+)
+#show table.cell: set align(horizon)
+#show table.cell: set text(size: 0.85em)
+
+#let yes_sym = [✅]
+#let no_sym = [❌]
+
+#let highlight = it => table.cell(fill: gray.lighten(50%))[#it]
+
+#place(top + center)[#figure(
+  table(
+    columns: (7),
+    table.header([Chr.], [Acrocentric], [Use], [Centromeric #linebreak() region start], [Centromeric #linebreak() region end], [Centromeric #linebreak() region len.], [Chr. length]),
+    [19], [#no_sym], [Training], [19.8], [30.1], [10.3], [61.7],
+    [15], [#yes_sym], [Training], [5.7], [15.5], [9.8], [99.8],
+    highlight[11], highlight[#no_sym], highlight[Validation], highlight[48.7], highlight[56.2], highlight[7.5], highlight[135.1],
+    highlight[22], highlight[#yes_sym], highlight[Validation], highlight[8.1], highlight[26.1], highlight[18.0], highlight[51.3],
+    [9], [#no_sym], [Testing], [38.5], [75.4], [36.9], [150.6],
+    [15], [#yes_sym], [Testing], [5.7], [19.3], [13.6], [99.8],
+  ),
+  caption: [Summary of the training, validation, and testing datasets used. Note that all data is from the maternal side.]
+) <fig:dataset_summary>]
+
+== Model performance and assembly quality metrics
+We use standard metrics: *accuracy*, *precision*, *recall*, and *F1 score*,  to evaluate the model's performance on predicting erroneous edges, . These are accompanied by their *_Inverse_* versions, which are calculated by setting the erroneous edge class as the "positive" class. We report both, as there are vastly fewer erroneous edges in the overlap graphs, and some observations and comparisons are made more salient under the *_Inverse_* version.
+
+Additionally, we also utilize a number of commonly used metrics to assess the quality of the final genome assembly produced:
+
+- *Number of contigs*: allows understanding how fragmented the genome assembly is. _Lower is better_.
+- *Longest contig length*: long contigs indicate lower fragmentation too. _Higher is better_.
+- *Genome fraction*: the percentage of the reference genome reconstructed by the assembly. _Higher is better_.
+- *NG50*: this contiguity metric is computed by first sorting contigs by length (longest to shortest), and then taking the cumulative sum of those lengths, until the sum is $>50%$ the reference genome length. The length of the contig at the $50%$ threshold is the result of this metric. _Higher is better_.
+- *Number of mismatches*: the mean number of times where the nucleotide on the reference is different to that in the assembly, per $100$ @kb. _Lower is better_.
+- *Number of indels*: the mean number of times where the assembly has either a nucleotide insertion or deletion compared to the reference, per $100$ @kb. _Lower is better_.
 
 #place(bottom + center)[
 *@symgatedgcn, GAT+Edge, and SymGAT+Edge perform similarly*
@@ -884,8 +938,6 @@ where all $W, b$ represent learnable parameters ($W_1 in RR^(D times 3D)$, $W_2 
     else { left }
   )
 )
-#show table.cell: set align(horizon)
-#show table.cell: set text(size: 0.85em)
 
 #let a_sd(accuracy, standard_deviation) = [#strfmt("{:.1}", accuracy * 100) $plus.minus$ #strfmt("{:.2}", standard_deviation * 100)]
 #let best = it => [#strong(it)]
@@ -932,8 +984,8 @@ where all $W, b$ represent learnable parameters ($W_1 in RR^(D times 3D)$, $W_2 
   [Genome fraction (%)], best[#a_sd_a(base-chr9-SymGatedGCN-genome-fraction)], [#a_sd_a(base-chr9-GAT-genome-fraction)], [#a_sd_a(base-chr9-SymGAT-genome-fraction)],
   [NG50], [#a_sd_a(base-chr9-SymGatedGCN-ng50, multiplier: 0.0000001)], best[#a_sd_a(base-chr9-GAT-ng50, multiplier: 0.0000001)], [#a_sd_a(base-chr9-SymGAT-ng50, multiplier: 0.0000001)],
   [NGA50], [#a_sd_a(base-chr9-SymGatedGCN-nga50, multiplier: 0.0000001)], [#a_sd_a(base-chr9-GAT-nga50, multiplier: 0.0000001)], best[#a_sd_a(base-chr9-SymGAT-nga50, multiplier: 0.0000001)],
-  [Num. Mismatches (per 100 @kb)], [#a_sd_a(base-chr9-SymGatedGCN-mismatches)], best[#a_sd_a(base-chr9-GAT-mismatches)], [#a_sd_a(base-chr9-SymGAT-mismatches)],
-  [Num. Indels (per 100 @kb)], best[#a_sd_a(base-chr9-SymGatedGCN-indels)], [#a_sd_a(base-chr9-GAT-indels)], [#a_sd_a(base-chr9-SymGAT-indels)],
+  [Num. mismatches (per 100 @kb)], [#a_sd_a(base-chr9-SymGatedGCN-mismatches)], best[#a_sd_a(base-chr9-GAT-mismatches)], [#a_sd_a(base-chr9-SymGAT-mismatches)],
+  [Num. indels (per 100 @kb)], best[#a_sd_a(base-chr9-SymGatedGCN-indels)], [#a_sd_a(base-chr9-GAT-indels)], [#a_sd_a(base-chr9-SymGAT-indels)],
 )
 // #show table.cell.where(y: 5): it => {
 //   table.cell(
@@ -980,8 +1032,8 @@ where all $W, b$ represent learnable parameters ($W_1 in RR^(D times 3D)$, $W_2 
   highlight[Genome fraction (%)], highlight[#a_sd_a(base-chr9-SymGatedGCN-genome-fraction)], highlight(best[#a_sd_a(ul-chr9-SymGatedGCN-genome-fraction)]), highlight[#a_sd_a(granola-ul-chr9-SymGatedGCN-genome-fraction)],
   [NG50], best[#a_sd_a(base-chr9-SymGatedGCN-ng50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-SymGatedGCN-ng50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGatedGCN-ng50, multiplier: 0.0000001)],
   [NGA50], [#a_sd_a(base-chr9-SymGatedGCN-nga50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-SymGatedGCN-nga50, multiplier: 0.0000001)], best[#a_sd_a(granola-ul-chr9-SymGatedGCN-nga50, multiplier: 0.0000001)],
-  [Num. Mismatches (per 100 @kb)], [#a_sd_a(base-chr9-SymGatedGCN-mismatches)], [#a_sd_a(ul-chr9-SymGatedGCN-mismatches)], best[#a_sd_a(granola-ul-chr9-SymGatedGCN-mismatches)],
-  [Num. Indels (per 100 @kb)], best[#a_sd_a(base-chr9-SymGatedGCN-indels)], [#a_sd_a(ul-chr9-SymGatedGCN-indels)], [#a_sd_a(granola-ul-chr9-SymGatedGCN-indels)],
+  [Num. mismatches (per 100 @kb)], [#a_sd_a(base-chr9-SymGatedGCN-mismatches)], [#a_sd_a(ul-chr9-SymGatedGCN-mismatches)], best[#a_sd_a(granola-ul-chr9-SymGatedGCN-mismatches)],
+  [Num. indels (per 100 @kb)], best[#a_sd_a(base-chr9-SymGatedGCN-indels)], [#a_sd_a(ul-chr9-SymGatedGCN-indels)], [#a_sd_a(granola-ul-chr9-SymGatedGCN-indels)],
 )
 
 
@@ -1005,8 +1057,8 @@ where all $W, b$ represent learnable parameters ($W_1 in RR^(D times 3D)$, $W_2 
   highlight[Genome fraction (%)], highlight[#a_sd_a(base-chr9-GAT-genome-fraction)], highlight[#a_sd_a(ul-chr9-GAT-genome-fraction)], highlight(best[#a_sd_a(granola-ul-chr9-GAT-genome-fraction)]),
   [NG50], best[#a_sd_a(base-chr9-GAT-ng50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-GAT-ng50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-GAT-ng50, multiplier: 0.0000001)],
   [NGA50], best[#a_sd_a(base-chr9-GAT-nga50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-GAT-nga50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-GAT-nga50, multiplier: 0.0000001)],
-  [Num. Mismatches (per 100 @kb)], best[#a_sd_a(base-chr9-GAT-mismatches)], [#a_sd_a(ul-chr9-GAT-mismatches)], [#a_sd_a(granola-ul-chr9-GAT-mismatches)],
-  [Num. Indels (per 100 @kb)], [#a_sd_a(base-chr9-GAT-indels)], [#a_sd_a(ul-chr9-GAT-indels)], best[#a_sd_a(granola-ul-chr9-GAT-indels)],
+  [Num. mismatches (per 100 @kb)], best[#a_sd_a(base-chr9-GAT-mismatches)], [#a_sd_a(ul-chr9-GAT-mismatches)], [#a_sd_a(granola-ul-chr9-GAT-mismatches)],
+  [Num. indels (per 100 @kb)], [#a_sd_a(base-chr9-GAT-indels)], [#a_sd_a(ul-chr9-GAT-indels)], best[#a_sd_a(granola-ul-chr9-GAT-indels)],
 )
 
 #table(
@@ -1029,8 +1081,8 @@ where all $W, b$ represent learnable parameters ($W_1 in RR^(D times 3D)$, $W_2 
   highlight[Genome fraction (%)], highlight[#a_sd_a(base-chr9-SymGAT-genome-fraction)], highlight(best[#a_sd_a(ul-chr9-SymGAT-genome-fraction)]), highlight[#a_sd_a(granola-ul-chr9-SymGAT-genome-fraction)],
   [NG50], [#a_sd_a(base-chr9-SymGAT-ng50, multiplier: 0.0000001)], best[#a_sd_a(ul-chr9-SymGAT-ng50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGAT-ng50, multiplier: 0.0000001)],
   [NGA50], best[#a_sd_a(base-chr9-SymGAT-nga50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-SymGAT-nga50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGAT-nga50, multiplier: 0.0000001)],
-  [Num. Mismatches (per 100 @kb)], [#a_sd_a(base-chr9-SymGAT-mismatches)], best[#a_sd_a(ul-chr9-SymGAT-mismatches)], [#a_sd_a(granola-ul-chr9-SymGAT-mismatches)],
-  [Num. Indels (per 100 @kb)], [#a_sd_a(base-chr9-SymGAT-indels)], [#a_sd_a(ul-chr9-SymGAT-indels)], best[#a_sd_a(granola-ul-chr9-SymGAT-indels)],
+  [Num. mismatches (per 100 @kb)], [#a_sd_a(base-chr9-SymGAT-mismatches)], best[#a_sd_a(ul-chr9-SymGAT-mismatches)], [#a_sd_a(granola-ul-chr9-SymGAT-mismatches)],
+  [Num. indels (per 100 @kb)], [#a_sd_a(base-chr9-SymGAT-indels)], [#a_sd_a(ul-chr9-SymGAT-indels)], best[#a_sd_a(granola-ul-chr9-SymGAT-indels)],
 )
 
 ^ Trained on 15, tested on 9

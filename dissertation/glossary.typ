@@ -188,4 +188,9 @@
     short: "FN",
     long: "True Negative"
   ),
+  (
+    key: "rdna",
+    short: "rDNA",
+    long: "Ribosomal Deoxyribonucleic Acid"
+  ),
 )

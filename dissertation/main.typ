@@ -109,6 +109,10 @@ Date [date]
 #let sub-caption-styling = (num, it) => [#set align(center); #num #it.body #v(0.5em)]
 #show smallcaps: set text(font: "New Computer Modern")
 
+#show figure.where(
+  kind: table
+): set figure.caption(position: top)
+
 #counter(page).update(1)
 = Introduction
 == Motivation
@@ -694,7 +698,7 @@ where $bold(W)^"n", bold(W)^"e" in RR^(D times D)$ are parameterized weight matr
 #modelexplanation[
   We refer to our custom attention-based formulation, which incorporates edge features, as GAT+Edge. Although there exist alternative @gat implementations incorporating edge features into the attention calculation, like PyTorch Geometric's @pytorch-geometric GATConv, GATConv does not allow edge to node messaging passing.
   
-  Furthermore, a key theoretical limitation of the @gcn and @symgatedgcn architectures is that the transformations applied to the different nodes and edges in the neighborhood are the same. GAT+Edge, like the original @gat architecture it extends, implicitly enables assignment of different importances to nodes (and with GAT+Edge, edges) of the same neighborhood. Additionally, GAT+Edge remains a computationally efficient architecture.
+  Furthermore, a key theoretical limitation of the @gcn and @symgatedgcn architectures is that the transformations applied to the different nodes and edges in the neighborhood are the same. GAT+Edge, like the original @gat architecture it extends, implicitly enables assignment of different importances to nodes (and with GAT+Edge, edges) of the same neighborhood @gat-paper. This could improve the model's adaptability to various overlap graph artifacts. Additionally, GAT+Edge remains a computationally efficient architecture.
 ]
 
 === SymGAT+Edge
@@ -727,13 +731,13 @@ The SymGatedGCN+Mamba model uses the standard input features (from @sec:standard
 First, read $r_i in {"A, T, C, G"}^T$, which is a string of nucleotides of length $T$, is one-hot encoded to produce $r_i^"one-hot" in {0, 1}^(4 times T)$:
 $
   r_(i, t)^"one-hot" = cases(
-    (0, 0, 0, 1)^"T" "if " r_(i t) = "A",
-    (0, 0, 1, 0)^"T" "if " r_(i t) = "T",
-    (0, 1, 0, 0)^"T" "if " r_(i t) = "C",
-    (1, 0, 0, 0)^"T" "if " r_(i t) = "G",
+    (0, 0, 0, 1)^top "if " r_(i t) = "A",
+    (0, 0, 1, 0)^top "if " r_(i t) = "T",
+    (0, 1, 0, 0)^top "if " r_(i t) = "C",
+    (1, 0, 0, 0)^top "if " r_(i t) = "G",
   )
 $
-where $t in {1, 2, ..., T}$ refers to the $t$th nucleotide in $r_i$. $"T"$ is the transpose operator. Next, the one-hot encoded representation is expanded to the hidden dimension $D$ via a learned parameter matrix $bold(W)^"expand" in RR^(D times 4)$, and then the read is encoded into $r_i^"encoded" in RR^(D times T)$ by #smallcaps[Mamba]:
+where $t in {1, 2, ..., T}$ refers to the $t$th nucleotide in $r_i$. $top$ is the transpose operator. Next, the one-hot encoded representation is expanded to the hidden dimension $D$ via a learned parameter matrix $bold(W)^"expand" in RR^(D times 4)$, and then the read is encoded into $r_i^"encoded" in RR^(D times T)$ by #smallcaps[Mamba]:
 $
   r_i^"encoded" = #smallcaps[Mamba] (bold(W)^"expand" r_i)
 $
@@ -845,11 +849,15 @@ More expressive architectures such as $k$-GNNs @kgnn-paper, whose design is moti
 ]
 
 === Complete model architecture
-The complete model consists of three parts. The first is an encoder layer, whose implementation is the feed-forward network described in @sec:standard_input_embedding, and converts the standard input features (@sec:standard_input_features) into the initial node and edge embeddings. The second part is the @gnn itself, that consists of 8 @gnn layers. If @granola is enabled, @granola layers are added after each @gnn layer too. The last part is the predictor layer that outputs the edge logits $e_(i j)^"logits"$ as follows:
+The complete model consists of three parts, shown in @fig:model_architecture. The first is an encoder layer, whose implementation is the feed-forward network described in @sec:standard_input_embedding, and converts the standard input features (@sec:standard_input_features) into the initial node and edge embeddings. The second part is the @gnn itself, that consists of 8 @gnn layers. If @granola is enabled, @granola layers are added after each @gnn layer too. The last part is the predictor layer that outputs the edge logits $e_(i j)^"logits"$ as follows:
 $
   e_(i j)^"logits" = W_3 (thin #relu (W_2 (thin #relu (W_1 (h_i^"last" || h_j^"last" || e_(i j)^"last") + b_1)) + b_2)) + b_3
 $
 where all $W, b$ represent learnable parameters ($W_1 in RR^(D times 3D)$, $W_2 in RR^(32 times D)$, $W_3 in RR^(1 times 32)$, $b_1 in RR^D$, $b_2 in RR^32$, and $b_3 in RR$), and $D$ is the hidden dimension. $||$ denotes the concatenation operator. $h_i^"last"$, $h_j^"last"$ are the final-layer node embeddings, and $e_(i j)^"last"$ refers to the final-layer edge embeddings.
+
+#place(top + center)[
+  #figure(image("graphics/model_architecture.svg"), caption: [Illustration of the encoder-processor-decoder model architecture used. Note that the @gnn layer can be substituted with @symgatedgcn, GAT, or SymGAT.]) <fig:model_architecture>
+]
 
 
 #pagebreak()
@@ -861,14 +869,14 @@ In this section, we present and discuss the results of four experiments. We:
 
 + Explore if the integration of ultra-long reads (from @ont @ul) helps in improving assembly quality by both more effectively detecting erroneous edges, and its impact on assembly contiguity.
 
-+ Examine if @granola can help improve performance, especially during inference where the input overlap graphs graphs are much larger than the partitioned subgraphs used during training.
++ Examine if @granola can help improve performance, especially during inference where the input overlap graphs are much larger than the partitioned subgraphs used during training.
 
-+ Analyze the potential of Mamba in extracting richer features directly from raw nucleotide-level read data, and improving model performance.
++ Analyze the Mamba's potential in extracting richer features directly from raw nucleotide-level read data, and improving model performance.
 
 == Training, validation, and testing datasets
 @fig:dataset_summary provides details for the (maternal) chromosomes (and specifically the regions within them) used as the training, validation, and testing datasets. 
 
-Note that the chromosomes chosen for both training and evaluation represent the most difficult ones during assembly due to the tangles often present in their real-life overlap graphs. Also, both non-acrocentric, and acrocentric chromosomes are utilized. An acrocentric chromosome is one where the centromere, the region of a chromosome that holds sister chromatids together, is not located centrally on the chromosome, but towards one end.
+The real-life overlap graphs for chromosomes chosen for both training and evaluation often consist of complex tangles, and are thus the most challenging to assemble. An acrocentric chromosome is one where the centromere, the region of a chromosome that holds sister chromatids together, is not located centrally on the chromosome, but towards one end. We utilize both non-acrocentric, and acrocentric chromosomes, as acrocentric chromosomes contain @rdna arrays harboring long tandem repeats that lead to distinct graph artifacts.
 
 Furthermore, the centromeric region of each of these chromosomes is extracted for generating reads, where most assembly complexity arises @chm13-acrocentric. By training on only a small portion of the chromosomes present in the genome, we showcase the positive generalization capabilities of the @gnn\-based assembly paradigm.
 
@@ -896,24 +904,29 @@ Furthermore, the centromeric region of each of these chromosomes is extracted fo
     highlight[11], highlight[#no_sym], highlight[Validation], highlight[48.7], highlight[56.2], highlight[7.5], highlight[135.1],
     highlight[22], highlight[#yes_sym], highlight[Validation], highlight[8.1], highlight[26.1], highlight[18.0], highlight[51.3],
     [9], [#no_sym], [Testing], [38.5], [75.4], [36.9], [150.6],
-    [15], [#yes_sym], [Testing], [5.7], [19.3], [13.6], [99.8],
+    [21], [#yes_sym], [Testing], [7.9], [14.7], [6.8], [45.1],
   ),
   caption: [Summary of the training, validation, and testing datasets used. Note that all data is from the maternal side.]
 ) <fig:dataset_summary>]
 
 == Model performance and assembly quality metrics
-We use standard metrics: *accuracy*, *precision*, *recall*, and *F1 score*,  to evaluate the model's performance on predicting erroneous edges, . These are accompanied by their *_Inverse_* versions, which are calculated by setting the erroneous edge class as the "positive" class. We report both, as there are vastly fewer erroneous edges in the overlap graphs, and some observations and comparisons are made more salient under the *_Inverse_* version.
+We use standard metrics: *accuracy*, *precision*, *recall*, and *F1 score*,  to evaluate the model's performance on predicting erroneous edges. These are accompanied by their *_Inverse_* versions, which are calculated by setting the erroneous edge class as the "positive" class. We report both, as there are vastly fewer erroneous edges in the overlap graphs, and some observations and comparisons are made more salient under the *_Inverse_* version.
 
 Additionally, we also utilize a number of commonly used metrics to assess the quality of the final genome assembly produced:
 
 - *Number of contigs*: allows understanding how fragmented the genome assembly is. _Lower is better_.
 - *Longest contig length*: long contigs indicate lower fragmentation too. _Higher is better_.
 - *Genome fraction*: the percentage of the reference genome reconstructed by the assembly. _Higher is better_.
-- *NG50*: this contiguity metric is computed by first sorting contigs by length (longest to shortest), and then taking the cumulative sum of those lengths, until the sum is $>50%$ the reference genome length. The length of the contig at the $50%$ threshold is the result of this metric. _Higher is better_.
+- *NG50*: this contiguity metric is computed by first sorting contigs by length (longest to shortest), and then taking the cumulative sum of those lengths, until the sum is $>50%$ of the reference genome length. The length of the contig at the $50%$ threshold is the result of this metric. _Higher is better_.
 - *Number of mismatches*: the mean number of times where the nucleotide on the reference is different to that in the assembly, per $100$ @kb. _Lower is better_.
 - *Number of indels*: the mean number of times where the assembly has either a nucleotide insertion or deletion compared to the reference, per $100$ @kb. _Lower is better_.
 
-#place(bottom + center)[
+== Performance of alternative GNN layers
+Alternative @gnn layers fail to significantly and consistently outperform the baseline @symgatedgcn model on validation overlap graphs built solely using @pacbio @hifi long-reads. We see from @fig:similar_validation_performance that all three models: @symgatedgcn, GAT+Edge, and SymGAT+Edge exhibit comparable performance, with overlapping $95%$ confidence intervals. All models achieve accuracy $>80%$, with a false positive rate of $~30%$, and a false negative rate of $~10%$, across both validation chromosomes 11 and 22.
+
+We postulate that the underlying reason for this performance parity likely lies in the shared expressivity limitations of these architectures. None of the architectures exceed the graph distinguishing power of the 1-@wl test, and so share the same expressivity upper bound. Consequently, all models tested exhibit the same limitations regarding detection of local subgraph structures.
+
+#place(top + center)[
 *@symgatedgcn, GAT+Edge, and SymGAT+Edge perform similarly*
 #subpar.grid(
   columns: 3,
@@ -925,8 +938,21 @@ Additionally, we also utilize a number of commonly used metrics to assess the qu
   figure(image("graphics/base/key=validation_acc_epoch_train=15_valid=22_data=chm13htert-data_nodes=2000.png"), caption: [Validation Accuracy #linebreak() (Chromosome 22)]),
   figure(image("graphics/base/key=validation_fp_rate_epoch_train=15_valid=22_data=chm13htert-data_nodes=2000.png"), caption: [Validation False Positive #linebreak() (Chromosome 22)]),
   figure(image("graphics/base/key=validation_fn_rate_epoch_train=15_valid=22_data=chm13htert-data_nodes=2000.png"), caption: [Validation False Negative #linebreak() (Chromosome 22)]),
-  caption: [All three models (@symgatedgcn, GAT+Edge, SymGAT+Edge) tested on overlap graphs generated solely using @pacbio @hifi reads perform similarly across both chromosomes 11 and 22. The darker line indicates the mean across $5$ runs, with the highlighted region indicating a $95%$ confidence interval. Full data can be found in [?].]
+  caption: [All three models (@symgatedgcn, GAT+Edge, SymGAT+Edge) tested on overlap graphs generated solely using @pacbio @hifi reads perform similarly across both chromosomes 11 and 22 (trained on chromosomes 9, and 15 respectively). The darker line indicates the mean across $5$ runs, with the highlighted region indicating a $95%$ confidence interval.],
+  label: <fig:similar_validation_performance>
 )]
+
+// Regarding global graph structure, exploring long-range dependency modelling in overlap graphs may be more important that initially thought. For example, by propagating substructure information from one bubble end-point to the other, the ambiguity regarding correct path selection in the bubble could be resolved. Additionally, such long-range information may make substructure detection easier.
+
+One of the key features of @gat is is the implicit ability of the model to assign different importances to nodes of the same neighborhood @gat-paper. We initially hypothesized that different types of graph artifacts would correspond to distinct substructures, requiring the model to selectively focus on different subsets of nodes and edges, and that this would play to the strengths of the @gat architecture. Surprisingly, we empirically find this assumption to either be entirely false, or the weak expressive power of the networks preventing the model from identifying relevant features in the first place.
+
+Additionally, we find evidence that @gat is over-fitting its training data. The baseline @symgatedgcn architecture convincingly outperforms the alternatives on the chromosome 9 test set (@tab:similar_test_performance shows significantly higher inverse precision, recall, and F1 score). This test set is significantly larger than the training overlap graph ($~3 #h(0em) times$ the size) (@fig:dataset_summary), and thus contains additional diversity in graph artifacts that can reveal over-fitting behavior.
+The increased model capacity brought by the attention mechanism, in comparison to convolution, makes the model vulnerable to over-fitting. We believe that GAT+Edge's and SymGAT+Edge's observed loss in performance on the test set is due to over-fitting as all three architectures have comparable performance on the smaller, and less diverse, training and validation datasets (@fig:similar_validation_performance).
+
+Furthermore, we see from @fig:similar_validation_performance that SymGAT+Edge's symmetry feature causes performance to diminish in comparison to GAT+Edge.
+
+
+
 
 #show table.cell.where(y: 0): strong
 #set table(
@@ -958,35 +984,57 @@ Additionally, we also utilize a number of commonly used metrics to assess the qu
 // acc: (0.9648477350912572, 0.0067034830095140064), precision: (0.9990626647918466, 0.0003915836978962343), recall: (0.9648459773312009, 0.006933219132265786), f1: (0.9816458693278843, 0.0035733402659254444)
 // acc_inv: (0.9648477350912572, 0.0067034830095140064), precision_inv: (0.41878887677930976, 0.044617504904132695), recall_inv: (0.964915824915825, 0.014721546014621454), f1_inv: (0.5829126678063014, 0.04427662087367158)
 
-#table(
+#let highlight = it => table.cell(fill: yellow.lighten(50%))[#it]
+#let highlighted = [(#box(fill: yellow.lighten(50%))[highlighted])]
+
+#place(top + center)[#figure(table(
   columns: (auto, 1fr, 1fr, 1fr),
   table.header([Test Metric (%)], [@symgatedgcn], [GAT+Edge], [SymGAT+Edge]),
-  [Accuracy], [#a_sd(0.9586893524716569, 0.008064994134126703)], [#a_sd(0.9360775474927554, 0.00794433727919651)], best[#a_sd(0.9648477350912572, 0.0067034830095140064)],
-  [Precision], best[#a_sd(0.9995165691897043, 0.0002135035253943173)], [#a_sd(0.9954341333421655, 0.002905903316455245)], [#a_sd(0.9990626647918466, 0.0003915836978962343)],
-  [Recall], [#a_sd(0.9580870593143731, 0.008378090132706588)], [#a_sd(0.9387612127112162, 0.010494042839725614)], best[#a_sd(0.9648459773312009, 0.006933219132265786)],
-  [F1], [#a_sd(0.9783480385671969, 0.004330907286733966)], [#a_sd(0.9662306803123208, 0.0044002242052899754)], best[#a_sd(0.9816458693278843, 0.0035733402659254444)],
-  [Precision Inverse], [#a_sd(0.38122619578172867, 0.043284155054646826)], [#a_sd(0.261096448409076, 0.01873228841936153)], best[#a_sd(0.41878887677930976, 0.044617504904132695)],
-  [Recall Inverse], best[#a_sd(0.982020202020202, 0.0080018590047208)], [#a_sd(0.8321212121212122, 0.10845242761164156)], [#a_sd(0.964915824915825, 0.014721546014621454)],
-  [F1 Inverse], [#a_sd(0.5479973168964583, 0.045259191527915035)], [#a_sd(0.39590827636523246, 0.021421343092625816)], best[#a_sd(0.5829126678063014, 0.04427662087367158)],
-)
+  [$arrow.t$ Accuracy], best[#a_sd(0.8595862227139041, 0.0036745137412503687)], [#a_sd(0.852172431936537, 0.018122915137703973)], [#a_sd(0.8420853457812795, 0.017519697090493506)],
+  [$arrow.t$ Precision], best[#a_sd(0.9634490911519177, 0.0025629919337929147)], [#a_sd(0.9491644376556241, 0.0010797849002164902)], [#a_sd(0.9526119974753542, 0.001415315356238136)],
+  [$arrow.t$ Recall], [#a_sd(0.8759740235208783, 0.006283861818846527)], best[#a_sd(0.8816506171113823, 0.021949458751530884)], [#a_sd(0.8662298215722646, 0.02142411761762067)],
+  [$arrow.t$ F1], best[#a_sd(0.9176147356522699, 0.002512762417627877)], [#a_sd(0.914044335828298, 0.011599446124280127)], [#a_sd(0.9072501961743051, 0.011465972986112126)],
+  highlight[$arrow.t$ Precision Inverse], highlight(best[#a_sd(0.4119825030501988, 0.006363473984693595)]), highlight[#a_sd(0.3848171812904071, 0.038358039650424273)], highlight[#a_sd(0.36794115048395104, 0.030808877124403163)],
+  highlight[$arrow.t$ Recall Inverse], highlight(best[#a_sd(0.7231195142668386, 0.0218981435468089)]), highlight[#a_sd(0.6066977066096203, 0.015938260139693062)], highlight[#a_sd(0.641026205681568, 0.017880694079863063)],
+  highlight[$arrow.t$ F1 Inverse], highlight(best[#a_sd(0.5247472552791161, 0.0053616664852087735)]), highlight[#a_sd(0.46957065155016847, 0.02481152760711465)], highlight[#a_sd(0.4665307562943479, 0.02181144060394172)],
+),
+  caption: [The baseline @symgatedgcn outperforms both GAT+Edge and SymGAT+Edge when the models are trained on chromosome 15, and tested on chromosome 9, with much higher inverse precision, recall, and F1 score #highlighted. The results show the mean and standard deviation across 5 runs. $arrow.t$ indicates _higher is better_.]
+) <tab:similar_test_performance>]
 
-^ Trained on 15, tested on 21.
+#pagebreak()
+
+// #place(top + center)[#figure(table(
+//   columns: (auto, 1fr, 1fr, 1fr),
+//   table.header([Test Metric (%)], [@symgatedgcn], [GAT+Edge], [SymGAT+Edge]),
+//   [Accuracy], [#a_sd(0.9586893524716569, 0.008064994134126703)], [#a_sd(0.9360775474927554, 0.00794433727919651)], best[#a_sd(0.9648477350912572, 0.0067034830095140064)],
+//   [Precision], best[#a_sd(0.9995165691897043, 0.0002135035253943173)], [#a_sd(0.9954341333421655, 0.002905903316455245)], [#a_sd(0.9990626647918466, 0.0003915836978962343)],
+//   [Recall], [#a_sd(0.9580870593143731, 0.008378090132706588)], [#a_sd(0.9387612127112162, 0.010494042839725614)], best[#a_sd(0.9648459773312009, 0.006933219132265786)],
+//   [F1], [#a_sd(0.9783480385671969, 0.004330907286733966)], [#a_sd(0.9662306803123208, 0.0044002242052899754)], best[#a_sd(0.9816458693278843, 0.0035733402659254444)],
+//   highlight[Precision Inverse], highlight[#a_sd(0.38122619578172867, 0.043284155054646826)], highlight[#a_sd(0.261096448409076, 0.01873228841936153)], highlight(best[#a_sd(0.41878887677930976, 0.044617504904132695)]),
+//   [Recall Inverse], best[#a_sd(0.982020202020202, 0.0080018590047208)], [#a_sd(0.8321212121212122, 0.10845242761164156)], [#a_sd(0.964915824915825, 0.014721546014621454)],
+//   highlight[F1 Inverse], highlight[#a_sd(0.5479973168964583, 0.045259191527915035)], highlight[#a_sd(0.39590827636523246, 0.021421343092625816)], highlight(best[#a_sd(0.5829126678063014, 0.04427662087367158)]),
+// ),
+//   caption: [SymGAT+Edge outperforms both @symgatedgcn and GAT+Edge when the models are trained on chromosome 15, and tested on chromosome 21. The results show the mean and standard deviation across 5 runs.]
+// ) <tab:similar_test_performance>]
+
 #import "base_assembly_results.typ": *
 
 #let mean(array) = array.sum() / array.len()
 #let std(array) = calc.sqrt(mean(array.map(v => calc.pow(v - mean(array), 2))))
 #let a_sd_a(array, multiplier: 1) = [#strfmt("{:.1}", mean(array) * multiplier) $plus.minus$ #strfmt("{:.2}", std(array) * multiplier)]
-#table(
-  columns: (auto, 1fr, 1fr, 1fr),
-  table.header([Assembly Metric], [@symgatedgcn], [GAT+Edge], [SymGAT+Edge]),
-  [Num. contigs], [#a_sd_a(base-chr9-SymGatedGCN-contigs)], best[#a_sd_a(base-chr9-GAT-contigs)], [#a_sd_a(base-chr9-SymGAT-contigs)],
-  [Longest contig length], [#a_sd_a(base-chr9-SymGatedGCN-largest-contig, multiplier: 0.0000001)], best[#a_sd_a(base-chr9-GAT-largest-contig, multiplier: 0.0000001)], [#a_sd_a(base-chr9-SymGAT-largest-contig, multiplier: 0.0000001)],
-  [Genome fraction (%)], best[#a_sd_a(base-chr9-SymGatedGCN-genome-fraction)], [#a_sd_a(base-chr9-GAT-genome-fraction)], [#a_sd_a(base-chr9-SymGAT-genome-fraction)],
-  [NG50], [#a_sd_a(base-chr9-SymGatedGCN-ng50, multiplier: 0.0000001)], best[#a_sd_a(base-chr9-GAT-ng50, multiplier: 0.0000001)], [#a_sd_a(base-chr9-SymGAT-ng50, multiplier: 0.0000001)],
-  [NGA50], [#a_sd_a(base-chr9-SymGatedGCN-nga50, multiplier: 0.0000001)], [#a_sd_a(base-chr9-GAT-nga50, multiplier: 0.0000001)], best[#a_sd_a(base-chr9-SymGAT-nga50, multiplier: 0.0000001)],
-  [Num. mismatches (per 100 @kb)], [#a_sd_a(base-chr9-SymGatedGCN-mismatches)], best[#a_sd_a(base-chr9-GAT-mismatches)], [#a_sd_a(base-chr9-SymGAT-mismatches)],
-  [Num. indels (per 100 @kb)], best[#a_sd_a(base-chr9-SymGatedGCN-indels)], [#a_sd_a(base-chr9-GAT-indels)], [#a_sd_a(base-chr9-SymGAT-indels)],
-)
+// [?]
+// #table(
+//   columns: (auto, 1fr, 1fr, 1fr),
+//   table.header([Assembly Metric], [@symgatedgcn], [GAT+Edge], [SymGAT+Edge]),
+//   [Num. contigs], [#a_sd_a(base-chr9-SymGatedGCN-contigs)], best[#a_sd_a(base-chr9-GAT-contigs)], [#a_sd_a(base-chr9-SymGAT-contigs)],
+//   [Longest contig length], [#a_sd_a(base-chr9-SymGatedGCN-largest-contig, multiplier: 0.0000001)], best[#a_sd_a(base-chr9-GAT-largest-contig, multiplier: 0.0000001)], [#a_sd_a(base-chr9-SymGAT-largest-contig, multiplier: 0.0000001)],
+//   [Genome fraction (%)], best[#a_sd_a(base-chr9-SymGatedGCN-genome-fraction)], [#a_sd_a(base-chr9-GAT-genome-fraction)], [#a_sd_a(base-chr9-SymGAT-genome-fraction)],
+//   [NG50], [#a_sd_a(base-chr9-SymGatedGCN-ng50, multiplier: 0.0000001)], best[#a_sd_a(base-chr9-GAT-ng50, multiplier: 0.0000001)], [#a_sd_a(base-chr9-SymGAT-ng50, multiplier: 0.0000001)],
+//   [NGA50], [#a_sd_a(base-chr9-SymGatedGCN-nga50, multiplier: 0.0000001)], [#a_sd_a(base-chr9-GAT-nga50, multiplier: 0.0000001)], best[#a_sd_a(base-chr9-SymGAT-nga50, multiplier: 0.0000001)],
+//   [Num. mismatches (per 100 @kb)], [#a_sd_a(base-chr9-SymGatedGCN-mismatches)], best[#a_sd_a(base-chr9-GAT-mismatches)], [#a_sd_a(base-chr9-SymGAT-mismatches)],
+//   [Num. indels (per 100 @kb)], best[#a_sd_a(base-chr9-SymGatedGCN-indels)], [#a_sd_a(base-chr9-GAT-indels)], [#a_sd_a(base-chr9-SymGAT-indels)],
+// )
+
 // #show table.cell.where(y: 5): it => {
 //   table.cell(
 //     fill: gray,
@@ -995,7 +1043,6 @@ Additionally, we also utilize a number of commonly used metrics to assess the qu
 // }
 // #show table.cell.where(y: 5): it => {table.cell(fill: yellow)[#it]}
 
-#let highlight = it => table.cell(fill: yellow.lighten(50%))[#it]
 
 #subpar.grid(
   columns: 3,
@@ -1013,13 +1060,13 @@ Additionally, we also utilize a number of commonly used metrics to assess the qu
 #table(
   columns: (auto, 1fr, 1fr, 1fr),
   table.header([Metric (%)], [@symgatedgcn], [@symgatedgcn (UL)], [@symgatedgcn (UL+@granola)]),
-  [Accuracy], best[#a_sd(0.8595862227139041, 0.0036745137412503687)], [#a_sd(0.8321690738555465, 0.0025772443038743565)], [#a_sd(0.8301424922853613, 0.007101224726230073)],
-  [Precision], best[#a_sd(0.9634490911519177, 0.0025629919337929147)], [#a_sd(0.9323424023725854, 0.004516353276930694)], [#a_sd(0.9160111158239687, 0.00972272749589809)],
-  [Recall], best[#a_sd(0.8759740235208783, 0.006283861818846527)], [#a_sd(0.8578891257995735, 0.0063061462302990414)], [#a_sd(0.8734835092170252, 0.020028524044763716)],
-  [F1], best[#a_sd(0.9176147356522699, 0.002512762417627877)], [#a_sd(0.8935430005291409, 0.0019810980223524005)], [#a_sd(0.8940413062979149, 0.0061798984540991165)],
-  highlight[Precision Inverse], highlight[#a_sd(0.4119825030501988, 0.006363473984693595)], highlight(best[#a_sd(0.5228007379159743, 0.005925397365242645)]), highlight[#a_sd(0.522541581304234, 0.017236383412959296)],
-  [Recall Inverse], best[#a_sd(0.7231195142668386, 0.0218981435468089)], [#a_sd(0.7141452766510822, 0.02227860874135133)], [#a_sd(0.6312598693377094, 0.05396491671958023)],
-  highlight[F1 Inverse], highlight[#a_sd(0.5247472552791161, 0.0053616664852087735)], highlight(best[#a_sd(0.6035159891309024, 0.007614321070066256)]), highlight[#a_sd(0.5702396833678883, 0.012031478690339393)],
+  [$arrow.t$ Accuracy], best[#a_sd(0.8595862227139041, 0.0036745137412503687)], [#a_sd(0.8321690738555465, 0.0025772443038743565)], [#a_sd(0.8301424922853613, 0.007101224726230073)],
+  [$arrow.t$ Precision], best[#a_sd(0.9634490911519177, 0.0025629919337929147)], [#a_sd(0.9323424023725854, 0.004516353276930694)], [#a_sd(0.9160111158239687, 0.00972272749589809)],
+  [$arrow.t$ Recall], best[#a_sd(0.8759740235208783, 0.006283861818846527)], [#a_sd(0.8578891257995735, 0.0063061462302990414)], [#a_sd(0.8734835092170252, 0.020028524044763716)],
+  [$arrow.t$ F1], best[#a_sd(0.9176147356522699, 0.002512762417627877)], [#a_sd(0.8935430005291409, 0.0019810980223524005)], [#a_sd(0.8940413062979149, 0.0061798984540991165)],
+  highlight[$arrow.t$ Precision Inverse], highlight[#a_sd(0.4119825030501988, 0.006363473984693595)], highlight(best[#a_sd(0.5228007379159743, 0.005925397365242645)]), highlight[#a_sd(0.522541581304234, 0.017236383412959296)],
+  [$arrow.t$ Recall Inverse], best[#a_sd(0.7231195142668386, 0.0218981435468089)], [#a_sd(0.7141452766510822, 0.02227860874135133)], [#a_sd(0.6312598693377094, 0.05396491671958023)],
+  highlight[$arrow.t$ F1 Inverse], highlight[#a_sd(0.5247472552791161, 0.0053616664852087735)], highlight(best[#a_sd(0.6035159891309024, 0.007614321070066256)]), highlight[#a_sd(0.5702396833678883, 0.012031478690339393)],
 )
 
 #import "ul_assembly_results.typ": *
@@ -1027,62 +1074,62 @@ Additionally, we also utilize a number of commonly used metrics to assess the qu
 #table(
   columns: (auto, 1fr, 1fr, 1fr),
   table.header([Assembly Metric], [@symgatedgcn], [@symgatedgcn (UL)], [@symgatedgcn (UL+@granola)]),
-  [Num. contigs], [#a_sd_a(base-chr9-SymGatedGCN-contigs)], best[#a_sd_a(ul-chr9-SymGatedGCN-contigs)], [#a_sd_a(granola-ul-chr9-SymGatedGCN-contigs)],
-  [Longest contig length], best[#a_sd_a(base-chr9-SymGatedGCN-largest-contig, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-SymGatedGCN-largest-contig, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGatedGCN-largest-contig, multiplier: 0.0000001)],
-  highlight[Genome fraction (%)], highlight[#a_sd_a(base-chr9-SymGatedGCN-genome-fraction)], highlight(best[#a_sd_a(ul-chr9-SymGatedGCN-genome-fraction)]), highlight[#a_sd_a(granola-ul-chr9-SymGatedGCN-genome-fraction)],
-  [NG50], best[#a_sd_a(base-chr9-SymGatedGCN-ng50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-SymGatedGCN-ng50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGatedGCN-ng50, multiplier: 0.0000001)],
-  [NGA50], [#a_sd_a(base-chr9-SymGatedGCN-nga50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-SymGatedGCN-nga50, multiplier: 0.0000001)], best[#a_sd_a(granola-ul-chr9-SymGatedGCN-nga50, multiplier: 0.0000001)],
-  [Num. mismatches (per 100 @kb)], [#a_sd_a(base-chr9-SymGatedGCN-mismatches)], [#a_sd_a(ul-chr9-SymGatedGCN-mismatches)], best[#a_sd_a(granola-ul-chr9-SymGatedGCN-mismatches)],
-  [Num. indels (per 100 @kb)], best[#a_sd_a(base-chr9-SymGatedGCN-indels)], [#a_sd_a(ul-chr9-SymGatedGCN-indels)], [#a_sd_a(granola-ul-chr9-SymGatedGCN-indels)],
+  [$arrow.t$ Num. contigs], [#a_sd_a(base-chr9-SymGatedGCN-contigs)], best[#a_sd_a(ul-chr9-SymGatedGCN-contigs)], [#a_sd_a(granola-ul-chr9-SymGatedGCN-contigs)],
+  [$arrow.t$ Longest contig length], best[#a_sd_a(base-chr9-SymGatedGCN-largest-contig, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-SymGatedGCN-largest-contig, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGatedGCN-largest-contig, multiplier: 0.0000001)],
+  highlight[$arrow.t$ Genome fraction (%)], highlight[#a_sd_a(base-chr9-SymGatedGCN-genome-fraction)], highlight(best[#a_sd_a(ul-chr9-SymGatedGCN-genome-fraction)]), highlight[#a_sd_a(granola-ul-chr9-SymGatedGCN-genome-fraction)],
+  [$arrow.t$ NG50], best[#a_sd_a(base-chr9-SymGatedGCN-ng50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-SymGatedGCN-ng50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGatedGCN-ng50, multiplier: 0.0000001)],
+  // [NGA50], [#a_sd_a(base-chr9-SymGatedGCN-nga50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-SymGatedGCN-nga50, multiplier: 0.0000001)], best[#a_sd_a(granola-ul-chr9-SymGatedGCN-nga50, multiplier: 0.0000001)],
+  [$arrow.b$ Num. mismatches (per 100 @kb)], [#a_sd_a(base-chr9-SymGatedGCN-mismatches)], [#a_sd_a(ul-chr9-SymGatedGCN-mismatches)], best[#a_sd_a(granola-ul-chr9-SymGatedGCN-mismatches)],
+  [$arrow.b$ Num. indels (per 100 @kb)], best[#a_sd_a(base-chr9-SymGatedGCN-indels)], [#a_sd_a(ul-chr9-SymGatedGCN-indels)], [#a_sd_a(granola-ul-chr9-SymGatedGCN-indels)],
 )
 
 
 #table(
   columns: (auto, 1fr, 1fr, 1fr),
   table.header([Metric (%)], [GAT+Edge], [GAT+Edge (UL)], [GAT+Edge (UL+@granola)]),
-  [Accuracy], best[#a_sd(0.852172431936537, 0.018122915137703973)], [#a_sd(0.8400341272347521, 0.004585857523053335)], [#a_sd(0.8263452834056321, 0.005971217304973857)],
-  [Precision], best[#a_sd(0.9491644376556241, 0.9491644376556241)], [#a_sd(0.910062909230493, 0.008397492689877816)], [#a_sd(0.9202283189065109, 0.004259045323413266)],
-  [Recall], [#a_sd(0.8816506171113823, 0.021949458751530884)], best[#a_sd(0.8936830314971256, 0.01564208464072007)], [#a_sd(0.8634125934522685, 0.012421249272288383)],
-  [F1], best[#a_sd(0.914044335828298, 0.011599446124280127)], [#a_sd(0.9016702165714898, 0.004092508778724496)], [#a_sd(0.8908520470838276, 0.0047318961491994195)],
-  highlight[Precision Inverse], highlight[#a_sd(0.3848171812904071, 0.038358039650424273)], highlight(best[#a_sd(0.5503454799288457, 0.015864438246476206)]), highlight[#a_sd(0.5121686449913767, 0.013812536922495972)],
-  [Recall Inverse], [#a_sd(0.6066977066096203, 0.015938260139693062)], [#a_sd(0.5938508220577763, 0.04789138547267719)], best[#a_sd(0.6562513546149797, 0.02459306289512086)],
-  highlight[F1 Inverse], highlight[#a_sd(0.46957065155016847, 0.02481152760711465)], highlight[#a_sd(0.5699557089584116, 0.013585702239012403)], highlight(best[#a_sd(0.5748741374233737, 0.0032808270517395224)]),
+  [$arrow.t$ Accuracy], best[#a_sd(0.852172431936537, 0.018122915137703973)], [#a_sd(0.8400341272347521, 0.004585857523053335)], [#a_sd(0.8263452834056321, 0.005971217304973857)],
+  [$arrow.t$ Precision], best[#a_sd(0.9491644376556241, 0.9491644376556241)], [#a_sd(0.910062909230493, 0.008397492689877816)], [#a_sd(0.9202283189065109, 0.004259045323413266)],
+  [$arrow.t$ Recall], [#a_sd(0.8816506171113823, 0.021949458751530884)], best[#a_sd(0.8936830314971256, 0.01564208464072007)], [#a_sd(0.8634125934522685, 0.012421249272288383)],
+  [$arrow.t$ F1], best[#a_sd(0.914044335828298, 0.011599446124280127)], [#a_sd(0.9016702165714898, 0.004092508778724496)], [#a_sd(0.8908520470838276, 0.0047318961491994195)],
+  highlight[$arrow.t$ Precision Inverse], highlight[#a_sd(0.3848171812904071, 0.038358039650424273)], highlight(best[#a_sd(0.5503454799288457, 0.015864438246476206)]), highlight[#a_sd(0.5121686449913767, 0.013812536922495972)],
+  [$arrow.t$ Recall Inverse], [#a_sd(0.6066977066096203, 0.015938260139693062)], [#a_sd(0.5938508220577763, 0.04789138547267719)], best[#a_sd(0.6562513546149797, 0.02459306289512086)],
+  highlight[$arrow.t$ F1 Inverse], highlight[#a_sd(0.46957065155016847, 0.02481152760711465)], highlight[#a_sd(0.5699557089584116, 0.013585702239012403)], highlight(best[#a_sd(0.5748741374233737, 0.0032808270517395224)]),
 )
 
 #table(
   columns: (auto, 1fr, 1fr, 1fr),
   table.header([Assembly Metric], [GAT+Edge], [GAT+Edge (UL)], [GAT+Edge (UL+@granola)]),
-  [Num. contigs], best[#a_sd_a(base-chr9-GAT-contigs)], [#a_sd_a(ul-chr9-GAT-contigs)], [#a_sd_a(granola-ul-chr9-GAT-contigs)],
-  [Longest contig length], best[#a_sd_a(base-chr9-GAT-largest-contig, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-GAT-largest-contig, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-GAT-largest-contig, multiplier: 0.0000001)],
-  highlight[Genome fraction (%)], highlight[#a_sd_a(base-chr9-GAT-genome-fraction)], highlight[#a_sd_a(ul-chr9-GAT-genome-fraction)], highlight(best[#a_sd_a(granola-ul-chr9-GAT-genome-fraction)]),
-  [NG50], best[#a_sd_a(base-chr9-GAT-ng50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-GAT-ng50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-GAT-ng50, multiplier: 0.0000001)],
-  [NGA50], best[#a_sd_a(base-chr9-GAT-nga50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-GAT-nga50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-GAT-nga50, multiplier: 0.0000001)],
-  [Num. mismatches (per 100 @kb)], best[#a_sd_a(base-chr9-GAT-mismatches)], [#a_sd_a(ul-chr9-GAT-mismatches)], [#a_sd_a(granola-ul-chr9-GAT-mismatches)],
-  [Num. indels (per 100 @kb)], [#a_sd_a(base-chr9-GAT-indels)], [#a_sd_a(ul-chr9-GAT-indels)], best[#a_sd_a(granola-ul-chr9-GAT-indels)],
+  [$arrow.t$ Num. contigs], best[#a_sd_a(base-chr9-GAT-contigs)], [#a_sd_a(ul-chr9-GAT-contigs)], [#a_sd_a(granola-ul-chr9-GAT-contigs)],
+  [$arrow.t$ Longest contig length], best[#a_sd_a(base-chr9-GAT-largest-contig, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-GAT-largest-contig, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-GAT-largest-contig, multiplier: 0.0000001)],
+  highlight[$arrow.t$ Genome fraction (%)], highlight[#a_sd_a(base-chr9-GAT-genome-fraction)], highlight[#a_sd_a(ul-chr9-GAT-genome-fraction)], highlight(best[#a_sd_a(granola-ul-chr9-GAT-genome-fraction)]),
+  [$arrow.t$ NG50], best[#a_sd_a(base-chr9-GAT-ng50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-GAT-ng50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-GAT-ng50, multiplier: 0.0000001)],
+  // [NGA50], best[#a_sd_a(base-chr9-GAT-nga50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-GAT-nga50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-GAT-nga50, multiplier: 0.0000001)],
+  [$arrow.b$ Num. mismatches (per 100 @kb)], best[#a_sd_a(base-chr9-GAT-mismatches)], [#a_sd_a(ul-chr9-GAT-mismatches)], [#a_sd_a(granola-ul-chr9-GAT-mismatches)],
+  [$arrow.b$ Num. indels (per 100 @kb)], [#a_sd_a(base-chr9-GAT-indels)], [#a_sd_a(ul-chr9-GAT-indels)], best[#a_sd_a(granola-ul-chr9-GAT-indels)],
 )
 
 #table(
   columns: (auto, 1fr, 1fr, 1fr),
   table.header([Metric (%)], [SymGAT+Edge], [SymGAT+Edge (UL)], [SymGAT+Edge (UL+@granola)]),
-  [Accuracy], best[#a_sd(0.8420853457812795, 0.017519697090493506)], [#a_sd(0.8364363632334447, 0.003329035545859219)], [#a_sd(0.8146057362563088, 0.00581974743084867)],
-  [Precision], best[#a_sd(0.9526119974753542, 0.001415315356238136)], [#a_sd(0.9203417460861938, 0.002873804276141712)], [#a_sd(0.9225942806952138, 0.0033192279524718615)],
-  [Recall], [#a_sd(0.8662298215722646, 0.02142411761762067)], best[#a_sd(0.8766909125259776, 0.0060060677440282005)], [#a_sd(0.8451556638147418, 0.011116819171108488)],
-  [F1], best[#a_sd(0.9072501961743051, 0.011465972986112126)], [#a_sd(0.8979707758893195, 0.002408303185493175)], [#a_sd(0.882129776316059, 0.004652621452553112)],
-  highlight[Precision Inverse], highlight[#a_sd(0.36794115048395104, 0.030808877124403163)], highlight(best[#a_sd(0.535446470191115, 0.008795377752307989)]), highlight[#a_sd(0.48738144691836205, 0.01073288066497148)],
-  [Recall Inverse], [#a_sd(0.641026205681568, 0.017880694079863063)], [#a_sd(0.6517168777285816, 0.015402737588688454)], best[#a_sd(0.6744186766572746, 0.019091024109722618)],
-  highlight[F1 Inverse], highlight[#a_sd(0.4665307562943479, 0.02181144060394172)], highlight(best[#a_sd(0.5877544298868103, 0.006282638788092146)]), highlight[#a_sd(0.5655748649808248, 0.002447230862814821)],
+  [$arrow.t$ Accuracy], best[#a_sd(0.8420853457812795, 0.017519697090493506)], [#a_sd(0.8364363632334447, 0.003329035545859219)], [#a_sd(0.8146057362563088, 0.00581974743084867)],
+  [$arrow.t$ Precision], best[#a_sd(0.9526119974753542, 0.001415315356238136)], [#a_sd(0.9203417460861938, 0.002873804276141712)], [#a_sd(0.9225942806952138, 0.0033192279524718615)],
+  [$arrow.t$ Recall], [#a_sd(0.8662298215722646, 0.02142411761762067)], best[#a_sd(0.8766909125259776, 0.0060060677440282005)], [#a_sd(0.8451556638147418, 0.011116819171108488)],
+  [$arrow.t$ F1], best[#a_sd(0.9072501961743051, 0.011465972986112126)], [#a_sd(0.8979707758893195, 0.002408303185493175)], [#a_sd(0.882129776316059, 0.004652621452553112)],
+  highlight[$arrow.t$ Precision Inverse], highlight[#a_sd(0.36794115048395104, 0.030808877124403163)], highlight(best[#a_sd(0.535446470191115, 0.008795377752307989)]), highlight[#a_sd(0.48738144691836205, 0.01073288066497148)],
+  [$arrow.t$ Recall Inverse], [#a_sd(0.641026205681568, 0.017880694079863063)], [#a_sd(0.6517168777285816, 0.015402737588688454)], best[#a_sd(0.6744186766572746, 0.019091024109722618)],
+  highlight[$arrow.t$ F1 Inverse], highlight[#a_sd(0.4665307562943479, 0.02181144060394172)], highlight(best[#a_sd(0.5877544298868103, 0.006282638788092146)]), highlight[#a_sd(0.5655748649808248, 0.002447230862814821)],
 )
 
 #table(
   columns: (auto, 1fr, 1fr, 1fr),
   table.header([Assembly Metric], [SymGAT+Edge], [SymGAT+Edge (UL)], [SymGAT+Edge (UL+@granola)]),
-  [Num. contigs], [#a_sd_a(base-chr9-SymGAT-contigs)], best[#a_sd_a(ul-chr9-SymGAT-contigs)], [#a_sd_a(granola-ul-chr9-SymGAT-contigs)],
-  [Longest contig length], [#a_sd_a(base-chr9-SymGAT-largest-contig, multiplier: 0.0000001)], best[#a_sd_a(ul-chr9-SymGAT-largest-contig, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGAT-largest-contig, multiplier: 0.0000001)],
-  highlight[Genome fraction (%)], highlight[#a_sd_a(base-chr9-SymGAT-genome-fraction)], highlight(best[#a_sd_a(ul-chr9-SymGAT-genome-fraction)]), highlight[#a_sd_a(granola-ul-chr9-SymGAT-genome-fraction)],
-  [NG50], [#a_sd_a(base-chr9-SymGAT-ng50, multiplier: 0.0000001)], best[#a_sd_a(ul-chr9-SymGAT-ng50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGAT-ng50, multiplier: 0.0000001)],
-  [NGA50], best[#a_sd_a(base-chr9-SymGAT-nga50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-SymGAT-nga50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGAT-nga50, multiplier: 0.0000001)],
-  [Num. mismatches (per 100 @kb)], [#a_sd_a(base-chr9-SymGAT-mismatches)], best[#a_sd_a(ul-chr9-SymGAT-mismatches)], [#a_sd_a(granola-ul-chr9-SymGAT-mismatches)],
-  [Num. indels (per 100 @kb)], [#a_sd_a(base-chr9-SymGAT-indels)], [#a_sd_a(ul-chr9-SymGAT-indels)], best[#a_sd_a(granola-ul-chr9-SymGAT-indels)],
+  [$arrow.t$ Num. contigs], [#a_sd_a(base-chr9-SymGAT-contigs)], best[#a_sd_a(ul-chr9-SymGAT-contigs)], [#a_sd_a(granola-ul-chr9-SymGAT-contigs)],
+  [$arrow.t$ Longest contig length], [#a_sd_a(base-chr9-SymGAT-largest-contig, multiplier: 0.0000001)], best[#a_sd_a(ul-chr9-SymGAT-largest-contig, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGAT-largest-contig, multiplier: 0.0000001)],
+  highlight[$arrow.t$ Genome fraction (%)], highlight[#a_sd_a(base-chr9-SymGAT-genome-fraction)], highlight(best[#a_sd_a(ul-chr9-SymGAT-genome-fraction)]), highlight[#a_sd_a(granola-ul-chr9-SymGAT-genome-fraction)],
+  [$arrow.t$ NG50], [#a_sd_a(base-chr9-SymGAT-ng50, multiplier: 0.0000001)], best[#a_sd_a(ul-chr9-SymGAT-ng50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGAT-ng50, multiplier: 0.0000001)],
+  // [NGA50], best[#a_sd_a(base-chr9-SymGAT-nga50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-SymGAT-nga50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGAT-nga50, multiplier: 0.0000001)],
+  [$arrow.b$ Num. mismatches (per 100 @kb)], [#a_sd_a(base-chr9-SymGAT-mismatches)], best[#a_sd_a(ul-chr9-SymGAT-mismatches)], [#a_sd_a(granola-ul-chr9-SymGAT-mismatches)],
+  [$arrow.b$ Num. indels (per 100 @kb)], [#a_sd_a(base-chr9-SymGAT-indels)], [#a_sd_a(ul-chr9-SymGAT-indels)], best[#a_sd_a(granola-ul-chr9-SymGAT-indels)],
 )
 
 ^ Trained on 15, tested on 9
@@ -1108,13 +1155,13 @@ Additionally, we also utilize a number of commonly used metrics to assess the qu
 #table(
   columns: (auto, 1fr, 1fr, 1fr, 1fr),
   table.header([Metric (%)], [@symgatedgcn], [SymGatedGCN +Mamba], [SymGatedGCN +MambaEdge], [SymGatedGCN +RandomEdge]),
-  [Accuracy], [#a_sd(0.984650974597143, 0.00433200250243265)], [#a_sd(0.9874513847221182, 0.004426172913764797)], best[#a_sd(0.9915768761235079, 0.003980587400663833)], [#a_sd(0.9886971360213919, 0.001913964595413109)],
-  [Precision], [#a_sd(0.9998194483804524, 7.827066227169826e-05)], best[#a_sd(0.9997186789261707, 0.00024953321741186485)], [#a_sd(0.9995182993701981, 0.00045280664065934674)], [#a_sd(0.9996775509604485, 9.71850643912885e-05)],
-  [Recall], [#a_sd(0.9847941461694437, 0.004409870891316927)], [#a_sd(0.9876949336367117, 0.004381297563484567)], best[#a_sd(0.9920303347345625, 0.003868304557344345)], [#a_sd(0.9889905668694349, 0.001998789898287203)],
-  [F1], [#a_sd(0.99224582346533, 0.002202133403092189)], [#a_sd(0.9936658651173959, 0.0022527199653774757)], best[#a_sd(0.9957567633400288, 0.0020165341111040625)], [#a_sd(0.9943044637899703, 0.0009702786100677676)],
-  [Precision Inverse], [#a_sd(0.12864798479512254, 0.036629013492757476)], [#a_sd(0.1285348236348254, 0.08098702091148237)], best[#a_sd(0.17015542857861995, 0.09585003337199395)], [#a_sd(0.15316415826771998, 0.018481853937947625)],
-  [Recall Inverse], best[#a_sd(0.9217054263565891, 0.08589836722055305)], [#a_sd(0.8425925520662363, 0.08589836722055305)], [#a_sd(0.7835704125177809, 0.0775469993438432)], [#a_sd(0.8596899224806202, 0.04258277199061171)],
-  [F1 Inverse], [#a_sd(0.22378802267917886, 0.05295265051308235)], [#a_sd(0.21500261576482105, 0.1209215833998852)], best[#a_sd(0.26710222164199865, 0.11682858910597882)], [#a_sd(0.259293321499784, 0.02507388915237946)],
+  [$arrow.t$ Accuracy], [#a_sd(0.984650974597143, 0.00433200250243265)], [#a_sd(0.9874513847221182, 0.004426172913764797)], best[#a_sd(0.9915768761235079, 0.003980587400663833)], [#a_sd(0.9886971360213919, 0.001913964595413109)],
+  [$arrow.t$ Precision], [#a_sd(0.9998194483804524, 7.827066227169826e-05)], best[#a_sd(0.9997186789261707, 0.00024953321741186485)], [#a_sd(0.9995182993701981, 0.00045280664065934674)], [#a_sd(0.9996775509604485, 9.71850643912885e-05)],
+  [$arrow.t$ Recall], [#a_sd(0.9847941461694437, 0.004409870891316927)], [#a_sd(0.9876949336367117, 0.004381297563484567)], best[#a_sd(0.9920303347345625, 0.003868304557344345)], [#a_sd(0.9889905668694349, 0.001998789898287203)],
+  [$arrow.t$ F1], [#a_sd(0.99224582346533, 0.002202133403092189)], [#a_sd(0.9936658651173959, 0.0022527199653774757)], best[#a_sd(0.9957567633400288, 0.0020165341111040625)], [#a_sd(0.9943044637899703, 0.0009702786100677676)],
+  [$arrow.t$ Precision Inverse], [#a_sd(0.12864798479512254, 0.036629013492757476)], [#a_sd(0.1285348236348254, 0.08098702091148237)], best[#a_sd(0.17015542857861995, 0.09585003337199395)], [#a_sd(0.15316415826771998, 0.018481853937947625)],
+  [$arrow.t$ Recall Inverse], best[#a_sd(0.9217054263565891, 0.08589836722055305)], [#a_sd(0.8425925520662363, 0.08589836722055305)], [#a_sd(0.7835704125177809, 0.0775469993438432)], [#a_sd(0.8596899224806202, 0.04258277199061171)],
+  [$arrow.t$ F1 Inverse], [#a_sd(0.22378802267917886, 0.05295265051308235)], [#a_sd(0.21500261576482105, 0.1209215833998852)], best[#a_sd(0.26710222164199865, 0.11682858910597882)], [#a_sd(0.259293321499784, 0.02507388915237946)],
 )
 
 ^ Trained on 15, tested on 21
@@ -1136,6 +1183,13 @@ Additionally, we also utilize a number of commonly used metrics to assess the qu
 #pagebreak()
 
 = Summary and conclusions
+Exploring SymGAT's failure
+
+https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html instead of Mamba?
+
+Trying out more expressive architectures, to firmly know the theoretical bounds of the problem---are high expressiveness GNNs necessary.
+
+If we cannot computationally find a more expressive model, we can fall back to more data + regularization -> starting to become common practice in chemical field + AlphaFold 3.
 
 #pagebreak()
 

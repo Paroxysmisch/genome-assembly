@@ -1,10 +1,13 @@
 #import "@preview/glossarium:0.5.6": make-glossary, register-glossary, print-glossary, gls, glspl
-#import "@preview/wordometer:0.1.4": word-count, total-words
+#import "@preview/wordometer:0.1.4": word-count, total-words, word-count-callback
 #import "@preview/algorithmic:1.0.0"
 #import algorithmic: algorithm, algorithm-figure, style-algorithm
 #show: style-algorithm
 #import "@preview/subpar:0.2.2"
 #import "@preview/oxifmt:0.3.0": strfmt
+#import "base_assembly_results.typ": *
+#import "ul_assembly_results.typ": *
+#import "granola_assembly_results.typ": *
 
 #set page(margin: ("top": 20mm, "bottom": 20mm, "left": 25mm, "right": 25mm))
 #set text(size: 12pt, font: "New Computer Modern")
@@ -55,7 +58,12 @@ Signed [signature]
 
 Date [date]
 
-#total-words
+#show: make-glossary
+#import "glossary.typ": entry-list
+#register-glossary(entry-list)
+
+// #total-words
+#word-count-callback(stats => [#stats.words
 
 #pagebreak()
 
@@ -76,15 +84,17 @@ Date [date]
   #v(2em)
 ]
 
+#show outline.entry.where(
+  level: 1
+): set block(above: 2em)
+
 #outline()
 
 #pagebreak()
 
 #title[Acronyms]
 
-#show: make-glossary
-#import "glossary.typ": entry-list
-#register-glossary(entry-list)
+
 #print-glossary(
  entry-list
 )
@@ -659,7 +669,7 @@ $
 $
   e_(i j)^(l + 1) = e_(i j)^l + #relu (#norm (B_1^l e_(i j)^l + B_2^l h_i^l + B_3^l h_j^l))
 $ <eq:edge_features>
-where all $A, B in RR^(D times D)$ are learnable parameters with hidden dimension $D$, $dot.circle$ denotes the Hadamard product, #relu stands for Rectified Linear Unit, and #norm refers to the normalization layer used---this is discussed in more detail in @sec:granola. Note that the standard input embeddings (@sec:standard_input_embedding) are used for $h_i^0$ and $e_(i j)^0$. $eta_(p i)^("f", l)$ and $eta_(i s)^("b", l)$ refer to the forward, and backward gating functions respectively. The edge gates are defined according to the GatedGCN:
+where all $A, B in RR^(D times D)$ are learnable parameters with hidden dimension $D$, $dot.circle$ denotes the Hadamard product, #relu stands for Rectified Linear Unit, and #norm refers to the normalization layer used---this is either InstanceNorm @instancenorm, or @granola discussed in more detail in @sec:granola. Note that the standard input embeddings (@sec:standard_input_embedding) are used for $h_i^0$ and $e_(i j)^0$. $eta_(p i)^("f", l)$ and $eta_(i s)^("b", l)$ refer to the forward, and backward gating functions respectively. The edge gates are defined according to the GatedGCN:
 $
   eta_(p i)^("f", l) = sigma(e_(p i)^l) / (sum_(p' -> i) sigma (e_(p' i)^l) + epsilon.alt) in [0, 1]^D, #h(2.5em) eta_(i s)^("b", l) = sigma(e_(i s)^l) / (sum_(i -> s') sigma (e_(i s')^l) + epsilon.alt) in [0, 1]^D
 $
@@ -845,7 +855,7 @@ More expressive architectures such as $k$-GNNs @kgnn-paper, whose design is moti
 @granola facilitates an adaptive normalization layer by allowing its affine parameters $gamma_(b, n, d)^l, beta_(b, n, d)^l in RR$ to be dependent on the input-graph, by calculating them using a maximally expressive, shallow @gnn layer---$"GNN"_"Norm"$. A detailed overview of @granola is found in @alg:granola.
 
 #modelexplanation[
-  @granola has the potential to significantly improve the performance on this task as each overlap graph contains a unique set of artifacts (including none at all), so input-adaptivity is important.
+  @granola has the potential to significantly improve the performance on this task as each overlap graph contains a unique set of artifacts (including none at all), so input-adaptivity is important. Additionally, prior work @lovro used BatchNorm/InstanceNorm, which the @granola authors show can lead to a loss in model capacity @granola-paper.
 ]
 
 === Complete model architecture
@@ -921,7 +931,7 @@ Additionally, we also utilize a number of commonly used metrics to assess the qu
 - *Number of mismatches*: the mean number of times where the nucleotide on the reference is different to that in the assembly, per $100$ @kb. _Lower is better_.
 - *Number of indels*: the mean number of times where the assembly has either a nucleotide insertion or deletion compared to the reference, per $100$ @kb. _Lower is better_.
 
-== Performance of alternative GNN layers
+== Performance of alternative GNN layers <sec:performance_alt_gnn_layers>
 Alternative @gnn layers fail to significantly and consistently outperform the baseline @symgatedgcn model on validation overlap graphs built solely using @pacbio @hifi long-reads. We see from @fig:similar_validation_performance that all three models: @symgatedgcn, GAT+Edge, and SymGAT+Edge exhibit comparable performance, with overlapping $95%$ confidence intervals. All models achieve accuracy $>80%$, with a false positive rate of $~30%$, and a false negative rate of $~10%$, across both validation chromosomes 11 and 22.
 
 We postulate that the underlying reason for this performance parity likely lies in the shared expressivity limitations of these architectures. None of the architectures exceed the graph distinguishing power of the 1-@wl test, and so share the same expressivity upper bound. Consequently, all models tested exhibit the same limitations regarding detection of local subgraph structures.
@@ -1018,13 +1028,22 @@ All three architectures tested: @symgatedgcn, GAT+Edge, and SymGAT+Edge, offer s
 
 This success extends to the test set where all three models see a significant uplift to the inverse precision and inverse F1 score, with negligible impact on other metrics such as accuracy. For example, with @symgatedgcn, ultra-long read data helps to improve inverse precision from $41.2%$ to $52.3%$, and the inverse F1 score from $52.5%$ to $60.4%$. The complete suite of data can be found @app:chr-19-ul-granola-test, which shows equivalent performance improvements for GAT+Edge and SymGAT+Edge. This is unequivocal evidence that all tested @gnn:pl are successfully able to leverage ultra-long data to improve erroneous edge detection in overlap graphs.
 
-Moreover, ultra-long data aids in improving assembly quality. Taking the @symgatedgcn model as an example again, @tab:symgatedgcn_assembly shows that ultra-long data helps cover an increased genome fraction of the reference assembly from an average of $92.7%$ to $93.6%$. Although this may seem like a small improvement, this holds significant value for achieving @t2t assemblies, as it is precisely these small, complex regions of the genome that were previously omitted from assemblies, leading to gaps and fragmentation.
+Moreover, ultra-long data aids in improving assembly quality. Taking the @symgatedgcn model as an example again, @tab:symgatedgcn_assembly shows that ultra-long data helps cover an increased genome fraction of the reference assembly from an average of $92.7%$ to $93.6%$. The maximum coverage achieved with ultra-long reads was $95.1%$, compared to $93.9%$ without. Although these results may seem like trivial improvements, they hold significant value for achieving @t2t assemblies, as it is precisely these small, complex regions of the genome that were previously omitted from assemblies, leading to gaps and fragmentation.
 
 Furthermore, this greater coverage is accomplished without any significant detrimental impact on assembly quality. @symgatedgcn's assembly with ultra-long data achieves a similar mismatch and indel rate, with only a slight reduction in the length of the longest contig and NG50. In fact, the total number of contigs decreases, which is an indicator of a less fragmented assembly. We observe similar benefits to assembly quality from ultra-long reads with GAT+Edge and SymGAT+Edge models too (@app:chr-19-ul-granola-assembly).
 
+== Performance impact of GRANOLA
+@granola fails to provide any consequential performance improvement on any of the @gnn layers tested. For example, from @tab:symgatedgcn_test, we find that the addition of @granola is slightly detrimental to overall model performance on the chromosome 9 test set, with a lower inverse F1 Score, and significantly lower inverse recall in comparison to @symgatedgcn with ultra-long data. This is unexpected as @granola, on the surface, seems beneficial for this problem due to three reasons.
 
+Firstly, we postulated that  graph adaptability would be beneficial when testing on overlap graphs from different chromosomes as the distribution of graph artifacts, and overall graph size changes.
 
+Moreover, @granola uses maximally expressive @gnn layers to adapt the normalization parameters to the graph, and model expressivity seems crucial for this task, as discussed earlier in @sec:performance_alt_gnn_layers.
 
+Lastly, all models not utilizing @granola utilize InstanceNorm @instancenorm, which the @granola authors show can limit model capacity, for example by preventing the model from computing critical features such as node degrees @granola-paper. Judging from the results we observed, the model capacity limitation from the use of InstanceNorm is not a practical concern, and the adaptability afforded by @granola likely induces over-fitting, as it performed more on-par with the baseline during training.
+
+@tab:symgatedgcn_assembly shows that @granola's disappointing performance is also reflected in the quality of the final assembly produced, where the increased genome coverage achieved by integration of long-reads is erased. This perhaps also signals that @granola is not as well suited to integrating long-read information. Additional data regarding @granola's performance on the other architectures can be found in @app:chr-19-ul-granola-assembly.
+
+== Mamba's potential for richer feature extraction
 
 // #place(top + center)[#figure(table(
 //   columns: (auto, 1fr, 1fr, 1fr),
@@ -1040,7 +1059,6 @@ Furthermore, this greater coverage is accomplished without any significant detri
 //   caption: [SymGAT+Edge outperforms both @symgatedgcn and GAT+Edge when the models are trained on chromosome 15, and tested on chromosome 21. The results show the mean and standard deviation across 5 runs.]
 // ) <tab:similar_test_performance>]
 
-#import "base_assembly_results.typ": *
 
 #let mean(array) = array.sum() / array.len()
 #let std(array) = calc.sqrt(mean(array.map(v => calc.pow(v - mean(array), 2))))
@@ -1084,8 +1102,6 @@ table(
 caption: [There is a significant performance uplift when ultra-long data is integrated into the overlap graph (@symgatedgcn (UL)), with much higher inverse precision and F1 score #highlighted. @granola does not help in improving performance further. The results show the mean and standard deviation across 5 runs, with chromosome 15 used for training, and 9 as the testing dataset for these metrics. Best results in *bold*. $arrow.t$ indicates _higher is better_.]
 ) <tab:symgatedgcn_test>]
 
-#import "ul_assembly_results.typ": *
-#import "granola_assembly_results.typ": *
 #place(top + center)[#figure(
 table(
   columns: (auto, 1fr, 1fr, 1fr),
@@ -1104,7 +1120,6 @@ caption: [Integration of ultra-long data into the overlap graph (@symgatedgcn (U
 
 
 
-^ Trained on 15, tested on 9
 
 // Chr21 (trained on 15):
 // SymGatedGCN:
@@ -1169,6 +1184,47 @@ If we cannot computationally find a more expressive model, we can fall back to m
 
 #pagebreak()
 
+
+]) // word-count bracket
+
+#let a_sd(accuracy, standard_deviation) = [#strfmt("{:.1}", accuracy * 100) $plus.minus$ #strfmt("{:.2}", standard_deviation * 100)]
+#let best = it => [#strong(it)]
+
+#let highlight = it => table.cell(fill: yellow.lighten(50%))[#it]
+#let highlighted = [(#box(fill: yellow.lighten(50%))[highlighted])]
+
+#let mean(array) = array.sum() / array.len()
+#let std(array) = calc.sqrt(mean(array.map(v => calc.pow(v - mean(array), 2))))
+#let a_sd_a(array, multiplier: 1) = [#strfmt("{:.1}", mean(array) * multiplier) $plus.minus$ #strfmt("{:.2}", std(array) * multiplier)]
+
+#set heading(supplement: [Chapter])
+
+#show heading.where(level: 1): it => [
+  #set text(weight: "regular", size: 12pt)
+  #v(8em)
+  #text(size: 2em)[#it.body.text]
+  #v(2em)
+]
+
+#show heading.where(level: 1): it => [
+  #set text(weight: "regular", size: 12pt)
+  #v(8em)
+  #it.supplement #context counter(heading).display("1")
+  #linebreak()
+  #text(size: 2em)[#it.body.text]
+  #v(2em)
+]
+
+#set page(numbering: "1")
+#set math.equation(numbering: "(1)")
+
+#set heading(numbering: "1.")
+#set place(float: true)
+#show figure.caption: set text(size: 0.9em)
+#show figure.caption: set align(left)
+#let sub-caption-styling = (num, it) => [#set align(center); #num #it.body #v(0.5em)]
+#show smallcaps: set text(font: "New Computer Modern")
+
 #set heading(numbering: "A1.", supplement: "Appendix")
 #counter(heading).update(0)
 
@@ -1180,6 +1236,31 @@ If we cannot computationally find a more expressive model, we can fall back to m
   #text(size: 2em)[#it.body.text]
   #v(2em)
 ]
+
+#show table.cell.where(y: 0): strong
+#set table(
+  stroke: (x, y) => if y == 0 {
+    (top: 0.7pt + black, bottom: 0.7pt + black)
+  },
+  align: (x, y) => { center }
+)
+#show table.cell: set align(horizon)
+#show table.cell: set text(size: 0.85em)
+
+#show figure.where(
+  kind: table
+): set figure.caption(position: top)
+
+#show table.cell.where(y: 0): strong
+#set table(
+  stroke: (x, y) => if y == 0 {
+    (top: 0.7pt + black, bottom: 0.7pt + black)
+  },
+  align: (x, y) => (
+    if x > 0 { center }
+    else { left }
+  )
+)
 
 = Experiment setup
 

@@ -174,7 +174,7 @@ While previous work @lovro has paved the way to replace the combination of algor
 == Key contributions
 The key contributions of this project are as follows:
 
-+ Extension of the @gat architecture, called GAT+Edge, supporting updating of edge features, and their incorporation into message passing. The symmetry feature of @symgatedgcn introduced in prior work @lovro is then combined with GAT+Edge, to form a new architecture called SymGAT.
++ Extension of the @gat architecture, called GAT+Edge, supporting updating of edge features, and their incorporation into message passing. The symmetry mechanism of @symgatedgcn introduced in prior work @lovro is then combined with GAT+Edge, to form a new architecture called SymGAT.
 
 + Incorporating much richer features by utilizing the raw nucleotide read data directly, resulting in the SymGatedGCN+Mamba and SymGatedGCN+MambaEdge models.
 
@@ -702,7 +702,7 @@ where $bold(W)^"n", bold(W)^"e" in RR^(D times D)$ are parameterized weight matr
 ]
 
 === SymGAT+Edge
-With the design of this architecture, we aim to combine the symmetry feature from @symgatedgcn with the GAT+Edge architecture mentioned previously. This is done by first calculating the updated edge features $e_(i j)^(l + 1)$ identically to @symgatedgcn (@eq:edge_features).
+With the design of this architecture, we aim to combine the symmetry mechanism from @symgatedgcn with the GAT+Edge architecture mentioned previously. This is done by first calculating the updated edge features $e_(i j)^(l + 1)$ identically to @symgatedgcn (@eq:edge_features).
 
 Next, a copy of the input graph $G = (V, E)$ is made, $G_"rev" = (V, E_"rev")$, such that:
 $ forall i, j in V. thick i -> j in E <==> j -> i in E_"rev" $
@@ -712,7 +712,7 @@ $
 $
 
 #modelexplanation[
-  Integrating the symmetry feature from @symgatedgcn into GAT+Edge, to form SymGAT+Edge, helps to increase expressivity as messages passed along edges cannot be distinguished from messages passed along the reversed direction by the attention mechanism either. The model is just provided with a graph, with no information regarding what constitutes a forward and reverse edge.
+  Integrating the symmetry mechanism from @symgatedgcn into GAT+Edge, to form SymGAT+Edge, helps to increase expressivity as messages passed along edges cannot be distinguished from messages passed along the reversed direction by the attention mechanism either. The model is just provided with a graph, with no information regarding what constitutes a forward and reverse edge.
 ]
 
 === SymGatedGCN+Mamba
@@ -862,7 +862,7 @@ where all $W, b$ represent learnable parameters ($W_1 in RR^(D times 3D)$, $W_2 
 
 #pagebreak()
 
-= Evaluation
+= Evaluation and discussion
 In this section, we present and discuss the results of four experiments. We:
 
 + Investigate whether alternative @gnn architectures (GAT+Edge and SymGAT+Edge) can outperform the baseline @symgatedgcn @lovro on the original task of identifying erroneous edges in overlap graphs consisting solely of @pacbio @hifi long-read data.
@@ -946,13 +946,10 @@ We postulate that the underlying reason for this performance parity likely lies 
 
 One of the key features of @gat is is the implicit ability of the model to assign different importances to nodes of the same neighborhood @gat-paper. We initially hypothesized that different types of graph artifacts would correspond to distinct substructures, requiring the model to selectively focus on different subsets of nodes and edges, and that this would play to the strengths of the @gat architecture. Surprisingly, we empirically find this assumption to either be entirely false, or the weak expressive power of the networks preventing the model from identifying relevant features in the first place.
 
-Additionally, we find evidence that @gat is over-fitting its training data. The baseline @symgatedgcn architecture convincingly outperforms the alternatives on the chromosome 9 test set (@tab:similar_test_performance shows significantly higher inverse precision, recall, and F1 score). This test set is significantly larger than the training overlap graph ($~3 #h(0em) times$ the size) (@fig:dataset_summary), and thus contains additional diversity in graph artifacts that can reveal over-fitting behavior.
+Furthermore, we find evidence that the @gat\-based architectures are over-fitting their training data. The baseline @symgatedgcn architecture convincingly outperforms the alternatives on the chromosome 9 test set (@tab:similar_test_performance shows significantly higher inverse precision, recall, and F1 score). This test set is significantly larger than the training overlap graph ($~3 #h(0em) times$ the size) (@fig:dataset_summary), and thus contains additional diversity in graph artifacts that can reveal over-fitting behavior.
 The increased model capacity brought by the attention mechanism, in comparison to convolution, makes the model vulnerable to over-fitting. We believe that GAT+Edge's and SymGAT+Edge's observed loss in performance on the test set is due to over-fitting as all three architectures have comparable performance on the smaller, and less diverse, training and validation datasets (@fig:similar_validation_performance).
 
-Furthermore, we see from @fig:similar_validation_performance that SymGAT+Edge's symmetry feature causes performance to diminish in comparison to GAT+Edge.
-
-
-
+Besides the previously discussed issues, another peculiarity we observe is that GAT+Edge and SymGAT+Edge exhibit almost identical performance on both the validation (@fig:similar_validation_performance) and test (@tab:similar_test_performance) sets, when we expect SymGAT+Edge to perform significantly better. The symmetry mechanism incorporates message passing in both the forward and reverse direction of the edges, in a manner that permits the model to distinguish the directionality of the information flow (which would not be possible via message passing on undirected edges). Since this is particularly relevant for genome assembly, which requires finding a directed path through the overlap graph, and prior work @lovro has demonstrated the efficacy of the symmetry mechanism, we find these results unexpected. This phenomenon likely points to another more fundamental bottleneck limiting the performance of the @gat\-based architectures.
 
 #show table.cell.where(y: 0): strong
 #set table(
@@ -998,10 +995,36 @@ Furthermore, we see from @fig:similar_validation_performance that SymGAT+Edge's 
   highlight[$arrow.t$ Recall Inverse], highlight(best[#a_sd(0.7231195142668386, 0.0218981435468089)]), highlight[#a_sd(0.6066977066096203, 0.015938260139693062)], highlight[#a_sd(0.641026205681568, 0.017880694079863063)],
   highlight[$arrow.t$ F1 Inverse], highlight(best[#a_sd(0.5247472552791161, 0.0053616664852087735)]), highlight[#a_sd(0.46957065155016847, 0.02481152760711465)], highlight[#a_sd(0.4665307562943479, 0.02181144060394172)],
 ),
-  caption: [The baseline @symgatedgcn outperforms both GAT+Edge and SymGAT+Edge when the models are trained on chromosome 15, and tested on chromosome 9, with much higher inverse precision, recall, and F1 score #highlighted. The results show the mean and standard deviation across 5 runs. $arrow.t$ indicates _higher is better_.]
+  caption: [The baseline @symgatedgcn outperforms both GAT+Edge and SymGAT+Edge when the models are trained on chromosome 15, and tested on chromosome 9, with much higher inverse precision, recall, and F1 score #highlighted. The results show the mean and standard deviation across 5 runs. Best results in *bold*. $arrow.t$ indicates _higher is better_.]
 ) <tab:similar_test_performance>]
 
-#pagebreak()
+== Integration of ultra-long data
+#place(top + center)[
+*@symgatedgcn's performance improves substantially with ultra-long reads*
+#subpar.grid(
+  columns: 3,
+  column-gutter: -1em,
+  show-sub-caption: sub-caption-styling,
+  figure(image("graphics/ul/key=validation_acc_epoch_train=19_valid=11_nodes=2000.png"), caption: [Validation Accuracy #linebreak() (Chromosome 11)]), <subfig:better_acc_11>,
+  figure(image("graphics/ul/key=validation_fp_rate_epoch_train=19_valid=11_nodes=2000.png"), caption: [Validation False Positive #linebreak() (Chromosome 11)]), <subfig:better_fp_11>,
+  figure(image("graphics/ul/key=validation_fn_rate_epoch_train=19_valid=11_nodes=2000.png"), caption: [Validation False Negative #linebreak() (Chromosome 11)]), <subfig:better_fn_11>,
+  figure(image("graphics/ul/key=validation_acc_epoch_train=15_valid=22_nodes=2000.png"), caption: [Validation Accuracy #linebreak() (Chromosome 22)]), <subfig:better_acc_22>,
+  figure(image("graphics/ul/key=validation_fp_rate_epoch_train=15_valid=22_nodes=2000.png"), caption: [Validation False Positive #linebreak() (Chromosome 22)]), <subfig:better_fp_22>,
+  figure(image("graphics/ul/key=validation_fn_rate_epoch_train=15_valid=22_nodes=2000.png"), caption: [Validation False Negative #linebreak() (Chromosome 22)]), <subfig:better_fn_22>,
+  caption: [@symgatedgcn trained and validated on overlap graphs generated with additional @ont @ul reads (@symgatedgcn (UL) in #text(fill: orange)[orange]) outperforms @symgatedgcn trained and validated on overlap graphs generated solely using @pacbio @hifi reads (in #text(fill: blue.darken(25%))[blue]) across both chromosomes 11 and 22. The darker line indicates the mean across $5$ runs, with the highlighted region indicating a $95%$ confidence interval.]
+)]
+
+All three architectures tested: @symgatedgcn, GAT+Edge, and SymGAT+Edge, offer substantial performance gains when operating on overlap graphs enriched with ultra-long data. For example, on validation chromosome 11, we see that @symgatedgcn achieves higher accuracy (@subfig:better_acc_11), less false negatives (@subfig:better_fn_11) and far fewer false positives (@subfig:better_fp_11) when operating on overlap graphs enriched with ultra-long data, compared to without. On validation chromosome 22, we see similar accuracy (@subfig:better_acc_22) and false negatives (as there is little room for improvement) (@subfig:better_fn_22), but again a substantial decrease in false positives (@subfig:better_fp_22).
+
+This success extends to the test set where all three models see a significant uplift to the inverse precision and inverse F1 score, with negligible impact on other metrics such as accuracy. For example, with @symgatedgcn, ultra-long read data helps to improve inverse precision from $41.2%$ to $52.3%$, and the inverse F1 score from $52.5%$ to $60.4%$. The complete suite of data can be found @app:chr-19-ul-granola-test, which shows equivalent performance improvements for GAT+Edge and SymGAT+Edge. This is unequivocal evidence that all tested @gnn:pl are successfully able to leverage ultra-long data to improve erroneous edge detection in overlap graphs.
+
+Moreover, ultra-long data aids in improving assembly quality. Taking the @symgatedgcn model as an example again, @tab:symgatedgcn_assembly shows that ultra-long data helps cover an increased genome fraction of the reference assembly from an average of $92.7%$ to $93.6%$. Although this may seem like a small improvement, this holds significant value for achieving @t2t assemblies, as it is precisely these small, complex regions of the genome that were previously omitted from assemblies, leading to gaps and fragmentation.
+
+Furthermore, this greater coverage is accomplished without any significant detrimental impact on assembly quality. @symgatedgcn's assembly with ultra-long data achieves a similar mismatch and indel rate, with only a slight reduction in the length of the longest contig and NG50. In fact, the total number of contigs decreases, which is an indicator of a less fragmented assembly. We observe similar benefits to assembly quality from ultra-long reads with GAT+Edge and SymGAT+Edge models too (@app:chr-19-ul-granola-assembly).
+
+
+
+
 
 // #place(top + center)[#figure(table(
 //   columns: (auto, 1fr, 1fr, 1fr),
@@ -1044,20 +1067,10 @@ Furthermore, we see from @fig:similar_validation_performance that SymGAT+Edge's 
 // #show table.cell.where(y: 5): it => {table.cell(fill: yellow)[#it]}
 
 
-#subpar.grid(
-  columns: 3,
-  column-gutter: -1em,
-  show-sub-caption: sub-caption-styling,
-  figure(image("graphics/ul/key=validation_acc_epoch_train=19_valid=11_nodes=2000.png"), caption: [Validation Accuracy #linebreak() (Chromosome 11)]),
-  figure(image("graphics/ul/key=validation_fp_rate_epoch_train=19_valid=11_nodes=2000.png"), caption: [Validation False Positive #linebreak() (Chromosome 11)]),
-  figure(image("graphics/ul/key=validation_fn_rate_epoch_train=19_valid=11_nodes=2000.png"), caption: [Validation False Negative #linebreak() (Chromosome 11)]),
-  figure(image("graphics/ul/key=validation_acc_epoch_train=15_valid=22_nodes=2000.png"), caption: [Validation Accuracy #linebreak() (Chromosome 22)]),
-  figure(image("graphics/ul/key=validation_fp_rate_epoch_train=15_valid=22_nodes=2000.png"), caption: [Validation False Positive #linebreak() (Chromosome 22)]),
-  figure(image("graphics/ul/key=validation_fn_rate_epoch_train=15_valid=22_nodes=2000.png"), caption: [Validation False Negative #linebreak() (Chromosome 22)]),
-  caption: [All three models (@symgatedgcn, GAT+Edge, SymGAT+Edge) tested on overlap graphs generated solely using @pacbio @hifi reads perform similarly across both chromosomes 11 and 22. The darker line indicates the mean across $5$ runs, with the highlighted region indicating a $95%$ confidence interval. Full data can be found in [?].]
-)
 
-#table(
+
+#place(top + center)[#figure(
+table(
   columns: (auto, 1fr, 1fr, 1fr),
   table.header([Metric (%)], [@symgatedgcn], [@symgatedgcn (UL)], [@symgatedgcn (UL+@granola)]),
   [$arrow.t$ Accuracy], best[#a_sd(0.8595862227139041, 0.0036745137412503687)], [#a_sd(0.8321690738555465, 0.0025772443038743565)], [#a_sd(0.8301424922853613, 0.007101224726230073)],
@@ -1067,11 +1080,14 @@ Furthermore, we see from @fig:similar_validation_performance that SymGAT+Edge's 
   highlight[$arrow.t$ Precision Inverse], highlight[#a_sd(0.4119825030501988, 0.006363473984693595)], highlight(best[#a_sd(0.5228007379159743, 0.005925397365242645)]), highlight[#a_sd(0.522541581304234, 0.017236383412959296)],
   [$arrow.t$ Recall Inverse], best[#a_sd(0.7231195142668386, 0.0218981435468089)], [#a_sd(0.7141452766510822, 0.02227860874135133)], [#a_sd(0.6312598693377094, 0.05396491671958023)],
   highlight[$arrow.t$ F1 Inverse], highlight[#a_sd(0.5247472552791161, 0.0053616664852087735)], highlight(best[#a_sd(0.6035159891309024, 0.007614321070066256)]), highlight[#a_sd(0.5702396833678883, 0.012031478690339393)],
-)
+),
+caption: [There is a significant performance uplift when ultra-long data is integrated into the overlap graph (@symgatedgcn (UL)), with much higher inverse precision and F1 score #highlighted. @granola does not help in improving performance further. The results show the mean and standard deviation across 5 runs, with chromosome 15 used for training, and 9 as the testing dataset for these metrics. Best results in *bold*. $arrow.t$ indicates _higher is better_.]
+) <tab:symgatedgcn_test>]
 
 #import "ul_assembly_results.typ": *
 #import "granola_assembly_results.typ": *
-#table(
+#place(top + center)[#figure(
+table(
   columns: (auto, 1fr, 1fr, 1fr),
   table.header([Assembly Metric], [@symgatedgcn], [@symgatedgcn (UL)], [@symgatedgcn (UL+@granola)]),
   [$arrow.t$ Num. contigs], [#a_sd_a(base-chr9-SymGatedGCN-contigs)], best[#a_sd_a(ul-chr9-SymGatedGCN-contigs)], [#a_sd_a(granola-ul-chr9-SymGatedGCN-contigs)],
@@ -1081,56 +1097,12 @@ Furthermore, we see from @fig:similar_validation_performance that SymGAT+Edge's 
   // [NGA50], [#a_sd_a(base-chr9-SymGatedGCN-nga50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-SymGatedGCN-nga50, multiplier: 0.0000001)], best[#a_sd_a(granola-ul-chr9-SymGatedGCN-nga50, multiplier: 0.0000001)],
   [$arrow.b$ Num. mismatches (per 100 @kb)], [#a_sd_a(base-chr9-SymGatedGCN-mismatches)], [#a_sd_a(ul-chr9-SymGatedGCN-mismatches)], best[#a_sd_a(granola-ul-chr9-SymGatedGCN-mismatches)],
   [$arrow.b$ Num. indels (per 100 @kb)], best[#a_sd_a(base-chr9-SymGatedGCN-indels)], [#a_sd_a(ul-chr9-SymGatedGCN-indels)], [#a_sd_a(granola-ul-chr9-SymGatedGCN-indels)],
-)
+),
+caption: [Integration of ultra-long data into the overlap graph (@symgatedgcn (UL)) results in a higher fraction of the reference genome being covered in the reconstructed assembly #highlighted. This is achieved whilst maintain assembly quality. @granola is detrimental to assembly quality. The results show the mean and standard deviation across 5 runs, with chromosome 15 used for training, and 9 as the reference genome assembled. Best results in *bold*. $arrow.t$ indicates _higher is better_. $arrow.b$ indicates _lower is better_.]
+) <tab:symgatedgcn_assembly>]
 
 
-#table(
-  columns: (auto, 1fr, 1fr, 1fr),
-  table.header([Metric (%)], [GAT+Edge], [GAT+Edge (UL)], [GAT+Edge (UL+@granola)]),
-  [$arrow.t$ Accuracy], best[#a_sd(0.852172431936537, 0.018122915137703973)], [#a_sd(0.8400341272347521, 0.004585857523053335)], [#a_sd(0.8263452834056321, 0.005971217304973857)],
-  [$arrow.t$ Precision], best[#a_sd(0.9491644376556241, 0.9491644376556241)], [#a_sd(0.910062909230493, 0.008397492689877816)], [#a_sd(0.9202283189065109, 0.004259045323413266)],
-  [$arrow.t$ Recall], [#a_sd(0.8816506171113823, 0.021949458751530884)], best[#a_sd(0.8936830314971256, 0.01564208464072007)], [#a_sd(0.8634125934522685, 0.012421249272288383)],
-  [$arrow.t$ F1], best[#a_sd(0.914044335828298, 0.011599446124280127)], [#a_sd(0.9016702165714898, 0.004092508778724496)], [#a_sd(0.8908520470838276, 0.0047318961491994195)],
-  highlight[$arrow.t$ Precision Inverse], highlight[#a_sd(0.3848171812904071, 0.038358039650424273)], highlight(best[#a_sd(0.5503454799288457, 0.015864438246476206)]), highlight[#a_sd(0.5121686449913767, 0.013812536922495972)],
-  [$arrow.t$ Recall Inverse], [#a_sd(0.6066977066096203, 0.015938260139693062)], [#a_sd(0.5938508220577763, 0.04789138547267719)], best[#a_sd(0.6562513546149797, 0.02459306289512086)],
-  highlight[$arrow.t$ F1 Inverse], highlight[#a_sd(0.46957065155016847, 0.02481152760711465)], highlight[#a_sd(0.5699557089584116, 0.013585702239012403)], highlight(best[#a_sd(0.5748741374233737, 0.0032808270517395224)]),
-)
 
-#table(
-  columns: (auto, 1fr, 1fr, 1fr),
-  table.header([Assembly Metric], [GAT+Edge], [GAT+Edge (UL)], [GAT+Edge (UL+@granola)]),
-  [$arrow.t$ Num. contigs], best[#a_sd_a(base-chr9-GAT-contigs)], [#a_sd_a(ul-chr9-GAT-contigs)], [#a_sd_a(granola-ul-chr9-GAT-contigs)],
-  [$arrow.t$ Longest contig length], best[#a_sd_a(base-chr9-GAT-largest-contig, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-GAT-largest-contig, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-GAT-largest-contig, multiplier: 0.0000001)],
-  highlight[$arrow.t$ Genome fraction (%)], highlight[#a_sd_a(base-chr9-GAT-genome-fraction)], highlight[#a_sd_a(ul-chr9-GAT-genome-fraction)], highlight(best[#a_sd_a(granola-ul-chr9-GAT-genome-fraction)]),
-  [$arrow.t$ NG50], best[#a_sd_a(base-chr9-GAT-ng50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-GAT-ng50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-GAT-ng50, multiplier: 0.0000001)],
-  // [NGA50], best[#a_sd_a(base-chr9-GAT-nga50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-GAT-nga50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-GAT-nga50, multiplier: 0.0000001)],
-  [$arrow.b$ Num. mismatches (per 100 @kb)], best[#a_sd_a(base-chr9-GAT-mismatches)], [#a_sd_a(ul-chr9-GAT-mismatches)], [#a_sd_a(granola-ul-chr9-GAT-mismatches)],
-  [$arrow.b$ Num. indels (per 100 @kb)], [#a_sd_a(base-chr9-GAT-indels)], [#a_sd_a(ul-chr9-GAT-indels)], best[#a_sd_a(granola-ul-chr9-GAT-indels)],
-)
-
-#table(
-  columns: (auto, 1fr, 1fr, 1fr),
-  table.header([Metric (%)], [SymGAT+Edge], [SymGAT+Edge (UL)], [SymGAT+Edge (UL+@granola)]),
-  [$arrow.t$ Accuracy], best[#a_sd(0.8420853457812795, 0.017519697090493506)], [#a_sd(0.8364363632334447, 0.003329035545859219)], [#a_sd(0.8146057362563088, 0.00581974743084867)],
-  [$arrow.t$ Precision], best[#a_sd(0.9526119974753542, 0.001415315356238136)], [#a_sd(0.9203417460861938, 0.002873804276141712)], [#a_sd(0.9225942806952138, 0.0033192279524718615)],
-  [$arrow.t$ Recall], [#a_sd(0.8662298215722646, 0.02142411761762067)], best[#a_sd(0.8766909125259776, 0.0060060677440282005)], [#a_sd(0.8451556638147418, 0.011116819171108488)],
-  [$arrow.t$ F1], best[#a_sd(0.9072501961743051, 0.011465972986112126)], [#a_sd(0.8979707758893195, 0.002408303185493175)], [#a_sd(0.882129776316059, 0.004652621452553112)],
-  highlight[$arrow.t$ Precision Inverse], highlight[#a_sd(0.36794115048395104, 0.030808877124403163)], highlight(best[#a_sd(0.535446470191115, 0.008795377752307989)]), highlight[#a_sd(0.48738144691836205, 0.01073288066497148)],
-  [$arrow.t$ Recall Inverse], [#a_sd(0.641026205681568, 0.017880694079863063)], [#a_sd(0.6517168777285816, 0.015402737588688454)], best[#a_sd(0.6744186766572746, 0.019091024109722618)],
-  highlight[$arrow.t$ F1 Inverse], highlight[#a_sd(0.4665307562943479, 0.02181144060394172)], highlight(best[#a_sd(0.5877544298868103, 0.006282638788092146)]), highlight[#a_sd(0.5655748649808248, 0.002447230862814821)],
-)
-
-#table(
-  columns: (auto, 1fr, 1fr, 1fr),
-  table.header([Assembly Metric], [SymGAT+Edge], [SymGAT+Edge (UL)], [SymGAT+Edge (UL+@granola)]),
-  [$arrow.t$ Num. contigs], [#a_sd_a(base-chr9-SymGAT-contigs)], best[#a_sd_a(ul-chr9-SymGAT-contigs)], [#a_sd_a(granola-ul-chr9-SymGAT-contigs)],
-  [$arrow.t$ Longest contig length], [#a_sd_a(base-chr9-SymGAT-largest-contig, multiplier: 0.0000001)], best[#a_sd_a(ul-chr9-SymGAT-largest-contig, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGAT-largest-contig, multiplier: 0.0000001)],
-  highlight[$arrow.t$ Genome fraction (%)], highlight[#a_sd_a(base-chr9-SymGAT-genome-fraction)], highlight(best[#a_sd_a(ul-chr9-SymGAT-genome-fraction)]), highlight[#a_sd_a(granola-ul-chr9-SymGAT-genome-fraction)],
-  [$arrow.t$ NG50], [#a_sd_a(base-chr9-SymGAT-ng50, multiplier: 0.0000001)], best[#a_sd_a(ul-chr9-SymGAT-ng50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGAT-ng50, multiplier: 0.0000001)],
-  // [NGA50], best[#a_sd_a(base-chr9-SymGAT-nga50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-SymGAT-nga50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGAT-nga50, multiplier: 0.0000001)],
-  [$arrow.b$ Num. mismatches (per 100 @kb)], [#a_sd_a(base-chr9-SymGAT-mismatches)], best[#a_sd_a(ul-chr9-SymGAT-mismatches)], [#a_sd_a(granola-ul-chr9-SymGAT-mismatches)],
-  [$arrow.b$ Num. indels (per 100 @kb)], [#a_sd_a(base-chr9-SymGAT-indels)], [#a_sd_a(ul-chr9-SymGAT-indels)], best[#a_sd_a(granola-ul-chr9-SymGAT-indels)],
-)
 
 ^ Trained on 15, tested on 9
 
@@ -1197,7 +1169,7 @@ If we cannot computationally find a more expressive model, we can fall back to m
 
 #pagebreak()
 
-#set heading(numbering: "A", supplement: "Appendix")
+#set heading(numbering: "A1.", supplement: "Appendix")
 #counter(heading).update(0)
 
 #show heading.where(level: 1): it => [
@@ -1210,3 +1182,76 @@ If we cannot computationally find a more expressive model, we can fall back to m
 ]
 
 = Experiment setup
+
+#pagebreak()
+
+= Additional experimental data
+== Integration of ultra-long data and GRANOLA <app:ultra-long-granola>
+The tables below contain the experimental results of running the GAT+Edge and SymGAT+Edge architectures on overlap graphs with ultra-long data, and with @granola additionally added.
+
+=== Chromosome 19 testing dataset <app:chr-19-ul-granola-test>
+#figure(
+table(
+  columns: (auto, 1fr, 1fr, 1fr),
+  table.header([Metric (%)], [GAT+Edge], [GAT+Edge (UL)], [GAT+Edge (UL+@granola)]),
+  [$arrow.t$ Accuracy], best[#a_sd(0.852172431936537, 0.018122915137703973)], [#a_sd(0.8400341272347521, 0.004585857523053335)], [#a_sd(0.8263452834056321, 0.005971217304973857)],
+  [$arrow.t$ Precision], best[#a_sd(0.9491644376556241, 0.9491644376556241)], [#a_sd(0.910062909230493, 0.008397492689877816)], [#a_sd(0.9202283189065109, 0.004259045323413266)],
+  [$arrow.t$ Recall], [#a_sd(0.8816506171113823, 0.021949458751530884)], best[#a_sd(0.8936830314971256, 0.01564208464072007)], [#a_sd(0.8634125934522685, 0.012421249272288383)],
+  [$arrow.t$ F1], best[#a_sd(0.914044335828298, 0.011599446124280127)], [#a_sd(0.9016702165714898, 0.004092508778724496)], [#a_sd(0.8908520470838276, 0.0047318961491994195)],
+  highlight[$arrow.t$ Precision Inverse], highlight[#a_sd(0.3848171812904071, 0.038358039650424273)], highlight(best[#a_sd(0.5503454799288457, 0.015864438246476206)]), highlight[#a_sd(0.5121686449913767, 0.013812536922495972)],
+  [$arrow.t$ Recall Inverse], [#a_sd(0.6066977066096203, 0.015938260139693062)], [#a_sd(0.5938508220577763, 0.04789138547267719)], best[#a_sd(0.6562513546149797, 0.02459306289512086)],
+  highlight[$arrow.t$ F1 Inverse], highlight[#a_sd(0.46957065155016847, 0.02481152760711465)], highlight[#a_sd(0.5699557089584116, 0.013585702239012403)], highlight(best[#a_sd(0.5748741374233737, 0.0032808270517395224)]),
+),
+caption:[There is a significant performance uplift when ultra-long data is integrated into the overlap graph (GAT+Edge), as was observed with @symgatedgcn, with much higher inverse precision and F1 score #highlighted. @granola does not help in improving performance further. The results show the mean and standard deviation across 5 runs, with chromosome 15 used for training, and 9 as the testing dataset for these metrics. Best results in *bold*. $arrow.t$ indicates _higher is better_.]
+) <tab:gat_test>
+
+#figure(
+table(
+  columns: (auto, 1fr, 1fr, 1fr),
+  table.header([Metric (%)], [SymGAT+Edge], [SymGAT+Edge (UL)], [SymGAT+Edge (UL+@granola)]),
+  [$arrow.t$ Accuracy], best[#a_sd(0.8420853457812795, 0.017519697090493506)], [#a_sd(0.8364363632334447, 0.003329035545859219)], [#a_sd(0.8146057362563088, 0.00581974743084867)],
+  [$arrow.t$ Precision], best[#a_sd(0.9526119974753542, 0.001415315356238136)], [#a_sd(0.9203417460861938, 0.002873804276141712)], [#a_sd(0.9225942806952138, 0.0033192279524718615)],
+  [$arrow.t$ Recall], [#a_sd(0.8662298215722646, 0.02142411761762067)], best[#a_sd(0.8766909125259776, 0.0060060677440282005)], [#a_sd(0.8451556638147418, 0.011116819171108488)],
+  [$arrow.t$ F1], best[#a_sd(0.9072501961743051, 0.011465972986112126)], [#a_sd(0.8979707758893195, 0.002408303185493175)], [#a_sd(0.882129776316059, 0.004652621452553112)],
+  highlight[$arrow.t$ Precision Inverse], highlight[#a_sd(0.36794115048395104, 0.030808877124403163)], highlight(best[#a_sd(0.535446470191115, 0.008795377752307989)]), highlight[#a_sd(0.48738144691836205, 0.01073288066497148)],
+  [$arrow.t$ Recall Inverse], [#a_sd(0.641026205681568, 0.017880694079863063)], [#a_sd(0.6517168777285816, 0.015402737588688454)], best[#a_sd(0.6744186766572746, 0.019091024109722618)],
+  highlight[$arrow.t$ F1 Inverse], highlight[#a_sd(0.4665307562943479, 0.02181144060394172)], highlight(best[#a_sd(0.5877544298868103, 0.006282638788092146)]), highlight[#a_sd(0.5655748649808248, 0.002447230862814821)],
+),
+caption: [Likewise for the SymGAT+Edge architecture.]
+) <tab:symgat_test>
+
+#pagebreak()
+
+=== Chromosome 19 assembly compared with reference  <app:chr-19-ul-granola-assembly>
+
+#figure(
+table(
+  columns: (auto, 1fr, 1fr, 1fr),
+  table.header([Assembly Metric], [GAT+Edge], [GAT+Edge (UL)], [GAT+Edge (UL+@granola)]),
+  [$arrow.t$ Num. contigs], best[#a_sd_a(base-chr9-GAT-contigs)], [#a_sd_a(ul-chr9-GAT-contigs)], [#a_sd_a(granola-ul-chr9-GAT-contigs)],
+  [$arrow.t$ Longest contig length], best[#a_sd_a(base-chr9-GAT-largest-contig, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-GAT-largest-contig, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-GAT-largest-contig, multiplier: 0.0000001)],
+  highlight[$arrow.t$ Genome fraction (%)], highlight[#a_sd_a(base-chr9-GAT-genome-fraction)], highlight[#a_sd_a(ul-chr9-GAT-genome-fraction)], highlight(best[#a_sd_a(granola-ul-chr9-GAT-genome-fraction)]),
+  [$arrow.t$ NG50], best[#a_sd_a(base-chr9-GAT-ng50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-GAT-ng50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-GAT-ng50, multiplier: 0.0000001)],
+  // [NGA50], best[#a_sd_a(base-chr9-GAT-nga50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-GAT-nga50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-GAT-nga50, multiplier: 0.0000001)],
+  [$arrow.b$ Num. mismatches (per 100 @kb)], best[#a_sd_a(base-chr9-GAT-mismatches)], [#a_sd_a(ul-chr9-GAT-mismatches)], [#a_sd_a(granola-ul-chr9-GAT-mismatches)],
+  [$arrow.b$ Num. indels (per 100 @kb)], [#a_sd_a(base-chr9-GAT-indels)], [#a_sd_a(ul-chr9-GAT-indels)], best[#a_sd_a(granola-ul-chr9-GAT-indels)],
+),
+caption: [Integration of ultra-long data into the overlap graph (GAT+Edge (UL)) results in a higher fraction of the reference genome being covered in the reconstructed assembly #highlighted, as was observed with @symgatedgcn. This is achieved whilst maintain assembly quality. @granola is detrimental to assembly quality. The results show the mean and standard deviation across 5 runs, with chromosome 15 used for training, and 9 as the reference genome assembled. Best results in *bold*. $arrow.t$ indicates _higher is better_. $arrow.b$ indicates _lower is better_.]
+) <tab:gat_assembly>
+
+
+
+#figure(
+table(
+  columns: (auto, 1fr, 1fr, 1fr),
+  table.header([Assembly Metric], [SymGAT+Edge], [SymGAT+Edge (UL)], [SymGAT+Edge (UL+@granola)]),
+  [$arrow.t$ Num. contigs], [#a_sd_a(base-chr9-SymGAT-contigs)], best[#a_sd_a(ul-chr9-SymGAT-contigs)], [#a_sd_a(granola-ul-chr9-SymGAT-contigs)],
+  [$arrow.t$ Longest contig length], [#a_sd_a(base-chr9-SymGAT-largest-contig, multiplier: 0.0000001)], best[#a_sd_a(ul-chr9-SymGAT-largest-contig, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGAT-largest-contig, multiplier: 0.0000001)],
+  highlight[$arrow.t$ Genome fraction (%)], highlight[#a_sd_a(base-chr9-SymGAT-genome-fraction)], highlight(best[#a_sd_a(ul-chr9-SymGAT-genome-fraction)]), highlight[#a_sd_a(granola-ul-chr9-SymGAT-genome-fraction)],
+  [$arrow.t$ NG50], [#a_sd_a(base-chr9-SymGAT-ng50, multiplier: 0.0000001)], best[#a_sd_a(ul-chr9-SymGAT-ng50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGAT-ng50, multiplier: 0.0000001)],
+  // [NGA50], best[#a_sd_a(base-chr9-SymGAT-nga50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-SymGAT-nga50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGAT-nga50, multiplier: 0.0000001)],
+  [$arrow.b$ Num. mismatches (per 100 @kb)], [#a_sd_a(base-chr9-SymGAT-mismatches)], best[#a_sd_a(ul-chr9-SymGAT-mismatches)], [#a_sd_a(granola-ul-chr9-SymGAT-mismatches)],
+  [$arrow.b$ Num. indels (per 100 @kb)], [#a_sd_a(base-chr9-SymGAT-indels)], [#a_sd_a(ul-chr9-SymGAT-indels)], best[#a_sd_a(granola-ul-chr9-SymGAT-indels)],
+),
+caption: [Likewise for the SymGAT+Edge architecture.]
+) <tab:symgat_assembly>

@@ -193,4 +193,9 @@
     short: "rDNA",
     long: "Ribosomal Deoxyribonucleic Acid"
   ),
+  (
+    key: "dirgnn",
+    short: "Dir-GNN",
+    long: "Directed Graph Neural Network"
+  )
 )

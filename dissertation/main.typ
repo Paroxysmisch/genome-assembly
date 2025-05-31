@@ -1,5 +1,5 @@
 #import "@preview/glossarium:0.5.6": make-glossary, register-glossary, print-glossary, gls, glspl
-#import "@preview/wordometer:0.1.4": word-count, total-words, word-count-callback
+#import "@preview/wordometer:0.1.4": word-count, total-words
 #import "@preview/algorithmic:1.0.0"
 #import algorithmic: algorithm, algorithm-figure, style-algorithm
 #show: style-algorithm
@@ -50,6 +50,29 @@
 #counter(page).update(1)
 #set page(numbering: "I", background: none)
 
+Total page count: #context counter(page).final().first()
+
+Main chapters (excluding front-matter, references, and appendix): 40 pages (pp 1--40)
+
+Main chapters word count: #total-words
+
+Methodology used to generate that word count:
+```typst
+#import "@preview/wordometer:0.1.4": word-count, total-words
+
+// Front-page, declaration, ...
+Main chapters word count: #total-words
+// ...
+
+// Word count from main body onwards
+#show: word-count.with(exclude: (<no-wc>))
+
+// Main body ...
+
+// Appendix
+#[...] <no-wc>
+```
+
 #title[Declaration]
 
 I, Yash Shah of Gonville & Caius College, being a candidate for Part III of the Computer Science Tripos, hereby declare that this report and the work described in it are my own work, unaided except as may be specified below, and that the report does not contain material that has already been used to any substantial extent for a comparable purpose. In preparation of this report, I adhered to the Department of Computer Science and Technology AI Policy. I am content for my report to be made available to the students and staff of the University.
@@ -62,8 +85,6 @@ Date [date]
 #import "glossary.typ": entry-list
 #register-glossary(entry-list)
 
-// #total-words
-#word-count-callback(stats => [#stats.words
 
 #pagebreak()
 
@@ -110,7 +131,7 @@ Date [date]
 
 #set page(numbering: "1")
 #set math.equation(numbering: "(1)")
-#show: word-count
+#show: word-count.with(exclude: (<no-wc>))
 
 #set heading(numbering: "1.")
 #set place(float: true)
@@ -1186,6 +1207,12 @@ However, despite the positive results observed with the introduction of both Mam
 #pagebreak()
 
 = Summary and conclusions
+== Overview
+
+== Insights
+
+== Future work
+
 Exploring SymGAT's failure
 
 https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html instead of Mamba?
@@ -1196,50 +1223,17 @@ If we cannot computationally find a more expressive model, we can fall back to m
 
 #pagebreak()
 
-#bibliography("bibligraphy.bib")
-
-#pagebreak()
-
-
-]) // word-count bracket
-
-#let a_sd(accuracy, standard_deviation) = [#strfmt("{:.1}", accuracy * 100) $plus.minus$ #strfmt("{:.2}", standard_deviation * 100)]
-#let best = it => [#strong(it)]
-
-#let highlight = it => table.cell(fill: yellow.lighten(50%))[#it]
-#let highlighted = [(#box(fill: yellow.lighten(50%))[highlighted])]
-
-#let mean(array) = array.sum() / array.len()
-#let std(array) = calc.sqrt(mean(array.map(v => calc.pow(v - mean(array), 2))))
-#let a_sd_a(array, multiplier: 1) = [#strfmt("{:.1}", mean(array) * multiplier) $plus.minus$ #strfmt("{:.2}", std(array) * multiplier)]
-
-#set heading(supplement: [Chapter])
-
 #show heading.where(level: 1): it => [
   #set text(weight: "regular", size: 12pt)
   #v(8em)
-  #text(size: 2em)[#it.body.text]
-  #v(2em)
-]
-
-#show heading.where(level: 1): it => [
-  #set text(weight: "regular", size: 12pt)
-  #v(8em)
-  #it.supplement #context counter(heading).display("1")
   #linebreak()
   #text(size: 2em)[#it.body.text]
   #v(2em)
 ]
 
-#set page(numbering: "1")
-#set math.equation(numbering: "(1)")
+#bibliography("bibligraphy.bib")
 
-#set heading(numbering: "1.")
-#set place(float: true)
-#show figure.caption: set text(size: 0.9em)
-#show figure.caption: set align(left)
-#let sub-caption-styling = (num, it) => [#set align(center); #num #it.body #v(0.5em)]
-#show smallcaps: set text(font: "New Computer Modern")
+#pagebreak()
 
 #set heading(numbering: "A1.", supplement: "Appendix")
 #counter(heading).update(0)
@@ -1253,31 +1247,7 @@ If we cannot computationally find a more expressive model, we can fall back to m
   #v(2em)
 ]
 
-#show table.cell.where(y: 0): strong
-#set table(
-  stroke: (x, y) => if y == 0 {
-    (top: 0.7pt + black, bottom: 0.7pt + black)
-  },
-  align: (x, y) => { center }
-)
-#show table.cell: set align(horizon)
-#show table.cell: set text(size: 0.85em)
-
-#show figure.where(
-  kind: table
-): set figure.caption(position: top)
-
-#show table.cell.where(y: 0): strong
-#set table(
-  stroke: (x, y) => if y == 0 {
-    (top: 0.7pt + black, bottom: 0.7pt + black)
-  },
-  align: (x, y) => (
-    if x > 0 { center }
-    else { left }
-  )
-)
-
+#[
 = Experiment setup
 
 #pagebreak()
@@ -1352,3 +1322,4 @@ table(
 ),
 caption: [Likewise for the SymGAT+Edge architecture.]
 ) <tab:symgat_assembly>
+] <no-wc>

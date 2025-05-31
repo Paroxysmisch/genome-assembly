@@ -116,8 +116,51 @@ Date [date]
 #title[Acronyms]
 
 
+// #print-glossary(
+//  entry-list
+// )
+
+#let title-case(string) = {
+  return string.replace(
+    regex("^[[:alpha:]]+('[[:alpha:]]+)?"),
+    word => upper(word.text.first()) + word.text.slice(1),
+  )
+}
+
+
+// #[
+// #set table(
+//   fill: (x, y) => if calc.rem(y, 2) == 1 {
+//       gray.lighten(65%)
+//     }
+// )
+  
+// #print-glossary(
+//   user-print-glossary: (entries, groups, ..) => {
+//     table(
+//       columns: (0.4fr, 1fr),
+//       stroke: 0pt,
+//       row-gutter: 0.25em,
+//       ..for group in groups {
+//         (
+//           table.cell(group, colspan: 2),
+//           ..for entry in entries.filter(x => x.group == group) {
+//             (
+//               text(weight: "bold", style: "italic")[#entry.short],
+//               // entry.long
+//               title-case(entry.long),
+//             )
+//           }
+//         )
+//       }
+//     )
+//   },
+//   entry-list
+// )]
+
 #print-glossary(
- entry-list
+ entry-list,
+ disable-back-references: true,
 )
 
 #show heading.where(level: 1): it => [
@@ -158,7 +201,7 @@ In this project, we demonstrate how machine learning is an effective tool in imp
 == A short history of Genome Assembly <sec:existing_methods>
 Hierarchical sequencing and @wgs have been the two predominant assembly strategies @t2t-genome-assembly. Hierarchical sequencing involves cloning, sequencing, and assembly of tiled genomic fragments that are aligned against a physical or genetic genome map, with the human reference genome GRCh38 being primarily constructed with this method @grch38. 
 
-Due to its high cost and labour-intensive nature, heirarchical sequencing has largely been replaced by @wgs, where the genome is randomly fragmented into individually sequenced smaller segments called reads @wgs1 @wgs2. These reads are then reassembled into a complete genome by identifying overlaps between them. Unlike hierarchical sequencing, @wgs must consider overlaps between reads spanning the entire genome, not just localized regions, which significantly increases computational complexity.
+Due to its high cost and labor-intensive nature, hierarchical sequencing has largely been replaced by @wgs, where the genome is randomly fragmented into individually sequenced smaller segments called reads @wgs1 @wgs2. These reads are then reassembled into a complete genome by identifying overlaps between them. Unlike hierarchical sequencing, @wgs must consider overlaps between reads spanning the entire genome, not just localized regions, which significantly increases computational complexity.
 
 A fundamental part of @wgs is the creation of the overlap graph @overlapgraphsdetailed @lovro @overlapgraph, in which each vertex is a read. There exists a directed edge between the vertex of read $A$ and of read $B$ if the suffix of $A$ can be aligned to (i.e. overlaps with) the prefix $B$. The genome can then be reconstructed by finding a Hamiltonian path (a path that visits every vertex/read in the graph exactly once) through this overlap graph.
 
@@ -349,7 +392,7 @@ The key insight is that by encoding symmetry within our model architecture, we r
 
 Within genome assembly, we operate on input overlap graphs. By studying the symmetries of graphs by inspecting their invariances and equivariances, we are led to the @gnn machine learning architecture that is tailored to operate effectively on graph-structured data.
 === Permutation Invariance and Equivariance
-Let $G = (V, E)$ be a graph such that $V$ is the set of nodes representing arbitrary entities. $E subset.eq V times V$ is the set of edges such that $(u, v) in E$ encodes relationships among these nodes/entities. The complete connectivity of $G$ has an algrebric representation $bold(A) in RR^(|V| times |V|)$, the adjacency matrix such that:
+Let $G = (V, E)$ be a graph such that $V$ is the set of nodes representing arbitrary entities. $E subset.eq V times V$ is the set of edges such that $(u, v) in E$ encodes relationships among these nodes/entities. The complete connectivity of $G$ has an algebraic representation $bold(A) in RR^(|V| times |V|)$, the adjacency matrix such that:
 $ A_(u v) = cases(1", if"  space (u, v) in E,
                   0", if" space (u, v) in.not E) $
 
@@ -372,7 +415,7 @@ Let $G = (V, E)$ be a graph, with $neighborhood_v = {u in V : (v,u) in E}$ repre
 We define $f$, the message passing function, as a local and permutation-invariant function over the neighborhood features $features_(neighborhood_v)$ and $edgefeatures_(neighborhood_v)$ as:
 $ f(bold(x)_v, features_(neighborhood_v), edgefeatures_(neighborhood_v)) = phi.alt(bold(x)_v, plus.circle.big_(u in neighborhood_v) psi(bold(x)_u, bold(x)_v, bold(e)_(u v))) $ <eq:gnn_message_passing>
 
-where $psi$ and $phi.alt$ are learnable message, and update functions, respectively, while $plus.circle$ is a permutation-invariant aggregation function (e.g., sum, mean, max). A permutation-equivariant GNN layer $bold(F)$ is the local message passing function applied over all neighborhoods of $G$:
+where $psi$ and $phi.alt$ are learnable message, and update functions, respectively, while $plus.circle$ is a permutation-invariant aggregation function (e.g., sum, mean, max). A permutation-equivariant @gnn layer $bold(F)$ is the local message passing function applied over all neighborhoods of $G$:
 $ bold(F)(features, edgefeatures, adj) = mat(dash.em f(bold(x)_1, features_(neighborhood_1), edgefeatures_(neighborhood_1)) dash.em;
                                dash.em f(bold(x)_2, features_(neighborhood_2), edgefeatures_(neighborhood_2)) dash.em;
                                dots.v;
@@ -461,7 +504,7 @@ Discretization is performed using the step size parameter $Delta$, transforming 
 $ h_t = dash(bold(A))h_(t - 1) + dash(bold(B)) x_t #h(5em) y_t = bold(C)h_t $
 // $ y_t = bold(C)h_t $
 
-Through repeated application of the recurrence relation, and simplification via the @lit property (which states that $(Delta, bold(A), bold(B))$ and consequently $(bold(dash(A)), bold(dash(B)))$ remain constant for all time-steps), the system can be equivalently expressed as a 1-dimensional convolution (see @fig:s4_discrete_recurrent and @fig:s4_discrete_convolutional for illustration) over the sequence $x$ with kernel $bold(dash(K))$ ($star$ denotes the covolution operation):
+Through repeated application of the recurrence relation, and simplification via the @lit property (which states that $(Delta, bold(A), bold(B))$ and consequently $(bold(dash(A)), bold(dash(B)))$ remain constant for all time-steps), the system can be equivalently expressed as a 1-dimensional convolution (see @fig:s4_discrete_recurrent and @fig:s4_discrete_convolutional for illustration) over the sequence $x$ with kernel $bold(dash(K))$ ($star$ denotes the convolution operation):
 $ bold(dash(K)) = (C dash(B), C dash(A) dash(B), ..., C dash(A)^k dash(B), ...) #h(5em) y = x star bold(dash(K)) $
 // $ y = x star bold(dash(K)) $
 
@@ -881,7 +924,7 @@ $
 
 Having motivated the need for input-specific affine parameters, we need a method of calculating them from the input graph---this is simply another @gnn. Since commonly used @gnn architectures are at most as powerful as the @wl graph isomorphism heuristic @gin-paper, any normalization layer designed using them will be unable to distinguish all input graphs, and therefore will fail to adapt the normalization parameters correctly to suit the input.
 
-More expressive architectures such as $k$-GNNs @kgnn-paper, whose design is motivated by the generalization of 1-@wl to $k$−tuples of nodes ($k$-WL), are accompanied by unacceptable computation and memory costs (e.g. $cal(O)(|V|^k)$ memory for higher-order @mpnn:pl, where $V$ is the number of nodes in the graph).
+More expressive architectures such as $k$-@gnn:pl @kgnn-paper, whose design is motivated by the generalization of 1-@wl to $k$−tuples of nodes ($k$-@wl), are accompanied by unacceptable computation and memory costs (e.g. $cal(O)(|V|^k)$ memory for higher-order @mpnn:pl, where $V$ is the number of nodes in the graph).
 
 @rnf @rnf-paper is an easy to compute (and memory efficient), yet theoretically grounded alternative involving concatenating a different randomly generated vector to each node feature. This simple addition not only allows distinguishing between 1-@wl indistinguishable graph pairs based on fixed local substructures, but @gnn:pl augmented with @rnf are provably universal (with high probability), and thus can approximate any function defined on graphs of fixed order @rnf-power. In order to be maximally expressive, @granola uses an @mpnn @gnn-survey equipped with @rnf. It is important to note that @rnf breaks the invariance property of @gnn:pl, which is a strong inductive bias, however preserves it in expectation @rnf-power.
 
@@ -936,7 +979,7 @@ Furthermore, the centromeric region of each of these chromosomes is extracted fo
 #let yes_sym = [✅]
 #let no_sym = [❌]
 
-#let highlight = it => table.cell(fill: gray.lighten(50%))[#it]
+#let highlight = it => table.cell(fill: gray.lighten(65%))[#it]
 
 #place(top + center)[#figure(
   table(
@@ -1141,7 +1184,7 @@ caption: [Integration of ultra-long data into the overlap graph (@symgatedgcn (U
 ]
 
 == Performance impact of GRANOLA <sec:granola-performance>
-@granola fails to provide any consequential performance improvement on any of the @gnn layers tested. During validation on chromosom 11, @granola increases the number of false positives, and on chromosome 22, it causes a slight reduction in accuracy, and an increase in false negatives. Furthermore, from @tab:symgatedgcn_test, we find that the addition of @granola is slightly detrimental to overall model performance on the chromosome 9 test set, with a lower inverse F1 Score, and significantly lower inverse recall in comparison to @symgatedgcn with ultra-long data. This is unexpected as @granola, on the surface, seems beneficial for this problem due to three reasons.
+@granola fails to provide any consequential performance improvement on any of the @gnn layers tested. During validation on chromosome 11, @granola increases the number of false positives, and on chromosome 22, it causes a slight reduction in accuracy, and an increase in false negatives. Furthermore, from @tab:symgatedgcn_test, we find that the addition of @granola is slightly detrimental to overall model performance on the chromosome 9 test set, with a lower inverse F1 Score, and significantly lower inverse recall in comparison to @symgatedgcn with ultra-long data. This is unexpected as @granola, on the surface, seems beneficial for this problem due to three reasons.
 
 Firstly, we postulated that  graph adaptability would be beneficial when testing on overlap graphs from different chromosomes as the distribution of graph artifacts, and overall graph size changes.
 
@@ -1233,7 +1276,7 @@ In summary, this project was successful in meeting all of its original aims. We 
 
 Two @gnn architectures extending the original @gat layers incorporating edge features were introduced---GAT+Edge, and the novel SymGAT+Edge that integrated the symmetry mechanism found in @symgatedgcn. A series of experiments were run, which uncovered that these alternate architectures did not significantly outperform the prior @symgatedgcn baseline in predicting erroneous edges in overlap graphs, nor in improving assembly quality.
 
-The key insight gained was that since none of these architectures exceeded the expressive power of the (directed) 1-@wl test, and because layout is fundamentally a structural problem, a noteworthy performance improvement should not be expected. Additionally, the design of any @gnn architecture for this task must be mindful of the possibility of over-fitting, induced by increased model capacity.
+From the evidence gathered, we hypothesized that since none of these architectures exceeded the expressive power of the (directed) 1-@wl test, and because layout is fundamentally a structural problem, a noteworthy performance improvement should not be expected. Additionally, the design of any @gnn architecture for this task must be mindful of the possibility of over-fitting, induced by increased model capacity.
 
 The alternative @granola normalization layer held potential for furthering performance due to its input graph adaptability, and the proven model capacity reduction that could be caused by the use of standard normalization schemes such as InstanceNorm. In testing, @granola proved ultimately unsuccessful, with its graph adaptability mechanism hindering performance. Moreover, the theoretical model capacity reduction did not seem consequential in practice, with the InstanceNorm baseline outperforming @granola.
 

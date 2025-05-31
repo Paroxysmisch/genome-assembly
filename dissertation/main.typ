@@ -196,22 +196,34 @@ The neural execution paradigm has also been successful in simulating some of the
 == Aims
 While previous work @lovro has paved the way to replace the combination of algorithms and heuristics traditionally used during the layout phase of the @olc algorithm, this project aims to build on these advancements with three aims:
 
-+ Investigating the efficacy of more advanced @gnn layers that hold promise for furthering performance. 
+#let aim_1 = [Investigating the efficacy of more advanced @gnn layers, and normalization methods that hold promise for furthering performance.]
 
-+ Integrating ultra-long sequencing data into the @gnn\-based genome assembly pipeline, which may necessitate more advanced @gnn layers. This new data type offers new opportunities for resolving complex graph artifacts, particularly repeating regions in the genome that were previously difficult to address.
+#let aim_2 = [Integrating ultra-long sequencing data into the @gnn\-based genome assembly pipeline, which may necessitate more advanced @gnn layers. This new data type offers new opportunities for resolving complex graph artifacts, particularly repeating regions in the genome that were previously difficult to address.]
 
-+ Evaluating the feasibility of an end-to-end neural approach to the genome assembly problem that goes beyond isolated improvements to various sub-tasks, such as layout.
+#let aim_3 = [Exploring automated methods of feature extraction from raw nucleotide read data.]
+
+#let aim_4 = [Evaluating the feasibility of an end-to-end neural approach to the genome assembly problem that goes beyond isolated improvements to various sub-tasks, such as layout.]
+
++ #aim_1
+
++ #aim_2
+
++ #aim_3
+
++ #aim_4
 
 == Key contributions
 The key contributions of this project are as follows:
 
-+ Extension of the @gat architecture, called GAT+Edge, supporting updating of edge features, and their incorporation into message passing. The symmetry mechanism of @symgatedgcn introduced in prior work @lovro is then combined with GAT+Edge, to form a new architecture called SymGAT.
++ Extension of the @gat architecture, called GAT+Edge, supporting updating of edge features, and their incorporation into message passing. The symmetry mechanism of @symgatedgcn introduced in prior work @lovro is then combined with GAT+Edge, to form a new architecture called SymGAT. (@sec:gat-edge and @sec:symgat-edge)
 
-+ Incorporating much richer features by utilizing the raw nucleotide read data directly, resulting in the SymGatedGCN+Mamba and SymGatedGCN+MambaEdge models.
++ Evaluating the performance of these new architectures against @symgatedgcn. (@sec:performance_alt_gnn_layers)
 
-+ Evaluating the performance of these new architectures against @symgatedgcn.
++ Investigating the integration of ultra-long read data, by combining them into existing overlap graphs generated from long-reads only, and testing the performance of various @gnn architectures on this extended overlap graph. (@sec:explaining-ultra-long-data and @sec:integration-ultra-long-data)
 
-+ Investigating the integration of ultra-long read data, by combining them into existing overlap graphs generated from long-reads only, and testing the performance of various @gnn architectures on this extended overlap graph.
++ Experimenting with the use of an alternative graph normalization scheme, specifically designed for @gnn:pl. (@sec:granola and @sec:granola-performance)
+
++ Incorporating much richer features by utilizing the raw nucleotide read data directly, resulting in the SymGatedGCN+Mamba and SymGatedGCN+MambaEdge models. (@sec:symgatedgcn-mamba, @sec:symgatedgcn-mamba-edge, and @sec:mamba-potential-feature-extraction)
 
 + Creating a proof-of-concept for purely neural genome assembly that does not rely on overlap graphs, or the @olc algorithm.
 
@@ -303,7 +315,7 @@ Due to their much increased length, @ul is critical in helping resolve tangles, 
 
 This project utilizes @pacbio's @hifi read technology for long-read data, as well as integrating @ont @ul for ultra-long read data. The next section discusses this integration in more detail.
 
-== Integrating ultra-long data
+== Integrating ultra-long data <sec:explaining-ultra-long-data>
 As shown in @sec:need_long_reads, and demonstrated in @fig:resolving_repeats, long reads are crucial in helping resolve repeating regions and tangles in assembly graphs. Longer reads are critical in improving assembly quality, but only if their accuracy is maintained. Unfortunately, current ultra-long read technology's accuracy is not high enough to replace long reads as the primary data type. Hence, we have to incorporate them as additional information into existing long-read assembly workflows. @fig:ul_strategy shows that ultra-long data can help in resolving small assembly gaps and artifacts, e.g. a bubble can be simplified by the ultra-long read bridging the bubble region, and reinforcing a unique path through that tangle.
 
 #place(top + center)[#figure(
@@ -704,7 +716,7 @@ where $sigma$ represents the sigmoid function, $epsilon.alt$ is a small value ad
   Most conventional @gnn layers are designed to operate on undirected graphs, and therefore do not account for directional information intrinsic to overlap graphs. This limitation is problematic, since the overlap graph encodes the directional path reflecting the linear structure of the genome from start to end. @symgatedgcn aims to address this lack of expressivity by distinguishing the messages passed along the edges $(sum_(p -> i) eta_(p i)^("f", l + 1) dot.circle A_2^l h_p^l)$, to those passed along the reversed direction of the edges $(sum_(i -> s) eta_(i s)^("b", l + 1) dot.circle A_3^l h_s^l)$.
 ]
 
-=== GAT+Edge
+=== GAT+Edge <sec:gat-edge>
 The standard @gat @gat-paper architecture only focusses on node features, and so we extend this architecture to update edge features, include them in the attention calculation, and use them to also update the node features.
 
 First, updated edge features are calculated identically to @symgatedgcn (@eq:edge_features).
@@ -732,7 +744,7 @@ where $bold(W)^"n", bold(W)^"e" in RR^(D times D)$ are parameterized weight matr
   Furthermore, a key theoretical limitation of the @gcn and @symgatedgcn architectures is that the transformations applied to the different nodes and edges in the neighborhood are the same. GAT+Edge, like the original @gat architecture it extends, implicitly enables assignment of different importances to nodes (and with GAT+Edge, edges) of the same neighborhood @gat-paper. This could improve the model's adaptability to various overlap graph artifacts. Additionally, GAT+Edge remains a computationally efficient architecture.
 ]
 
-=== SymGAT+Edge
+=== SymGAT+Edge <sec:symgat-edge>
 With the design of this architecture, we aim to combine the symmetry mechanism from @symgatedgcn with the GAT+Edge architecture mentioned previously. This is done by first calculating the updated edge features $e_(i j)^(l + 1)$ identically to @symgatedgcn (@eq:edge_features).
 
 Next, a copy of the input graph $G = (V, E)$ is made, $G_"rev" = (V, E_"rev")$, such that:
@@ -746,7 +758,7 @@ $
   Integrating the symmetry mechanism from @symgatedgcn into GAT+Edge, to form SymGAT+Edge, helps to increase expressivity as messages passed along edges cannot be distinguished from messages passed along the reversed direction by the attention mechanism either. The model is just provided with a graph, with no information regarding what constitutes a forward and reverse edge.
 ]
 
-=== SymGatedGCN+Mamba
+=== SymGatedGCN+Mamba <sec:symgatedgcn-mamba>
 The standard input features (@sec:standard_input_features) used in prior work on neural genome assembly extract normalized overlap length and similarity from pairs of overlapping reads. However, the models have access to only these summary statistics, not the raw nucleotide read data, which could enable the model to extract more complex features, for example by capturing some notion of what is biologically plausible.
 
 While standard encoder-only Transformers @transformer-paper are the contemporary choice for sequence-to-embedding tasks like this @bert-paper, a fundamental drawback makes them unsuitable---their quadratic complexity with respect to the sequence length. Subquadratic-time attention mechanisms have been unable to match the performance of the original attention mechanism on modalities such as language @mamba. Each read is upto $10s$ of @kb long for @pacbio @hifi reads, and there are $1000$s of reads even in the partitioned overlap graph used during training (note that we cannot partition the graph to an arbitrarily small number of nodes without sustaining major losses in performance as context around the graph artifact is lost).
@@ -789,7 +801,7 @@ The intermediate node embeddings, and the unmodified edge embeddings $e_(i j)^l$
   The primary goal of SymGatedGCN+Mamba is to explore whether the model can exploit the raw read data to generate new (node) features that are useful in resolving overlap graph artifacts. Mamba was chosen as the read encoding model of choice due to its near-linear time complexity, long-range dependency modelling capabilities, and promising results on adjacent @dna modelling tasks.
 ]
 
-=== SymGatedGCN+MambaEdge
+=== SymGatedGCN+MambaEdge <sec:symgatedgcn-mamba-edge>
 We use the same Mamba read encoding node feature $m_i in bb(R)^D$ as in SymGatedGCN+Mamba, but remove the dependency on standard edge features (@sec:standard_input_features). We no longer form an intermediate node embedding, but instead calculate an intermediate edge embedding $e_(i j) '$:
 $
   e_(i j) ' = W_2 (thin #relu (W_1 (m_i || m_j) + b_1)) + b_2
@@ -955,7 +967,7 @@ Additionally, we also utilize a number of commonly used metrics to assess the qu
 == Performance of alternative GNN layers <sec:performance_alt_gnn_layers>
 Alternative @gnn layers fail to significantly and consistently outperform the baseline @symgatedgcn model on validation overlap graphs built solely using @pacbio @hifi long-reads. We see from @fig:similar_validation_performance that all three models: @symgatedgcn, GAT+Edge, and SymGAT+Edge exhibit comparable performance, with overlapping $95%$ confidence intervals. All models achieve accuracy $>80%$, with a false positive rate of $~30%$, and a false negative rate of $~10%$, across both validation chromosomes 11 and 22.
 
-We postulate that the underlying reason for this performance parity likely lies in the shared expressivity limitations of these architectures. None of the architectures exceed the graph distinguishing power of the 1-@wl test, and so share the same expressivity upper bound. Consequently, all models tested exhibit the same limitations regarding detection of local subgraph structures.
+We postulate that the underlying reason for this performance parity likely lies in the shared expressivity limitations of these architectures. None of the architectures exceed the graph distinguishing power of the (directed) 1-@wl test, and so share the same expressivity upper bound. Consequently, all models tested exhibit the same limitations regarding detection of local subgraph structures.
 
 #place(top + center)[
 *@symgatedgcn, GAT+Edge, and SymGAT+Edge perform similarly*
@@ -980,7 +992,7 @@ One of the key features of @gat is is the implicit ability of the model to assig
 Furthermore, we find evidence that the @gat\-based architectures are over-fitting their training data. The baseline @symgatedgcn architecture convincingly outperforms the alternatives on the chromosome 9 test set (@tab:similar_test_performance shows significantly higher inverse precision, recall, and F1 score). This test set is significantly larger than the training overlap graph ($~3 #h(0em) times$ the size) (@fig:dataset_summary), and thus contains additional diversity in graph artifacts that can reveal over-fitting behavior.
 The increased model capacity brought by the attention mechanism, in comparison to convolution, makes the model vulnerable to over-fitting. We believe that GAT+Edge's and SymGAT+Edge's observed loss in performance on the test set is due to over-fitting as all three architectures have comparable performance on the smaller, and less diverse, training and validation datasets (@fig:similar_validation_performance).
 
-Besides the previously discussed issues, another peculiarity we observe is that GAT+Edge and SymGAT+Edge exhibit almost identical performance on both the validation (@fig:similar_validation_performance) and test (@tab:similar_test_performance) sets, when we expect SymGAT+Edge to perform significantly better. The symmetry mechanism incorporates message passing in both the forward and reverse direction of the edges, in a manner that permits the model to distinguish the directionality of the information flow (which would not be possible via message passing on undirected edges). This symmetry mechanism, originally from the @dirgnn framework, makes the network it is applied on provably strictly more expressive than standard @mpnn:pl, equivalent in power to the _directed_ @wl test.
+Besides the previously discussed issues, another peculiarity we observe is that GAT+Edge and SymGAT+Edge exhibit almost identical performance on both the validation (@fig:similar_validation_performance) and test (@tab:similar_test_performance) sets, when we expect SymGAT+Edge to perform significantly better. The symmetry mechanism incorporates message passing in both the forward and reverse direction of the edges, in a manner that permits the model to distinguish the directionality of the information flow (which would not be possible via message passing on undirected edges). This symmetry mechanism, originally from the @dirgnn framework @dir-gnn-paper, makes the network it is applied on provably strictly more expressive than standard @mpnn:pl, equivalent in power to the _directed_ @wl test.
 
 Since the symmetry mechanism is particularly relevant for genome assembly, which requires finding a directed path through the overlap graph, and prior work @lovro has demonstrated the efficacy of the symmetry mechanism, we find these results unexpected. This phenomenon likely points to another more fundamental bottleneck limiting the performance of the @gat\-based architectures.
 
@@ -1031,7 +1043,7 @@ Since the symmetry mechanism is particularly relevant for genome assembly, which
   caption: [The baseline @symgatedgcn outperforms both GAT+Edge and SymGAT+Edge when the models are trained on chromosome 15, and tested on chromosome 9, with much higher inverse precision, recall, and F1 score #highlighted. The results show the mean and standard deviation across 5 runs. Best results in *bold*. $arrow.t$ indicates _higher is better_.]
 ) <tab:similar_test_performance>]
 
-== Integration of ultra-long data
+== Integration of ultra-long data <sec:integration-ultra-long-data>
 #place(top + center)[
 *@symgatedgcn's performance improves substantially with ultra-long reads*
 #subpar.grid(
@@ -1128,7 +1140,7 @@ caption: [Integration of ultra-long data into the overlap graph (@symgatedgcn (U
 ) <tab:symgatedgcn_assembly>
 ]
 
-== Performance impact of GRANOLA
+== Performance impact of GRANOLA <sec:granola-performance>
 @granola fails to provide any consequential performance improvement on any of the @gnn layers tested. During validation on chromosom 11, @granola increases the number of false positives, and on chromosome 22, it causes a slight reduction in accuracy, and an increase in false negatives. Furthermore, from @tab:symgatedgcn_test, we find that the addition of @granola is slightly detrimental to overall model performance on the chromosome 9 test set, with a lower inverse F1 Score, and significantly lower inverse recall in comparison to @symgatedgcn with ultra-long data. This is unexpected as @granola, on the surface, seems beneficial for this problem due to three reasons.
 
 Firstly, we postulated that  graph adaptability would be beneficial when testing on overlap graphs from different chromosomes as the distribution of graph artifacts, and overall graph size changes.
@@ -1155,7 +1167,7 @@ Lastly, all models not utilizing @granola utilize InstanceNorm @instancenorm, wh
   )
 ]
 
-== Mamba's potential for richer feature extraction
+== Mamba's potential for richer feature extraction <sec:mamba-potential-feature-extraction>
 Mamba shows capability in eliciting useful features from raw nucleotide read data for the genome assembly task. For example, on the chromosome 21 test set, SymGatedGCN+MambaEdge achieves significantly higher inverse precision and F1 score than the baseline @symgatedgcn model (@tab:mamba-test). In particular, SymGatedGCN+MambaEdge outperforms SymGatedGCN+RandomEdge, which in @sec:symgatedgcn-randomedge, is established as the baseline for Mamba's performance, since a randomly initialized Mamba model can be viewed as generating random edge features.
 
 It is intriguing that SymGatedGCN+Mamba performs rather poorly on this test set, achieving the lowest inverse F1 score across all models tested. We believe that this is the case due to SymGatedGCN+Mamba having lower model capacity than SymGatedGCN+MambaEdge. Recall from @eqn:symgatedgcn-update-hidden that @symgatedgcn updates the hidden state by taking a gated linear transformation of the previous hidden states, and from @eq:edge_features that the edge features are also updated using a linear transformation of the previous hidden states. These linear transformations limit model capacity compared to multi-layer feed-forward networks. Since SymGatedGCN+Mamba uses Mamba to generate new _node_ features, despite these features being potentially richer, they might not be effectively used to update the hidden edge embedding, due to this capacity limitation.
@@ -1207,19 +1219,58 @@ However, despite the positive results observed with the introduction of both Mam
 #pagebreak()
 
 = Summary and conclusions
-== Overview
+== Overview and insights gained
+In summary, this project was successful in meeting all of its original aims. We now present each goal, the contributions made towards that goal, and insights gained in the process.
 
-== Insights
+#let aim_achieved = it => [
+  #box(fill: green.lighten(90%), inset: 1em, stroke: green, radius: 1em, width: 100%)[#it]
+]
+
+#aim_achieved[
+  *Aim 1:*
+  #aim_1
+]
+
+Two @gnn architectures extending the original @gat layers incorporating edge features were introduced---GAT+Edge, and the novel SymGAT+Edge that integrated the symmetry mechanism found in @symgatedgcn. A series of experiments were run, which uncovered that these alternate architectures did not significantly outperform the prior @symgatedgcn baseline in predicting erroneous edges in overlap graphs, nor in improving assembly quality.
+
+The key insight gained was that since none of these architectures exceeded the expressive power of the (directed) 1-@wl test, and because layout is fundamentally a structural problem, a noteworthy performance improvement should not be expected. Additionally, the design of any @gnn architecture for this task must be mindful of the possibility of over-fitting, induced by increased model capacity.
+
+The alternative @granola normalization layer held potential for furthering performance due to its input graph adaptability, and the proven model capacity reduction that could be caused by the use of standard normalization schemes such as InstanceNorm. In testing, @granola proved ultimately unsuccessful, with its graph adaptability mechanism hindering performance. Moreover, the theoretical model capacity reduction did not seem consequential in practice, with the InstanceNorm baseline outperforming @granola.
+
+#aim_achieved[
+  *Aim 2:*
+  #aim_2
+]
+
+Ultra-long data was assimilated into the overlap graph through `Hifiasm (UL)`. All @gnn architectures tested effectively utilized this additional information, providing substantial and consistent performance improvements. A critical metric was the expanded genome coverage, without significantly sacrificing assembly quality, helping in the achievement of @t2t assemblies. It also did not necessitate the use of more advanced @gnn layers, with @symgatedgcn outperforming GAT+Edge and SymGAT+Edge. Moreover, the success of the ultra-long datatype holds promise for substituting the need for more expressive @gnn architectures.
+
+#aim_achieved[
+  *Aim 3:*
+  #aim_3
+]
+Mamba was used to translate raw nucleotide reads into fixed-length embeddings. These were then used to either form node or edge features. Mamba generating edge features outperformed the baseline that used normalized overlap length and similarity as edge features. Furthermore, it also outperformed random edge features. Mamba generating node features failed to surpass the baseline, and even the random edge features, which is likely due to the model capacity constraint imposed by @symgatedgcn in using node features to update edge features.
+
+#aim_achieved[
+  *Aim 4:*
+  #aim_4
+]
 
 == Future work
+This project reveals several compelling directions for future work. The first direction is a more concrete analysis of the importance of highly expressive @gnn:pl for layout in genome assembly. Even though higher expressivity architectures like k-@gnn:pl are impractical for general use, observing their performance on this task would provide an objective baseline for the comparing the use of more computationally efficient, expressive @gnn architectures, and reveal the extent to which expressiveness is critical for this task.
 
-Exploring SymGAT's failure
+Moreover, recent work has substituted more expressive models and architectural inductive biases with additional data and regularization @alpha-fold-3. Exploring this path to improving performance is also interesting.
 
-https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html instead of Mamba?
+SymGAT+Edge's failure to thoroughly outperform its GAT+Edge counterpart was surprising, and so future work could perform a more detailed investigation into the importance of the symmetry mechanism for layout.
 
-Trying out more expressive architectures, to firmly know the theoretical bounds of the problem---are high expressiveness GNNs necessary.
+Mamba showed positive results for extracting useful features from raw nucleotide data, however, this project used aggressive graph subsampling due to compute and memory limitations. Scaling-up this technique, and also using Transformer @transformer-paper as an alternative sequence-to-sequence model is yet another direction.
 
-If we cannot computationally find a more expressive model, we can fall back to more data + regularization -> starting to become common practice in chemical field + AlphaFold 3.
+// Exploring SymGAT's failure
+
+// https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html instead of Mamba?
+
+// Trying out more expressive architectures, to firmly know the theoretical bounds of the problem---are high expressiveness GNNs necessary.
+
+// If we cannot computationally find a more expressive model, we can fall back to more data + regularization -> starting to become common practice in chemical field + AlphaFold 3.
 
 #pagebreak()
 

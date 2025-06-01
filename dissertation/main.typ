@@ -52,7 +52,7 @@
 
 Total page count: #context counter(page).final().first()
 
-Main chapters (excluding front-matter, references, and appendix): 40 pages (pp 1--40)
+Main chapters (excluding front-matter, references, and appendix): #context[#let start = locate(<start-main-body>).page(); #let end = locate(<end-main-body>).page(); #let diff = end - start + 1; #diff pages (pp 1--#diff)]
 
 Main chapters word count: #total-words
 
@@ -90,9 +90,15 @@ Date [date]
 
 #title[Abstract]
 
+This dissertation explores methods to improve the layout phase in the Overlap-Layout-Consensus genome assembly algorithm with the application of Graph Neural Networks. Conventional methods to clean and simplify overlap graphs utilize a collection of algorithms and heuristics that are insufficient to fully resolve all graph artifacts, ultimately relying on labor-intensive manual graph inspection. Graph Neural Networks have recently been shown to be a promising replacement to the traditional heuristic-oriented approach, helping improve assembly quality with increased contiguity and genome coverage. This project seeks to advance this neural assembly paradigm by exploring more advanced Graph Neural Network architectures, investigating graph-adaptive normalization, as well as automated feature extraction from raw sequencing data with the Mamba Selective State Space Model. Additionally, the advent of ultra-long sequencing technology offers new opportunities for resolving particularly complex genomic regions, such as long tandem repeats. This project integrates ultra-long reads with contemporary sequencing technology, yielding improved genome coverage, without significant sacrifices to assembly quality. Lastly, a proof of concept of an end-to-end neural assembly paradigm is also presented.
+
 #pagebreak()
 
 #title[Acknowledgements]
+
+I would like to thank my supervisors Dobrik Georgiev, Lovro Vrček, Martin Schmitz, and Pietro Liò for their immense support and advice throughout this project. Without them, this project would not have been possible.
+
+I would also like to thank my Directors of Studies Timothy Jones and Russell Moore for supporting me throughout my degree.
 
 #pagebreak()
 
@@ -188,6 +194,7 @@ Date [date]
 ): set figure.caption(position: top)
 
 #counter(page).update(1)
+<start-main-body>
 = Introduction
 == Motivation
 Genome assembly has remained a central subject in computational biology for the past four decades @t2t-genome-assembly, as accurate reconstruction of an organism’s genome is essential in understanding its biology and evolution @t2t-evolution. By enabling researchers to map and analyze an organism's @dna, including genes, regulatory elements, and non-coding regions (segments that do not directly encode proteins), we gain insight into the organism's traits, development, and overall function. Comparative analyses of genome assemblies across species also sheds light on evolutionary relationships, and has applications to fields such as genome-assisted breeding of more resistant crops @t2t-unlocks-organization-function.
@@ -1331,6 +1338,8 @@ Mamba showed positive results for extracting useful features from raw nucleotide
 // Trying out more expressive architectures, to firmly know the theoretical bounds of the problem---are high expressiveness GNNs necessary.
 
 // If we cannot computationally find a more expressive model, we can fall back to more data + regularization -> starting to become common practice in chemical field + AlphaFold 3.
+
+<end-main-body>
 
 #pagebreak()
 

@@ -196,7 +196,7 @@ In addition, assembling a large number of genomes from the same species allows s
 
 A @t2t assembly is essential in gaining complete insight into an organism's genome. A @t2t sequence represents a complete, continuous genome without gaps or fragmentation @t2t-genome-assembly. Remarkably, achieving such assemblies has only become feasible in recent years with the advent of long-read sequencing technologies. Although the Human Genome Project concluded in 2003 @hgp-facts, the reference genome produced contained several missing regions that were challenging to assemble, with the first @t2t sequencing of human DNA only recently achieved in 2021 @t2t-chm13.
 
-In this project, we demonstrate how machine learning is an effective tool in improving de novo (without relying on a pre-existing reference genome) @t2t assembly, by increasing accuracy, scalability, and speed, as well as reducing costs.
+In this project, we demonstrate how machine learning is an effective tool in improving de novo (without relying on a pre-existing reference genome) @t2t assembly, by increasing accuracy particularly in challenging genomic regions.
 
 == A short history of Genome Assembly <sec:existing_methods>
 Hierarchical sequencing and @wgs have been the two predominant assembly strategies @t2t-genome-assembly. Hierarchical sequencing involves cloning, sequencing, and assembly of tiled genomic fragments that are aligned against a physical or genetic genome map, with the human reference genome GRCh38 being primarily constructed with this method @grch38. 
@@ -285,7 +285,7 @@ The key contributions of this project are as follows:
 #pagebreak()
 
 = Background
-
+This chapter provides biological background regarding: the genome assembly algorithm; limitations of existing sequencing technology; introduction to ultra-long reads, and their integration with the contemporary long-read datatype. This is followed by a primer on @gdl @gdl-book, @gnn:pl, and the Mamba Selective State Space Model @mamba.
 
 == Overlap-Layout-Consensus <sec:olc>//https://bio.libretexts.org/Bookshelves/Computational_Biology/Book%3A_Computational_Biology_-_Genomes_Networks_and_Evolution_(Kellis_et_al.)/05%3A_Genome_Assembly_and_Whole-Genome_Alignment/5.02%3A_Genome_Assembly_I-_Overlap-Layout-Consensus_Approach
 The fundamental problem in genome sequencing is that no current technology that can read continuously from one end of the genome to the other @t2t-genome-assembly. Instead, sequencing technologies only produce relatively short contiguous fragments called reads. Most chromosomes are $>10$ @mb long, and can be up to $1$ @gb long @t2t-genome-assembly, while even current long-read sequencing technologies only produce accurate reads up to a few $10$s of @kb @nanopore-ul. Thus assembling the genome requires an algorithm to combine these shorter reads. @olc @olc-algorithm is the predominant approach for genome assembly with long reads. In this section, we discuss the three phases of @olc in more detail.
@@ -508,20 +508,20 @@ Through repeated application of the recurrence relation, and simplification via 
 $ bold(dash(K)) = (C dash(B), C dash(A) dash(B), ..., C dash(A)^k dash(B), ...) #h(5em) y = x star bold(dash(K)) $
 // $ y = x star bold(dash(K)) $
 
-Since @s4 models have fixed parameters with respect to the inputs, they cannot perform content-based reasoning, essential for language, or genome modelling tasks. To address this, Mamba extends the S4 formulation by incorporating _selectivity_---the ability to select data in an input-dependent manner, helping filter out irrelevant data, and keep relevant information indefinitely, by making the parameters functions of the input. However, this breaks the time- and input-invariance (@lit) that allows fast convolution-based calculation. This is compensated for by replacing the convolution with a scan/prefix sum operation (@fig:recurrent and @fig:parallel_scan show how the scan/prefix sum algorithm produces the same result as recurrence). 
+Since @s4 models have fixed parameters with respect to the inputs, they cannot perform content-based reasoning, which is essential for language, or genome modelling tasks. To address this, Mamba extends the S4 formulation by incorporating _selectivity_---the ability to select data in an input-dependent manner---helping filter out irrelevant data, and keep relevant information indefinitely, by making the parameters functions of the input. However, this breaks the time- and input-invariance (@lit) that allows fast convolution-based calculation. To compensate, convolution is replaced with a scan/prefix sum operation (@fig:recurrent and @fig:parallel_scan show how the scan/prefix sum algorithm produces the same result as recurrence). 
 
-The ability to select data in an input-dependent manner, along with the scan/prefix sum in-place of convolution, together results in the Mamba _Selective_ State Space Model (henceforth referred to simply as Mamba) (@fig:mamba_official shows the Mamba diagram from the original paper).
+Selecting data in an input-dependent manner, combined with the scan/prefix sum algorithm, results in the Mamba _Selective_ State Space Model (@fig:mamba_official).
 
 #place(top + center)[#subpar.grid(
   columns: (1fr, 1fr),
   gutter: 0em,
   show-sub-caption: sub-caption-styling,
-  figure(image("graphics/recurrent.svg", height: 5cm, fit: "contain"), caption: [Recurrent formulation for generating #linebreak() @s4 hidden states]), <fig:recurrent>,
+  figure(image("graphics/recurrent.svg", height: 4.5cm, fit: "contain"), caption: [Recurrent formulation for generating #linebreak() @s4 hidden states]), <fig:recurrent>,
   figure(image("graphics/parallel_scan.svg", height: 6.5cm, fit: "contain"), caption: [Scan/Prefix sum formulation]), <fig:parallel_scan>,
-  caption: [Illustration of how the scan/prefix sum algorithm produces the same result as the recurrent (sequential) formulation in generating the @s4 hidden states in parallel. Note that, for example, $x_3$'s calculation begins before $x_2$ has been fully calculated.]
+  caption: [Illustration of how the scan/prefix sum algorithm (b) produces the same result as the recurrent (sequential) formulation (a) in generating the @s4 hidden states in parallel. Note that, for example, $x_3$'s calculation begins before $x_2$ has been fully calculated in (b).]
 )]
-
-#figure(image("graphics/mamba_official.png", height: 3.7cm), caption: [Mamba's selection mechanism in #text(fill:blue.darken(50%))[blue] alters parameters in an input-dependent manner.]) <fig:mamba_official>
+#v(-0.5em)
+#figure(image("graphics/mamba_official.png", height: 3.5cm), caption: [Mamba's selection mechanism in #text(fill:blue.darken(50%))[blue] alters parameters in an input-dependent manner. Diagram from @mamba.]) <fig:mamba_official>
 
 
 // Even the reference human genome has 100s of assembly gaps that are 100s of Mb (megabases) of highly repetitive or recently duplicated sequences.
@@ -558,9 +558,11 @@ The ability to select data in an input-dependent manner, along with the scan/pre
 // #pagebreak()
 
 = Design and implementation
-Ultra-long reads have have demonstrated significant advantages in resolving complex artifacts in overlap graphs and repeating regions in genomes, and prior work @lovro @lovrolong has presented @gnn:pl as a viable method for improving the layout phase in the @olc algorithm. We are interested in investigating the utility of @gnn:pl in leveraging ultra-long read data to advance the capabilities of neural genome assembly methods.
+In this chapter, we detail our training and inference setup explaining: the generation of overlap graphs; ground-truth label generation; data augmentation and partitioning; the training objective, and genome reconstruction via greedy decoding. This is followed by a discussion of  the various model architectures tested including: more advanced @gnn layers than those used in prior work @lovro @lovrolong; our integration method of raw nucleotide-level read data into the model, and a graph-adaptive normalization technique.
 
-The integration of ultra-long reads with conventional long-read data alters the structural properties of the resulting overlap graphs. This motivates exploring alternative @gnn architectures that may better exploit the additional information available. In this chapter, we detail our training and inference setup, discuss the various @gnn architectures tested, and explain our integration method of raw read data into the model.
+// Ultra-long reads have have demonstrated significant advantages in resolving complex artifacts in overlap graphs and repeating regions in genomes, and prior work @lovro @lovrolong has presented @gnn:pl as a viable method for improving the layout phase in the @olc algorithm. We are interested in investigating the utility of @gnn:pl in leveraging ultra-long read data to advance the capabilities of neural genome assembly methods.
+
+// The integration of ultra-long reads with conventional long-read data alters the structural properties of the resulting overlap graphs. This motivates exploring alternative @gnn architectures that may better exploit the additional information available. In this chapter, we detail our training and inference setup, discuss the various @gnn architectures tested, and explain our integration method of raw read data into the model.
 #place(top + center)[#figure(
   image("graphics/overview.svg"),
   caption: [(A) Simulated @pacbio @hifi reads are generated from a reference genome via `PBSIM3`. Additional @ont @ul reads may also be generated. Alternatively, real read data can also be provided. The reads are then passed to `Hifiasm`, which constructs the corresponding overlap graph. (B) Ground-truth edge labels are computed corresponding to the optimal assembly. During training only, the overlap graph is masked and partitioned. Masking allows for data augmentation by simulating varying read coverage (number of times each base is sampled on average) from $times #h(0em) 30$ to $times #h(0em) 60$. Partitioning is required to fit onto @gpu memory. (C) Features are extracted from the overlap graph according to the model used, and edge probability predictions are made by the model. Note the reversed compliment is only used by some of the @gnn models. The loss in computed relative to the ground-truth labels. (D) The genome is reconstructed via greedy decoding.]
@@ -570,9 +572,9 @@ The integration of ultra-long reads with conventional long-read data alters the 
 We detail the training and inference pipeline next. A detailed illustration can be found in @fig:overview.
 
 === Generating the overlap graph
-The first step of generating an overlap graph is gathering the raw read data. Since we are unable to produce our own sequencing data, reads from the `CHM13v2` @t2t human genome assembly (`BioProject PRJNA559484` @chm13-acrocentric) are instead simulated. This simulation is performed using a utility called `PBSIM3` @pbsim3 that emulates the read profile of @pacbio @hifi long-reads according to `fastq` data (`fastq` is a format for storing the sequencing data, in addition to per-base quality scores that are crucial for our simulation) from the sequencing of the `HG002` draft human reference @hg002-github. When simulating reads, a $times #h(0em) 60$ coverage factor is used (enough reads to cover the genome $60$ times over).
+The first step of generating an overlap graph is gathering the raw read data. Since we are unable to produce our own sequencing data, reads from the `CHM13v2` @t2t human genome assembly (`BioProject PRJNA559484` @chm13-acrocentric) are instead simulated. This simulation is performed using a utility called `PBSIM3` @pbsim3 that emulates the read profile of @pacbio @hifi long-reads according to `fastq` data (`fastq` is a format for storing the sequencing data, in addition to per-base quality scores that are crucial for our simulation) from the sequencing of the `HG002` draft human reference @hg002-github. When simulating reads, a $times #h(0em) 60$ coverage factor is used (enough reads to cover the genome $60$ times over). @sec:datasets details the sections of the genome used for training, validation, and testing in more detail.
 
-For training, we choose chromosomes 19 and 15, representing both non-acrocentric, and acrocentric chromosomes. An acrocentric chromosome is one where the centromere, the region of a chromosome that holds sister chromatids together, is not located centrally on the chromosome, but towards one end. For validation and test, we likewise choose chromosomes 11 and 22, and chromosomes 9 and 21, respectively. Note that the chromosomes chosen for both training and evaluation, represent the most difficult ones during assembly due to the tangles often present in their real-life overlap graphs. Additionally, the centromeric region of each of these chromosomes is extracted for generating reads, where most assembly complexity arises @chm13-acrocentric. By training on only a small portion of the chromosomes present in the genome, we demonstrate the positive generalization capabilities of our neural method.
+// For training, we choose chromosomes 19 and 15, representing both non-acrocentric, and acrocentric chromosomes. An acrocentric chromosome is one where the centromere, the region of a chromosome that holds sister chromatids together, is not located centrally on the chromosome, but towards one end. For validation and test, we likewise choose chromosomes 11 and 22, and chromosomes 9 and 21, respectively. Note that the chromosomes chosen for both training and evaluation, represent the most difficult ones during assembly due to the tangles often present in their real-life overlap graphs. Additionally, the centromeric region of each of these chromosomes is extracted for generating reads, where most assembly complexity arises @chm13-acrocentric. By training on only a small portion of the chromosomes present in the genome, we demonstrate the positive generalization capabilities of our neural method.
 
 Once the reads are generated, `Hifiasm` @hifiasm-paper, a de novo assembler specifically designed for @pacbio @hifi read data, is used to generate the overlap graph. Note that no traditional graph simplification algorithms like transitive edge removal, dead-end trimming, or bubble removal, are applied. Also, it is important to note that the overlap graph produced is a symmetric overlap graph as the reads can belong to either strand of the @dna. The symmetric overlap graph consists of one graph, and its dual that contains a duplicate set of nodes representing the same reads, but with the edges reversed. This is due to an interesting property during sequencing where reads from the dual @dna strand are sequenced in reverse order along the length of the @dna.
 
@@ -634,6 +636,23 @@ Additionally, since the entire overlap graph contains $>100,000$ nodes, and cann
 
 === Feature extraction and running the models
 We leave discussion of the node and edge features extracted from the overlap graph and raw read data to later sections, since they depend on the model architecture used. The models then take the overlap graph, and these node and edge features as input, producing for each edge, a probability of that edge belonging to the final assembly.
+
+=== Loss function
+Assume that we are given a _symmetric_ overlap graph $G = (V, E)$. For some nodes $A, B in V$, if the edge $e: A -> B$ leads to the optimal solution, then its virtual sister edge  $e': B' -> A'$ also leads to the optimal solution on the reverse strand of the @dna ($A', B' in V$ complete the virtual pairs of $A$ and $B$ respectively) @lovrolong. This is a consequence of the dual-stranded nature of @dna.
+
+Recall that we are using a @gnn to predict the probability of an edge $e$ belonging to the final assembly. We encode the symmetry property described above for the paired edge $e'$ into the loss:
+$
+  cal(L)(e, e') = "BCE"_"logits" (l_e, y_e) + "BCE"_"logits" (l_e', y_e') + underbrace(alpha abs(l_e - l_e'), "Symmetry Loss")
+$
+where $cal(L)$ is the complete loss function used, $"BCE"_"logits"$ is Binary Cross Entropy with Logits loss, $l_e, l_e' in RR$ are the logits for edges $e, e'$ predicted by the model respectively, $alpha$ is a parameter controlling the contribution of the symmetry loss to the total loss $cal(L)$, and $abs(...)$ corresponds to taking the absolute value. @fig:overview (C) illustrates symmetry loss.
+
+#let modelexplanation = it => [
+  #box(fill: blue.lighten(90%), inset: 1em, stroke: blue, radius: 1em, width: 100%)[#it]
+]
+
+#modelexplanation[
+  We augment the standard Binary Cross Entropy loss with Symmetry loss to penalize the model assigning different probabilities to edges belonging to the same virtual pair, due to the dual-stranded nature of @dna.
+]
 
 === Reconstructing the genome via greedy decoding
 Once a probability has been assigned to each edge representing its likelihood of belonging to the final assembly, we apply a greedy decoding algorithm (detailed below) to extract contigs---sets of overlapping @dna fragments that together reconstruct a contiguous portion of the genome:
@@ -709,6 +728,7 @@ Recall that we are interested in finding a Hamiltonian path through the overlap 
 @alg:greedy-decode-contigs first samples multiple high-probability seed edges and then greedily chooses a sequence of edges both forwards and backwards from each seed edge, forming a path through the assembly graph. The longest resulting path is selected and overlapping reads along that path merged into a contig. Nodes along the selected path are marked as visited to prevent their reuse in subsequent searches, and the process repeats until no path above a fixed length threshold can be found.
 
 == Model architecture
+We describe the feature encoding, processing @gnn layers, and decoding, together forming the complete model in this section.
 === Standard input features <sec:standard_input_features>
 Assume we are given an overlap graph $G = (V, E)$. For two overlapping reads $r_i$ and $r_j$, represented by nodes $v_i$ and $v_j$, and connected by edge $e_(i j): i -> j$ the edge feature $z_(i j) in bb(R)^2$ is defined as follows:
 $ z_(i j) = &("normalized" italic("overlap length") "between" r_i "and" r_j, \
@@ -750,10 +770,6 @@ $
   eta_(p i)^("f", l) = sigma(e_(p i)^l) / (sum_(p' -> i) sigma (e_(p' i)^l) + epsilon.alt) in [0, 1]^D, #h(2.5em) eta_(i s)^("b", l) = sigma(e_(i s)^l) / (sum_(i -> s') sigma (e_(i s')^l) + epsilon.alt) in [0, 1]^D
 $
 where $sigma$ represents the sigmoid function, $epsilon.alt$ is a small value added to prevent division by 0, and $j' -> i$ represents all edges where the destination node is $i$. Likewise, $i -> k'$ represents all edges where the source node is $i$.
-
-#let modelexplanation = it => [
-  #box(fill: blue.lighten(90%), inset: 1em, stroke: blue, radius: 1em, width: 100%)[#it]
-]
 
 #modelexplanation[
   Most conventional @gnn layers are designed to operate on undirected graphs, and therefore do not account for directional information intrinsic to overlap graphs. This limitation is problematic, since the overlap graph encodes the directional path reflecting the linear structure of the genome from start to end. @symgatedgcn aims to address this lack of expressivity by distinguishing the messages passed along the edges $(sum_(p -> i) eta_(p i)^("f", l + 1) dot.circle A_2^l h_p^l)$, to those passed along the reversed direction of the edges $(sum_(i -> s) eta_(i s)^("b", l + 1) dot.circle A_3^l h_s^l)$.
@@ -946,6 +962,7 @@ where all $W, b$ represent learnable parameters ($W_1 in RR^(D times 3D)$, $W_2 
 ]
 
 
+
 #pagebreak()
 
 = Evaluation and discussion
@@ -959,7 +976,7 @@ In this section, we present and discuss the results of four experiments. We:
 
 + Analyze the Mamba's potential in extracting richer features directly from raw nucleotide-level read data, and improving model performance.
 
-== Training, validation, and testing datasets
+== Training, validation, and testing datasets <sec:datasets>
 @fig:dataset_summary provides details for the (maternal) chromosomes (and specifically the regions within them) used as the training, validation, and testing datasets. 
 
 The real-life overlap graphs for chromosomes chosen for both training and evaluation often consist of complex tangles, and are thus the most challenging to assemble. An acrocentric chromosome is one where the centromere, the region of a chromosome that holds sister chromatids together, is not located centrally on the chromosome, but towards one end. We utilize both non-acrocentric, and acrocentric chromosomes, as acrocentric chromosomes contain @rdna arrays harboring long tandem repeats that lead to distinct graph artifacts.
@@ -1035,7 +1052,7 @@ One of the key features of @gat is is the implicit ability of the model to assig
 Furthermore, we find evidence that the @gat\-based architectures are over-fitting their training data. The baseline @symgatedgcn architecture convincingly outperforms the alternatives on the chromosome 9 test set (@tab:similar_test_performance shows significantly higher inverse precision, recall, and F1 score). This test set is significantly larger than the training overlap graph ($~3 #h(0em) times$ the size) (@fig:dataset_summary), and thus contains additional diversity in graph artifacts that can reveal over-fitting behavior.
 The increased model capacity brought by the attention mechanism, in comparison to convolution, makes the model vulnerable to over-fitting. We believe that GAT+Edge's and SymGAT+Edge's observed loss in performance on the test set is due to over-fitting as all three architectures have comparable performance on the smaller, and less diverse, training and validation datasets (@fig:similar_validation_performance).
 
-Besides the previously discussed issues, another peculiarity we observe is that GAT+Edge and SymGAT+Edge exhibit almost identical performance on both the validation (@fig:similar_validation_performance) and test (@tab:similar_test_performance) sets, when we expect SymGAT+Edge to perform significantly better. The symmetry mechanism incorporates message passing in both the forward and reverse direction of the edges, in a manner that permits the model to distinguish the directionality of the information flow (which would not be possible via message passing on undirected edges). This symmetry mechanism, originally from the @dirgnn framework @dir-gnn-paper, makes the network it is applied on provably strictly more expressive than standard @mpnn:pl, equivalent in power to the _directed_ @wl test.
+Besides the previously discussed issues, another peculiarity we observe is that GAT+Edge and SymGAT+Edge exhibit almost identical performance on both the validation (@fig:similar_validation_performance) and test (@tab:similar_test_performance) sets, when we expect SymGAT+Edge to perform significantly better. The symmetry mechanism incorporates message passing in both the forward and reverse direction of the edges, in a manner that permits the model to distinguish the directionality of the information flow (which would not be possible via message passing on undirected edges). This symmetry mechanism, originally from the @dirgnn framework @dir-gnn-paper, provably makes the network equivalent in power to the _directed_ @wl test---strictly more expressive than standard @mpnn:pl.
 
 Since the symmetry mechanism is particularly relevant for genome assembly, which requires finding a directed path through the overlap graph, and prior work @lovro has demonstrated the efficacy of the symmetry mechanism, we find these results unexpected. This phenomenon likely points to another more fundamental bottleneck limiting the performance of the @gat\-based architectures.
 
@@ -1299,7 +1316,7 @@ Mamba was used to translate raw nucleotide reads into fixed-length embeddings. T
 ]
 
 == Future work
-This project reveals several compelling directions for future work. The first direction is a more concrete analysis of the importance of highly expressive @gnn:pl for layout in genome assembly. Even though higher expressivity architectures like k-@gnn:pl are impractical for general use, observing their performance on this task would provide an objective baseline for the comparing the use of more computationally efficient, expressive @gnn architectures, and reveal the extent to which expressiveness is critical for this task.
+This project reveals several compelling directions for future work. The first direction is a more concrete analysis of the importance of highly expressive @gnn:pl for layout in genome assembly. Even though higher expressivity architectures like $k$-@gnn:pl are impractical for general use, observing their performance on this task would provide an objective baseline for the comparing the use of more computationally efficient, expressive @gnn architectures, and reveal the extent to which expressiveness is critical for this task.
 
 Moreover, recent work has substituted more expressive models and architectural inductive biases with additional data and regularization @alpha-fold-3. Exploring this path to improving performance is also interesting.
 
@@ -1343,6 +1360,62 @@ Mamba showed positive results for extracting useful features from raw nucleotide
 
 #[
 = Experiment setup
+== Experiment hyperparameters
+#let fmt_value = value => text(fill: rgb("B60158"), font: "DejaVu Sans Mono", size: 0.9em)[#value]
+
+#[
+  #set table(
+    fill: (x, y) => if calc.rem(y, 2) == 1 {
+        gray.lighten(65%)
+      }
+  )
+  #table(
+    columns: (0.5fr, 1fr),
+    align: left,
+    table.header([Hyperparameter], [Value]),
+    [Optimizer],
+    [```yaml 
+    Adam
+    Learning Rate: 0.0001```],
+    [Learning rate scheduler],
+    [```yaml 
+    Reduce Learning Rate on Plateau
+    Factor: 0.9
+    Patience: 5 # epochs```],
+    [Batch Size],
+    [```yaml
+    Single graph per batch
+    Num. graphs: 1
+    ```],
+    [Number of epochs],
+    [```yaml
+    Ensure training till convergence
+    Epochs: 200
+    ```],
+    [Loss function],
+    [```yaml 
+    Binary Cross Entropy with Logits + Symmetry loss
+    Alpha: 0.1 # controls weighting between the two loss functions```
+    ],
+    [Training graph masking],
+    [```yaml
+    Between 0 and 10% of the nodes in the input graph (before partitioning) may be removed to simulate varying read coverage
+    Mask fraction Low: 0.9
+    Mask fraction High: 1.0
+    ```],
+    [Number of nodes per cluster],
+    [```yaml
+    Controls the size of partitioned subgraphs
+    Mamba experiments: 600
+    All other experiments: 2000
+    ```],
+    [Seed],
+    [```yaml
+    All experiments were repeated 5 times
+    Seeds: [0, 1, 2, 3, 4]
+    ```]
+  )
+]
 
 #pagebreak()
 
@@ -1394,7 +1467,7 @@ table(
   highlight[$arrow.t$ Genome fraction (%)], highlight[#a_sd_a(base-chr9-GAT-genome-fraction)], highlight[#a_sd_a(ul-chr9-GAT-genome-fraction)], highlight(best[#a_sd_a(granola-ul-chr9-GAT-genome-fraction)]),
   [$arrow.t$ NG50], best[#a_sd_a(base-chr9-GAT-ng50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-GAT-ng50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-GAT-ng50, multiplier: 0.0000001)],
   // [NGA50], best[#a_sd_a(base-chr9-GAT-nga50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-GAT-nga50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-GAT-nga50, multiplier: 0.0000001)],
-  [$arrow.b$ Num. mismatches (per 100 @kb)], best[#a_sd_a(base-chr9-GAT-mismatches)], [#a_sd_a(ul-chr9-GAT-mismatches)], [#a_sd_a(granola-ul-chr9-GAT-mismatches)],
+  [$arrow.b$ Num. misma. (per 100 @kb)], best[#a_sd_a(base-chr9-GAT-mismatches)], [#a_sd_a(ul-chr9-GAT-mismatches)], [#a_sd_a(granola-ul-chr9-GAT-mismatches)],
   [$arrow.b$ Num. indels (per 100 @kb)], [#a_sd_a(base-chr9-GAT-indels)], [#a_sd_a(ul-chr9-GAT-indels)], best[#a_sd_a(granola-ul-chr9-GAT-indels)],
 ),
 caption: [Integration of ultra-long data into the overlap graph (GAT+Edge (UL)) results in a higher fraction of the reference genome being covered in the reconstructed assembly #highlighted, as was observed with @symgatedgcn. This is achieved whilst maintain assembly quality. @granola is detrimental to assembly quality. The results show the mean and standard deviation across 5 runs, with chromosome 15 used for training, and 9 as the reference genome assembled. Best results in *bold*. $arrow.t$ indicates _higher is better_. $arrow.b$ indicates _lower is better_.]
@@ -1411,7 +1484,7 @@ table(
   highlight[$arrow.t$ Genome fraction (%)], highlight[#a_sd_a(base-chr9-SymGAT-genome-fraction)], highlight(best[#a_sd_a(ul-chr9-SymGAT-genome-fraction)]), highlight[#a_sd_a(granola-ul-chr9-SymGAT-genome-fraction)],
   [$arrow.t$ NG50], [#a_sd_a(base-chr9-SymGAT-ng50, multiplier: 0.0000001)], best[#a_sd_a(ul-chr9-SymGAT-ng50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGAT-ng50, multiplier: 0.0000001)],
   // [NGA50], best[#a_sd_a(base-chr9-SymGAT-nga50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-SymGAT-nga50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGAT-nga50, multiplier: 0.0000001)],
-  [$arrow.b$ Num. mismatches (per 100 @kb)], [#a_sd_a(base-chr9-SymGAT-mismatches)], best[#a_sd_a(ul-chr9-SymGAT-mismatches)], [#a_sd_a(granola-ul-chr9-SymGAT-mismatches)],
+  [$arrow.b$ Num. misma. (per 100 @kb)], [#a_sd_a(base-chr9-SymGAT-mismatches)], best[#a_sd_a(ul-chr9-SymGAT-mismatches)], [#a_sd_a(granola-ul-chr9-SymGAT-mismatches)],
   [$arrow.b$ Num. indels (per 100 @kb)], [#a_sd_a(base-chr9-SymGAT-indels)], [#a_sd_a(ul-chr9-SymGAT-indels)], best[#a_sd_a(granola-ul-chr9-SymGAT-indels)],
 ),
 caption: [Likewise for the SymGAT+Edge architecture.]

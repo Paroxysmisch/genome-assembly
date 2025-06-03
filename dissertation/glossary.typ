@@ -197,5 +197,30 @@
     key: "dirgnn",
     short: "Dir-GNN",
     long: "Directed Graph Neural Network"
+  ),
+  (
+    key: "ptrnet",
+    short: "Ptr-Net",
+    long: "Pointer Network"
+  ),
+  (
+    key: "s2s",
+    short: "S2S",
+    long: "sequence-to-sequence"
+  ),
+  (
+    key: "pgan",
+    short: "PGAN",
+    long: "Pointer Genome Assembly Network"
+  ),
+  (
+    key: "eos",
+    short: "EOS",
+    long: "End-of-Sequence"
+  ),
+  (
+    key: "bos",
+    short: "BOS",
+    long: "Beginning-of-Sequence"
   )
 )

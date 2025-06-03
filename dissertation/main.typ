@@ -662,9 +662,9 @@ where $cal(L)$ is the complete loss function used, $"BCE"_"logits"$ is Binary Cr
 ]
 
 === Reconstructing the genome via greedy decoding
-Once a probability has been assigned to each edge representing its likelihood of belonging to the final assembly, we apply a greedy decoding algorithm (detailed below) to extract contigs---sets of overlapping @dna fragments that together reconstruct a contiguous portion of the genome:
+After assigning a probability to each edge representing its likelihood of belonging to the final assembly, we apply a greedy decoding algorithm (detailed below) to extract contigs---sets of overlapping @dna fragments that together reconstruct a contiguous portion of the genome:
 
-#let algorithm_2 = [#set text(size: 0.9em)
+#let algorithm_2 = [#set text(size: 1em)
 #algorithm-figure("Genome reconstruction via greedy decoding", {
   import algorithmic: *
   Procedure("Greedy-Decode-Contigs", ([_overlap-graph_],[_edge-probabilities_]), {
@@ -688,7 +688,7 @@ Once a probability has been assigned to each edge representing its likelihood of
           Assign[$p_i$][$p_i$ + [$e_k$]]
         })
         State[]
-        Comment[Greedy backward search from $u_i '$ (virtual pair of source node $u_i$ of $e_i: u_i -> v_i$)]
+        Comment[Greedy backward search from $u_i$ (source node of $e_i: u_i -> v_i$)]
         Comment[New edge(s) to be traversed must be unvisited, with an unvisited source node]
         While([unvisited incoming edge to first node in $p_i$, $v_j$, exists], {
           Comment[Choose incoming edge from $v_j$ with highest probability]
@@ -696,15 +696,15 @@ Once a probability has been assigned to each edge representing its likelihood of
           Comment[Prepend this edge to extend the path $p_i$]
           Assign[$p_i$][[$e_j$] + $p_i$]
         })
-        State[]
-        Comment[Mark transitive nodes as visited]
-        For([node $v in.not p_i$], {
-          If(cond: [
-            #FnInline[predecessor][$v$] $in p_i and$ #FnInline[successor][$v$] $in p_i $ #linebreak() $and e:$ #FnInline[predecessor][$v$] $->$ #FnInline[successor][$v$] $in p_i$
-          ], {
-            FnInline[mark-node-visited][$v$]
-          })
-        })
+        // State[]
+        // Comment[Mark transitive nodes as visited]
+        // For([node $v in.not p_i$], {
+        //   If(cond: [
+        //     #FnInline[predecessor][$v$] $in p_i and$ #FnInline[successor][$v$] $in p_i $ #linebreak() $and e:$ #FnInline[predecessor][$v$] $->$ #FnInline[successor][$v$] $in p_i$
+        //   ], {
+        //     FnInline[mark-node-visited][$v$]
+        //   })
+        // })
       })
       State[]
       Comment[Keep the longest path]
@@ -728,9 +728,9 @@ Once a probability has been assigned to each edge representing its likelihood of
     Return[_final-assembly_]
   })
 }) <alg:greedy-decode-contigs>]
-#place(top + center)[#algorithm_2]
+// #place(top + center)[#algorithm_2]
 
-Recall that we are interested in finding a Hamiltonian path through the overlap graph to recover the genome. In an ideal scenario, where all neural network edge predictions are accurate and the graph contains no artifacts, a simple greedy traversal (forwards and backwards) starting from any positively predicted edge would suffice to reconstruct the genome. However, due to prediction errors and noise in the graph, neither of these conditions are met in practice, and so we use the greedy decoding algorithm shown in @alg:greedy-decode-contigs, and illustrated in @fig:overview(D) (and used by prior neural genome assembly work @lovro).
+Recall that we are interested in finding a Hamiltonian path through the overlap graph to recover the genome. In an ideal scenario, where all neural network edge predictions are accurate and the graph contains no artifacts, a simple greedy traversal (forwards and backwards) starting from any positively predicted edge would suffice to reconstruct the genome. However, due to prediction errors and noise in the graph, neither of these conditions are met in practice, and so we use the greedy decoding algorithm shown in @alg:greedy-decode-contigs (@app:algorithms), and illustrated in @fig:overview(D) (and used by prior neural genome assembly work @lovro).
 
 @alg:greedy-decode-contigs first samples multiple high-probability seed edges and then greedily chooses a sequence of edges both forwards and backwards from each seed edge, forming a path through the assembly graph. The longest resulting path is selected and overlapping reads along that path merged into a contig. Nodes along the selected path are marked as visited to prevent their reuse in subsequent searches, and the process repeats until no path above a fixed length threshold can be found.
 
@@ -772,7 +772,7 @@ $ <eqn:symgatedgcn-update-hidden>
 $
   e_(i j)^(l + 1) = e_(i j)^l + #relu (#norm (B_1^l e_(i j)^l + B_2^l h_i^l + B_3^l h_j^l))
 $ <eq:edge_features>
-where all $A, B in RR^(D times D)$ are learnable parameters with hidden dimension $D$, $dot.circle$ denotes the Hadamard product, #relu stands for Rectified Linear Unit, and #norm refers to the normalization layer used---this is either InstanceNorm @instancenorm, or @granola discussed in more detail in @sec:granola. Note that the standard input embeddings (@sec:standard_input_embedding) are used for $h_i^0$ and $e_(i j)^0$. $eta_(p i)^("f", l)$ and $eta_(i s)^("b", l)$ refer to the forward, and backward gating functions respectively. The edge gates are defined according to the GatedGCN:
+where all $A, B in RR^(D times D)$ are learnable parameters with hidden dimension $D$, $dot.circle$ denotes the Hadamard product, #relu stands for Rectified Linear Unit, and #norm refers to the normalization layer used---this is either InstanceNorm @instancenorm, or @granola (@sec:granola). Note that the standard input embeddings (@sec:standard_input_embedding) are used for $h_i^0$ and $e_(i j)^0$. $eta_(p i)^("f", l)$ and $eta_(i s)^("b", l)$ refer to the forward, and backward gating functions respectively. The edge gates are defined according to the GatedGCN:
 $
   eta_(p i)^("f", l) = sigma(e_(p i)^l) / (sum_(p' -> i) sigma (e_(p' i)^l) + epsilon.alt) in [0, 1]^D, #h(2.5em) eta_(i s)^("b", l) = sigma(e_(i s)^l) / (sum_(i -> s') sigma (e_(i s')^l) + epsilon.alt) in [0, 1]^D
 $
@@ -789,7 +789,7 @@ First, updated edge features are calculated identically to @symgatedgcn (@eq:edg
 
 In contrast to the @gat architecture with a single shared attention mechanism, there are now two mechanisms, $a^"n"$ and $a^"e"$, which compute the attention coefficients for nodes and edges respectively ($a^"n", a^"e": RR^D times RR^D times RR^D -> RR$). Each mechanism is implemented via separate, single-layer feed-forward neural networks. The attention coefficients are given as follows:
 $
-  c_(i j)^"n" &= a^"n" (h_j^l || e_(j i)^l || h_i^l) \
+  c_(i j)^"n" &= a^"n" (h_j^l || e_(j i)^l || h_i^l) #h(5em)
   c_(i j)^"e" &= a^"e" (h_j^l || e_(j i)^l || h_i^l) \
 $
 where $c_(i j)^"n"$ indicates the importance of node $j$'s features to node $i$, and $c_(i j)^"e"$ indicates the importance of the edge $e_(j i): j -> i$ to node $i$. $||$ denotes the concatenation operator along the hidden dimension. These coefficients are then normalized over all $j$ to make them comparable across nodes, via softmax:
@@ -967,6 +967,32 @@ where all $W, b$ represent learnable parameters ($W_1 in RR^(D times 3D)$, $W_2 
 #place(top + center)[
   #figure(image("graphics/model_architecture.svg"), caption: [Illustration of the encoder-processor-decoder model architecture used. Note that the @gnn layer can be substituted with @symgatedgcn, GAT, or SymGAT.]) <fig:model_architecture>
 ]
+
+== End-to-end neural genome assembly
+In this project we also explore an wholly neural approach to genome assembly, where the @olc algorithm, along with overlap graph, is forgone. Allowing a neural network to define and control the entire assembly pipeline, instead of augmenting fixed stages, removes constraints imposed by these phases.
+
+Our architecture, @pgan is inspired by that of @ptrnet:pl @pointer-networks-paper that was designed to solve challenging geometric problems, including planar @tsp, making it a promising starting point for genome assembly. The general idea is that the model receives as input an unordered set of reads, and outputs a permutation of those reads (auto-regressively at test time), corresponding to the assembly.
+
+While this may seem like a @s2s problem, @s2s models cannot directly handle this task since the output token "vocabulary" (the indices of the input reads) is dependent on the length of the input. This problem of the number of target classes in each step of the output depending on input length is handled by @ptrnet:pl through the use of the attention mechanism over each element (read) of the input. The element with the maximum attention score is the next token. Note that this approach also permits parallel training/teacher forcing in the same manner as training a decoder-only transformer.
+
+@fig:neural-genome-assembly-custom-model illustrates our architecture, which is split into an encoder and decoder. We begin by explaining the encoder. Assume we start with a set of $N$ reads, ${r_i | i in {1, 2, .., N}}$ (in #text(fill: blue.lighten(20%))[blue]), forming an unordered set. These are encoded _individually_, by either Mamba, or an Encoder-only Transformer @transformer-paper (both represented by *R*), to create a read embedding $e_i$ for each read $r_i$ (in #text(fill: orange)[orange]). Note that we also add a special @eos embedding, $e_(N + 1)$.
+
+In the decoder, we perform auto-regressive decoding. We start with the read sequence ordered so far (in #text(fill: purple)[purple]) (prepended with a special @bos token, $r_0$), $S = (r_0, r_a, r_b, ..., r_x)$ (where $a, b, ..., x$ represents some ordering of reads), and pass $S$ through another Mamba model. This produces encoded read sequence embeddings $D = (h_0, h_a, h_b, ..., h_x)$ (in #text(fill: red.lighten(25%))[pink]). These are then passed through a pooling layer that produces a hidden representation of the assembled sequence so far, $d$, by concatenating $"mean"(D)$ with the final embedding $h_x$.
+
+Inspired by @ptrnet, the attention mechanism is then used to get attention scores of $d$ over all encoded read embeddings $e_i$. Additionally, we compute an overlap similarity score of each $e_i$ with $d$, and integrate this information into a separate attention head. Attention scores across all heads are then aggregated, with the next read in the sequence (dotted arrow) decided by the $e_i$ with maximal attention.
+
+Apart from the use of overlap similarity as additional information integrated into a separate attention head, our approach also differs from @ptrnet:pl in the encoder. We respect the unordered-set nature of the input collection of reads, and thus do not apply an @rnn like @ptrnet, as that breaks permutation equivariance of the representations $e_i$ produced.
+
+#place(top + center)[
+  #subpar.grid(
+    columns: (0.65fr, 1fr),
+    show-sub-caption: sub-caption-styling,
+    figure([#image("graphics/ptr-net.png") #v(0.5cm)], caption: [@ptrnet]), <fig:ptr-net>,
+    figure(image("graphics/neural-genome-assembly.svg", height: 6cm), caption: [@pgan]), <fig:neural-genome-assembly-custom-model>,
+    caption: [@pgan differs from @ptrnet is two key ways. First, we ensure to preserve the permutation equivariant nature of the encoder by not using an @rnn, and instead encoding each read individually. Second, we encode additional overlap information into the attention mechanism by exploiting attention heads.]
+  )
+]
+
 
 
 
@@ -1195,7 +1221,7 @@ caption: [There is a significant performance uplift when ultra-long data is inte
 table(
   columns: (auto, 1fr, 1fr, 1fr),
   table.header([Assembly Metric], [@symgatedgcn], [@symgatedgcn (UL)], [@symgatedgcn (UL+@granola)]),
-  [$arrow.t$ Num. contigs], [#a_sd_a(base-chr9-SymGatedGCN-contigs)], best[#a_sd_a(ul-chr9-SymGatedGCN-contigs)], [#a_sd_a(granola-ul-chr9-SymGatedGCN-contigs)],
+  [$arrow.b$ Num. contigs], [#a_sd_a(base-chr9-SymGatedGCN-contigs)], best[#a_sd_a(ul-chr9-SymGatedGCN-contigs)], [#a_sd_a(granola-ul-chr9-SymGatedGCN-contigs)],
   [$arrow.t$ Longest contig length], best[#a_sd_a(base-chr9-SymGatedGCN-largest-contig, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-SymGatedGCN-largest-contig, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGatedGCN-largest-contig, multiplier: 0.0000001)],
   highlight[$arrow.t$ Genome fraction (%)], highlight[#a_sd_a(base-chr9-SymGatedGCN-genome-fraction)], highlight(best[#a_sd_a(ul-chr9-SymGatedGCN-genome-fraction)]), highlight[#a_sd_a(granola-ul-chr9-SymGatedGCN-genome-fraction)],
   [$arrow.t$ NG50], best[#a_sd_a(base-chr9-SymGatedGCN-ng50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-SymGatedGCN-ng50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGatedGCN-ng50, multiplier: 0.0000001)],
@@ -1203,7 +1229,7 @@ table(
   [$arrow.b$ Num. misma. (per 100 @kb)], [#a_sd_a(base-chr9-SymGatedGCN-mismatches)], [#a_sd_a(ul-chr9-SymGatedGCN-mismatches)], best[#a_sd_a(granola-ul-chr9-SymGatedGCN-mismatches)],
   [$arrow.b$ Num. indels (per 100 @kb)], best[#a_sd_a(base-chr9-SymGatedGCN-indels)], [#a_sd_a(ul-chr9-SymGatedGCN-indels)], [#a_sd_a(granola-ul-chr9-SymGatedGCN-indels)],
 ),
-caption: [Integration of ultra-long data into the overlap graph (@symgatedgcn (UL)) results in a higher fraction of the reference genome being covered in the reconstructed assembly #highlighted. This is achieved whilst maintain assembly quality. @granola is detrimental to assembly quality. The results show the mean and standard deviation across 5 runs, with chromosome 15 used for training, and 9 as the reference genome assembled. Best results in *bold*. $arrow.t$ indicates _higher is better_. $arrow.b$ indicates _lower is better_.]
+caption: [Integration of ultra-long data into the overlap graph (@symgatedgcn (UL)) results in a higher fraction of the reference genome being covered in the reconstructed assembly #highlighted. This is achieved whilst maintaining assembly quality. @granola is detrimental to assembly quality. The results show the mean and standard deviation across 5 runs, with chromosome 15 used for training, and 9 as the reference genome assembled. Best results in *bold*. $arrow.t$ indicates _higher is better_. $arrow.b$ indicates _lower is better_.]
 ) <tab:symgatedgcn_assembly>
 ]
 
@@ -1428,7 +1454,16 @@ Mamba showed positive results for extracting useful features from raw nucleotide
   )
 ]
 
+== Dataset generation
+
 #pagebreak()
+
+= Additional algorithms <app:algorithms>
+#[
+  #set table.cell(align: left)
+  #set text(size: 12.5pt)
+  #algorithm_2
+]
 
 = Additional experimental data
 == Integration of ultra-long data and GRANOLA <app:ultra-long-granola>
@@ -1473,7 +1508,7 @@ caption: [Likewise for the SymGAT+Edge architecture.]
 table(
   columns: (auto, 1fr, 1fr, 1fr),
   table.header([Assembly Metric], [GAT+Edge], [GAT+Edge (UL)], [GAT+Edge (UL+@granola)]),
-  [$arrow.t$ Num. contigs], best[#a_sd_a(base-chr9-GAT-contigs)], [#a_sd_a(ul-chr9-GAT-contigs)], [#a_sd_a(granola-ul-chr9-GAT-contigs)],
+  [$arrow.b$ Num. contigs], best[#a_sd_a(base-chr9-GAT-contigs)], [#a_sd_a(ul-chr9-GAT-contigs)], [#a_sd_a(granola-ul-chr9-GAT-contigs)],
   [$arrow.t$ Longest contig length], best[#a_sd_a(base-chr9-GAT-largest-contig, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-GAT-largest-contig, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-GAT-largest-contig, multiplier: 0.0000001)],
   highlight[$arrow.t$ Genome fraction (%)], highlight[#a_sd_a(base-chr9-GAT-genome-fraction)], highlight[#a_sd_a(ul-chr9-GAT-genome-fraction)], highlight(best[#a_sd_a(granola-ul-chr9-GAT-genome-fraction)]),
   [$arrow.t$ NG50], best[#a_sd_a(base-chr9-GAT-ng50, multiplier: 0.0000001)], [#a_sd_a(ul-chr9-GAT-ng50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-GAT-ng50, multiplier: 0.0000001)],
@@ -1490,7 +1525,7 @@ caption: [Integration of ultra-long data into the overlap graph (GAT+Edge (UL)) 
 table(
   columns: (auto, 1fr, 1fr, 1fr),
   table.header([Assembly Metric], [SymGAT+Edge], [SymGAT+Edge (UL)], [SymGAT+Edge (UL+@granola)]),
-  [$arrow.t$ Num. contigs], [#a_sd_a(base-chr9-SymGAT-contigs)], best[#a_sd_a(ul-chr9-SymGAT-contigs)], [#a_sd_a(granola-ul-chr9-SymGAT-contigs)],
+  [$arrow.b$ Num. contigs], [#a_sd_a(base-chr9-SymGAT-contigs)], best[#a_sd_a(ul-chr9-SymGAT-contigs)], [#a_sd_a(granola-ul-chr9-SymGAT-contigs)],
   [$arrow.t$ Longest contig length], [#a_sd_a(base-chr9-SymGAT-largest-contig, multiplier: 0.0000001)], best[#a_sd_a(ul-chr9-SymGAT-largest-contig, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGAT-largest-contig, multiplier: 0.0000001)],
   highlight[$arrow.t$ Genome fraction (%)], highlight[#a_sd_a(base-chr9-SymGAT-genome-fraction)], highlight(best[#a_sd_a(ul-chr9-SymGAT-genome-fraction)]), highlight[#a_sd_a(granola-ul-chr9-SymGAT-genome-fraction)],
   [$arrow.t$ NG50], [#a_sd_a(base-chr9-SymGAT-ng50, multiplier: 0.0000001)], best[#a_sd_a(ul-chr9-SymGAT-ng50, multiplier: 0.0000001)], [#a_sd_a(granola-ul-chr9-SymGAT-ng50, multiplier: 0.0000001)],

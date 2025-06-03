@@ -502,8 +502,10 @@ def inference(dataset, chromosome, model_name, model_path, assembler, savedir, d
     seed = 42
 
     strategy = 'greedy'
-    nb_paths = 10
-    len_threshold = 70_000
+    nb_paths = 100
+    # len_threshold = 70_000
+    # nb_paths = 50
+    len_threshold = 40_000
     use_labels = False
     load_checkpoint = True
 
@@ -530,6 +532,7 @@ def inference(dataset, chromosome, model_name, model_path, assembler, savedir, d
     cfg = TrainingConfig()
     cfg.validation_chromosomes = [chromosome]
     cfg.data_dir = dataset
+    cfg.granola = True
 
     ds = SubgraphDatasetNoMetis(cfg, False, 100, 100, 1000000, shuffle=False)
     batch = ds.subgraphs[0]
@@ -661,11 +664,23 @@ if __name__ == '__main__':
     parser.add_argument('--chr', type=int, help='Chromosome')
     parser.add_argument('--out', type=str, help='Output directory')
     parser.add_argument('--model_name', type=str, help='Name of the model')
-    parser.add_argument('--model_path', type=str, help='Path to the model')
+    parser.add_argument('--train_chr', type=str)
+    parser.add_argument('--valid_chr', type=str)
+    parser.add_argument('--wandb_project', type=str, default="base")
     args = parser.parse_args()
 
-    # python3 inference.py --data chm13htert-data/ --chr 21 --out tetestestet/ --model_name SymGatedGCN --model_path './artifacts/models/model_model=SymGatedGCNModel_seed=0_train=19_valid=11_data=chm13htert-data_nodes=2000.pt'
+    # python3 inference.py --data chm13htert-data/ --chr 9 --out assemblies/base/chr9-SymGAT/ --model_name SymGAT --train_chr 15 --valid_chr 22
     # dataset = "chm13htert-data/"
-    asm = "hifiasm"
 
-    inference(dataset=args.data, chromosome=args.chr, assembler=asm, model_path=args.model_path, savedir=args.out, model_name=args.model_name)
+    # contigs                    47         # contigs                    46         # contigs                    44         # contigs                    44         # contigs                    45
+    # Largest contig               24500137   Largest contig               26211834   Largest contig               28012991   Largest contig               28124744   Largest contig               22465876
+    # NG50                         24500137   NG50                         26211834   NG50                         28012991   NG50                         28124744   NG50                         22465876
+    # Genome fraction (%)          93.581     Genome fraction (%)          90.933     Genome fraction (%)          93.870     Genome fraction (%)          92.531     Genome fraction (%)          92.717
+    # # mismatches per 100 kbp     13.23      # mismatches per 100 kbp     6.80       # mismatches per 100 kbp     13.16      # mismatches per 100 kbp     11.90      # mismatches per 100 kbp     9.83
+    # # indels per 100 kbp         4.40       # indels per 100 kbp         4.08       # indels per 100 kbp         4.11       # indels per 100 kbp         3.96       # indels per 100 kbp         3.96
+    # NGA50                        2339711    NGA50                        2101744    NGA50                        1218281    NGA50                        1925231    NGA50                        2101742
+    asm = "hifiasm"
+    for seed in range(5):
+        model_path = f'./artifacts/models/{args.wandb_project}/model_model={args.model_name}Model_seed={seed}_train={args.train_chr}_valid={args.valid_chr}_data={args.data[:-1]}_nodes=2000.pt'
+
+        inference(dataset=args.data, chromosome=args.chr, assembler=asm, model_path=model_path, savedir=os.path.join(args.out, str(seed)), model_name=args.model_name)

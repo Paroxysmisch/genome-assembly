@@ -222,5 +222,30 @@
     key: "bos",
     short: "BOS",
     long: "Beginning-of-Sequence"
-  )
+  ),
+  (
+    key: "gatedge",
+    short: "GAT+Edge",
+    long: "Graph Attention Network with edge features"
+  ),
+  (
+    key: "symgatedge",
+    short: "SymGAT+Edge",
+    long: "Symmetric Graph Attention Network with edge features"
+  ),
+  (
+    key: "symgatedgcn-mamba",
+    short: "SymGatedGCN+Mamba",
+    long: "Symmetric Gated Graph Convolutional Network with Mamba node features"
+  ),
+  (
+    key: "symgatedgcn-mambaedge",
+    short: "SymGatedGCN+MambaEdge",
+    long: "Symmetric Gated Graph Convolutional Network with Mamba edge features"
+  ),
+  (
+    key: "symgatedgcn-randomedge",
+    short: "SymGatedGCN+RandomEdge",
+    long: "Symmetric Gated Graph Convolutional Network with random Normal edge features"
+  ),
 )

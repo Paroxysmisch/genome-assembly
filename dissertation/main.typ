@@ -1372,6 +1372,8 @@ Mamba was used to translate raw nucleotide reads into fixed-length embeddings. T
   #aim_4
 ]
 
+We introduced a novel architecture, @pgan, which successfully demonstrated the feasibility of end-to-end neural genome assembly in a simplified (yet still challenging) scenario where reads are perfectly accurate. Two variants of the architecture were evaluated---one utilizing Mamba, and the other Transformer. The Mamba-based model performed significantly better, which we hypothesize is due to its ability to operate more effectively on raw nucleotide-level data, in the absence of any canonical tokenization scheme for de novo @dna sequences.
+
 == Future work
 This project reveals several compelling directions for future work. The first direction is a more concrete analysis of the importance of highly expressive @gnn:pl for layout in genome assembly. Even though higher expressivity architectures like $k$-@gnn:pl are impractical for general use, observing their performance on this task would provide an objective baseline for the comparing the use of more computationally efficient, expressive @gnn architectures, and reveal the extent to which expressiveness is critical for this task. 
 
@@ -1382,6 +1384,8 @@ Moreover, recent work has substituted more expressive models and architectural i
 @symgatedge's failure to thoroughly outperform its @gatedge counterpart was surprising, and so future work could perform a more detailed investigation into the importance of the symmetry mechanism for layout. One way this could be performed is by augmenting the aforementioned expressive @gnn:pl with the symmetry mechanism, removing ambiguity around whether expressivity is acting as a bottleneck.
 
 Mamba showed positive results for extracting useful features from raw nucleotide data, however, this project used aggressive graph subsampling due to compute and memory limitations. Scaling-up this technique with more compute, and also using Transformer @transformer-paper as an alternative sequence-to-sequence model (as heavily-optimized versions become available), is yet another direction.
+
+Lastly, building on the promising results from the end-to-end neural genome assembly experiments, future work could assess the method's tolerance and robustness to sequencing errors in the reads. Moreover, the Transformer-based implementation may be augmented with tokenization schemes such as DNABERT(2) @dnabert @dnabert-2, and entropy-based tokenization schemes such as the Byte Latent Transformer @byte-latent-transformer. Additionally, ultra-long reads can be provided as an additional input to resolve ambiguities in particularly complex genomic regions, such as those exhibiting tandem repeats.
 
 // Exploring SymGAT's failure
 

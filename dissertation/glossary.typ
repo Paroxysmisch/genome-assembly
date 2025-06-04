@@ -7,7 +7,7 @@
   (
     key: "t2t",
     short: "T2T",
-    long: "telomere-to-telomere"
+    long: "Telomere-to-Telomere"
   ),
   (
     key: "wgs",
@@ -17,25 +17,25 @@
   (
     key: "nuc_a",
     short: "A",
-    long: "adenine",
+    long: "Adenine",
     // group: "nucleotides"
   ),
   (
     key: "nuc_g",
     short: "G",
-    long: "guanine",
+    long: "Guanine",
     // group: "nucleotides"
   ),
   (
     key: "nuc_c",
     short: "C",
-    long: "cytosine",
+    long: "Cytosine",
     // group: "nucleotides"
   ),
   (
     key: "nuc_t",
     short: "T",
-    long: "thymine",
+    long: "Thymine",
     // group: "nucleotides"
   ),
   (

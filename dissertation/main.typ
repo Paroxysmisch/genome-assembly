@@ -102,7 +102,7 @@ I would also like to thank my Directors of Studies Timothy Jones and Russell Moo
 
 #pagebreak()
 
-#set heading(supplement: [Chapter])
+// #set heading(supplement: [Chapter])
 
 #show heading.where(level: 1): it => [
   #set text(weight: "regular", size: 12pt)
@@ -172,7 +172,8 @@ I would also like to thank my Directors of Studies Timothy Jones and Russell Moo
 #show heading.where(level: 1): it => [
   #set text(weight: "regular", size: 12pt)
   #v(8em)
-  #it.supplement #context counter(heading).display("1")
+  // #it.supplement #context counter(heading).display("1")
+  Chapter #context counter(heading).display("1")
   #linebreak()
   #text(size: 2em)[#it.body.text]
   #v(2em)
@@ -203,11 +204,11 @@ Genome assembly has remained a central subject in computational biology for the 
 
 In addition, assembling a large number of genomes from the same species allows scientists to study the role of genetic variation in health and disease @t2t-human-genome-implications, revealing factors that contribute to susceptibility or resistance to various conditions. This is increasingly important as we move into the realm of targeted healthcare, such as personalized drugs that are tailored to an individual by utilizing their unique genetic information, providing more effective treatment. 
 
-A @t2t assembly is essential in gaining complete insight into an organism's genome. A @t2t sequence represents a complete, continuous genome without gaps or fragmentation @t2t-genome-assembly. Remarkably, achieving such assemblies has only become feasible in recent years with the advent of long-read sequencing technologies. Although the Human Genome Project concluded in 2003 @hgp-facts, the reference genome produced contained several missing regions that were challenging to assemble, with the first @t2t sequencing of human DNA only recently achieved in 2021 @t2t-chm13.
+A #gls("t2t", display: "telomere-to-telomere") assembly is essential in gaining complete insight into an organism's genome. A @t2t sequence represents a complete, continuous genome without gaps or fragmentation @t2t-genome-assembly. Remarkably, achieving such assemblies has only become feasible in recent years with the advent of long-read sequencing technologies. Although the Human Genome Project concluded in 2003 @hgp-facts, the reference genome produced contained several missing regions that were challenging to assemble, with the first @t2t sequencing of human DNA only recently achieved in 2021 @t2t-chm13.
 
 In this project, we demonstrate how machine learning is an effective tool in improving de novo (without relying on a pre-existing reference genome) @t2t assembly, by increasing accuracy particularly in challenging genomic regions.
 
-== A short history of Genome Assembly <sec:existing_methods>
+== A short history of genome assembly <sec:existing_methods>
 Hierarchical sequencing and @wgs have been the two predominant assembly strategies @t2t-genome-assembly. Hierarchical sequencing involves cloning, sequencing, and assembly of tiled genomic fragments that are aligned against a physical or genetic genome map, with the human reference genome GRCh38 being primarily constructed with this method @grch38. 
 
 Due to its high cost and labor-intensive nature, hierarchical sequencing has largely been replaced by @wgs, where the genome is randomly fragmented into individually sequenced smaller segments called reads @wgs1 @wgs2. These reads are then reassembled into a complete genome by identifying overlaps between them. Unlike hierarchical sequencing, @wgs must consider overlaps between reads spanning the entire genome, not just localized regions, which significantly increases computational complexity.
@@ -218,7 +219,7 @@ However, in practice, this overlap graph is not perfect. Due to the computationa
 
 #place(top + center)[#figure(image("graphics/artifacts.svg", width: 90%), caption: [Elementary artifact types encountered in overlap graphs. Each node in this example overlap graph represents a read, and the edges correspond to overlaps between those reads.]) <fig:common_artifacts>]
 
-Existing methods for overlap graph simplification involve a collection of algorithms and heuristics to remove elementary artifacts such as bubbles, dead-ends, and transitive (shortcut) edges (@fig:common_artifacts) @overlapgraphsdetailed @lovro. It is vital to note that artifacts occurring in overlap graphs are not bound to only these three categories, and do not occur in isolation. Instead, they frequently have complex interactions that lead to challenging to resolve tangles (demonstrated in @tip and @tangle). 
+Existing methods for overlap graph simplification involve a collection of algorithms and heuristics to remove elementary artifacts such as bubbles, dead-ends, and transitive (shortcut) edges (@fig:common_artifacts) @overlapgraphsdetailed @lovro. It is vital to note that artifacts occurring in overlap graphs are not bound to only these three categories, and do not occur in isolation. Instead, they frequently have complex interactions that lead to challenging to resolve tangles (demonstrated in @full). 
 
 Consequently, despite the utility of heuristic algorithms, these methods often struggle in complex genomic regions, where unique assembly solutions may not exist, resulting in either the omission of these complex regions in the final assembly completely, leading to a fragmented and incomplete result, or reliance on manual curation by human experts---an approach that is time-consuming, costly, and not scalable when processing thousands of genomes @lovro.
 
@@ -234,16 +235,16 @@ Consequently, despite the utility of heuristic algorithms, these methods often s
   figure(image("graphics/chr19_tangle.png"), caption: [
     Transitive edges
   ]), <tangle>,
-  caption: [The figures show common artifacts in overlap graphs generated from real read data, taken from human chromosome 19 (a, b) and 21 (c). Note that these are the very same overlap graphs that are successfully simplified and resolved by our work. Graphs visualized via @graphia.],
+  caption: [The figures show common artifacts in overlap graphs generated from real read data, taken from human chromosome 19 (a, b) and 21 (c). Note that these are the very same overlap graphs that are successfully simplified and resolved by our work (visualized via Graphia @graphia).],
   label: <full>,
 )]
 
 == Related work
-Deep learning has successfully addressed various genome assembly challenges, often resulting in state-of-the-art results across multiple sub-tasks. Neural networks have been applied to improve basecalling @neural-basecalling, which is the computational process by which the raw electrical signals output by the sequencing hardware are converted into the nucleotide sequences called reads. This improves the quality of the reads, reducing errors in the overlap graph subsequently generated. Transformer encoder @transformer-paper models have been used for sequence correction @neural-consensus, vastly enhancing assembly contiguity, gene completeness, base accuracy, and reducing false gene duplications and variant calling (identifying differences between the sequenced and reference genome) errors.
+Deep learning has successfully addressed various genome assembly challenges, often resulting in state-of-the-art results across multiple sub-tasks. Neural networks have been applied to improve basecalling @neural-basecalling, which is the computational process by which the raw electrical signals output by the sequencing hardware are converted into the nucleotide sequences called reads. This improves the quality of the reads, reducing errors in the overlap graph subsequently generated. Transformer encoder models @transformer-paper have been used for sequence correction @neural-consensus, vastly enhancing assembly contiguity, gene completeness, base accuracy, and reducing false gene duplications and variant calling (identifying differences between the sequenced and reference genome) errors.
 
 Prior work has used @gnn:pl to neurally executed common graph algorithms @neural-graph-algorithms, including the @tsp @tsp-gnn and Hamiltonian Path @inter-homo-gnn (which can be reduced to @tsp in polynomial time) problem. We cannot simply use state-of-the-art neural Travelling Salesman solvers (like the use of Graph Transformers @tsp-graph-transformer) due to the size of overlap graphs (thousands of edges and millions of nodes) being much larger than those used during research for creating these models. Secondly, these models utilize node coordinate information that is not available in the overlap graph. Lastly, these models assume the input graphs are error-free---this is not true for overlap graphs.
 
-The neural execution paradigm has also been successful in simulating some of the deterministic simplification algorithms used on the overlap graph, including transitive edge, dead-end/tip, and bubble removal, showcasing the potential of @gnn:pl for artifact resolution in overlap graphs (more precisely, the layout phase of the @olc algorithm, detailed in @sec:olc). Importantly, building on this, and the framework laid out by neural @tsp solving @tsp-gcn, @gnn:pl have been employed for direct artifact resolution in overlap graphs @lovro, without trying to replicate the result of a fixed existing algorithm, or heuristic. This was shown to improve assembly contiguity, and reduce mismatches and indels (erroneous insertions/deletions) in the reconstructed genome.
+The neural execution paradigm has also been successful in simulating some of the deterministic simplification algorithms used on the overlap graph, including transitive edge, dead-end/tip, and bubble removal @step-neural-genome-assembly, showcasing the potential of @gnn:pl for artifact resolution in overlap graphs (more precisely, the layout phase of the @olc algorithm, detailed in @sec:olc). Importantly, building on this, and the framework laid out by neural @tsp solving @tsp-gcn, @gnn:pl have been employed for direct artifact resolution in overlap graphs @lovro, without trying to replicate the result of a fixed existing algorithm, or heuristic. This was shown to improve assembly contiguity, and reduce mismatches and indels (erroneous insertions/deletions) in the reconstructed genome.
 
 == Aims
 While previous work @lovro has paved the way to replace the combination of algorithms and heuristics traditionally used during the layout phase of the @olc algorithm, this project aims to build on these advancements with three aims:
@@ -267,15 +268,15 @@ While previous work @lovro has paved the way to replace the combination of algor
 == Key contributions
 The key contributions of this project are as follows:
 
-+ Extension of the @gat architecture, called @gatedge, supporting updating of edge features, and their incorporation into message passing. The symmetry mechanism of @symgatedgcn introduced in prior work @lovro is then combined with @gatedge, to form a new architecture called SymGAT. (@sec:gat-edge and @sec:symgat-edge)
++ Extension of the @gat architecture, called @gatedge, supporting updating of edge features, and their incorporation into message passing. The symmetry mechanism of @symgatedgcn introduced in prior work @lovro is then combined with @gatedge, to form a new architecture called SymGAT. (@sec:gat-edge and @sec:symgat-edge).
 
-+ Evaluating the performance of these new architectures against @symgatedgcn. (@sec:performance_alt_gnn_layers)
++ Evaluating the performance of these new architectures against @symgatedgcn. (@sec:performance_alt_gnn_layers).
 
-+ Investigating the integration of ultra-long read data, by combining them into existing overlap graphs generated from long-reads only, and testing the performance of various @gnn architectures on this extended overlap graph. (@sec:explaining-ultra-long-data and @sec:integration-ultra-long-data)
++ Investigating the integration of ultra-long read data, by combining them into existing overlap graphs generated from long-reads only, and testing the performance of various @gnn architectures on this extended overlap graph. (@sec:explaining-ultra-long-data and @sec:integration-ultra-long-data).
 
-+ Experimenting with the use of an alternative graph normalization scheme, specifically designed for @gnn:pl. (@sec:granola and @sec:granola-performance)
++ Experimenting with the use of an alternative graph normalization scheme, specifically designed for @gnn:pl. (@sec:granola and @sec:granola-performance).
 
-+ Incorporating much richer features by utilizing the raw nucleotide read data directly, resulting in the @symgatedgcn-mamba and @symgatedgcn-mambaedge models. (@sec:symgatedgcn-mamba, @sec:symgatedgcn-mamba-edge, and @sec:mamba-potential-feature-extraction)
++ Incorporating much richer features by utilizing the raw nucleotide read data directly, resulting in the @symgatedgcn-mamba and @symgatedgcn-mambaedge models. (@sec:symgatedgcn-mamba, @sec:symgatedgcn-mamba-edge, and @sec:mamba-potential-feature-extraction).
 
 + Creating a proof-of-concept for purely neural genome assembly that does not rely on overlap graphs, or the @olc algorithm.
 
@@ -297,7 +298,7 @@ The key contributions of this project are as follows:
 This chapter provides biological background regarding: the genome assembly algorithm; limitations of existing sequencing technology; introduction to ultra-long reads, and their integration with the contemporary long-read datatype. This is followed by a primer on @gdl @gdl-book, @gnn:pl, and the Mamba Selective State Space Model @mamba.
 
 == Overlap-Layout-Consensus <sec:olc>//https://bio.libretexts.org/Bookshelves/Computational_Biology/Book%3A_Computational_Biology_-_Genomes_Networks_and_Evolution_(Kellis_et_al.)/05%3A_Genome_Assembly_and_Whole-Genome_Alignment/5.02%3A_Genome_Assembly_I-_Overlap-Layout-Consensus_Approach
-The fundamental problem in genome sequencing is that no current technology that can read continuously from one end of the genome to the other @t2t-genome-assembly. Instead, sequencing technologies only produce relatively short contiguous fragments called reads. Most chromosomes are $>10$ @mb long, and can be up to $1$ @gb long @t2t-genome-assembly, while even current long-read sequencing technologies only produce accurate reads up to a few $100$s of @kb:pl @nanopore-ul. Thus assembling the genome requires an algorithm to combine these shorter reads. @olc @olc-algorithm is the predominant approach for genome assembly with long reads. In this section, we discuss the three phases of @olc in more detail.
+The fundamental problem in genome sequencing is that no current technology can read continuously from one end of the genome to the other @t2t-genome-assembly. Instead, sequencing technologies only produce relatively short contiguous fragments called reads. Most chromosomes are $>10$ @mb long, and can be up to $1$ @gb long @t2t-genome-assembly, while even current long-read sequencing technologies only produce accurate reads up to a few $100$s of @kb:pl @nanopore-ul. Thus assembling the genome requires an algorithm to combine these shorter reads. @olc @olc-algorithm is the predominant approach for genome assembly with long reads. In this section, we discuss the three phases of @olc in more detail.
 
 #let kmer = [$k$-mer]
 #let kmers = [$k$-mers]
@@ -313,7 +314,7 @@ The fundamental problem in genome sequencing is that no current technology that 
 
 
 === Overlap
-The first step is identifying overlapping reads. Read $A$ overlaps with read $B$ if the suffix of $A$ matches the prefix of $B$ (shown in @fig:overlap). While the Needleman-Wunsch @needleman-wunsch dynamic programming algorithm can be used to find overlaps through pairwise alignments of reads, its $cal(O)(n^2)$ (where $n$ is the nucleotide length of the longer read) complexity for each pair of reads makes it infeasible for genome assembly involving millions, or billions of read pairs. Moreover, most read pairs do not overlap, making exhaustive pairwise alignment highly inefficient.
+The first step is identifying overlapping reads. Read $A$ overlaps with read $B$ if the suffix of $A$ matches the prefix of $B$ (shown in @fig:overlap). While the Needleman-Wunsch dynamic programming algorithm @needleman-wunsch can be used to find overlaps through pairwise alignments of reads, its $cal(O)(n^2)$ (where $n$ is the nucleotide length of the longer read) complexity for each pair of reads makes it infeasible for genome assembly involving millions or billions of read pairs. Moreover, most read pairs do not overlap, making exhaustive pairwise alignment highly inefficient.
 
 
 An alternative approach, taken by the pairwise alignment software minimap2 @minimap2, is similar to the BLAST @blast-algorithm algorithm, leveraging $k$-mers---unique $k$-length substrings (example #kmers for a read are displayed in @fig:kmer) acting as seeds for identifying overlaps @olc-book. The algorithm extracts all #kmers from the reads and locates positions where multiple reads share common #kmers. An approximate similarity score is computed depending on the multiplicity and location of matching #kmers.
@@ -359,9 +360,9 @@ Fortunately, the repeat copies forming these extended repeat regions are inexact
 Recall that @t2t assembly is a gapless reconstruction of the genome. Although long-read technology was introduced in 2010, supported by the arrival of single-molecule sequencing @single-molecule-1 @single-molecule-2, their error rate ($~10%$) was too high to resolve complex genomic section @t2t-genome-assembly, like those exhibited by repeating regions. This resulted in fragmented, and incomplete assembly. Accurate long-read technology was only available since 2019 @long-reads, revolutionizing genome assembly, and making possible the first @t2t human genome assembly in 2021 @t2t-chm13.
 
 == Sequencing technology <sec:sequencing-technology>
-There are three key characteristics of sequencing reads that are often traded-off during genome assembly: length, accuracy, and evenness of representation. The ideal sequencing technology produces long, highly accurate reads, with uniform coverage across the genome---avoiding gaps in low-coverage regions, and conserving computational resources in over-represented areas. Contemporary efforts targeting de novo @t2t assembly focus on accurate long-read technology @long-reads-leading that produces contiguous sequences spanning $>=10$ @kb in length, with @pacbio and @ont being the two companies leading their development.
+There are three key characteristics of sequencing reads that are often traded-off during genome assembly: length, accuracy, and evenness of representation. The ideal sequencing technology produces long, highly accurate reads, with uniform coverage across the genome---avoiding gaps in low-coverage regions, and conserving computational resources in over-represented areas. Contemporary efforts targeting de novo @t2t assembly focus on accurate long-read technology @long-reads-leading that produces contiguous sequences spanning #box[$>=10$ @kb] in length, with @pacbio and @ont being the two companies leading their development.
 
-@pacbio's @hifi @hifi-and-ul read technology is the current core data type for high-quality genome assembly, due to its potential to generate reads spanning $10$--$20$ @kb in length, with an error rate $<0.5%$, replacing the previous continuous long-read solution that had an error rate $>10%$ @long-reads. Despite the success of long-read technology in achieving @t2t assemblies, the advent of ultra-long read technology is fast becoming a compelling additional data type to improve assembly reliability. @ont's @ul @hifi-and-ul sequencing technology is central in the generation of ultra-long read data, producing reads $>100$ @kb in length @ul-verko @double-graph @t2t-chm13, however with significantly lower accuracy ($90$--$95%$) than the @hifi solution.
+@pacbio's @hifi @hifi-and-ul read technology is the current core data type for high-quality genome assembly, due to its potential to generate reads spanning #box[$10$--$20$ @kb] in length, with an error rate $<0.5%$, replacing the previous continuous long-read solution that had an error rate $>10%$ @long-reads. Despite the success of long-read technology in achieving @t2t assemblies, the advent of ultra-long read technology is fast becoming a compelling additional data type to improve assembly reliability. @ont's @ul @hifi-and-ul sequencing technology is central in the generation of ultra-long read data, producing reads $>100$ @kb in length @ul-verko @double-graph @t2t-chm13, however with significantly lower accuracy ($90$--$95%$) than the @hifi solution.
 
 Due to their much increased length, @ul is critical in helping resolve tangles, repeat sequences, and other artifacts that cannot be resolved with @hifi reads alone. At present, @ul reads are more expensive than @hifi data (in part as they require large amounts of input @dna), and so are not commonplace in current sequencing projects @t2t-genome-assembly. However, as the technology matures, they offer tremendous potential in improving the accuracy and scalability of @t2t assembly. Hence, in this project, we find exploring the incorporation of such ultra-long read data with the neural genome assembly paradigm incredibly valuable.
 
@@ -395,7 +396,7 @@ While the integration of ultra-long data may help eliminate some overlap graph a
 == Geometric Deep Learning
 @gdl @gdl-book is a framework leveraging the geometry in data, through groups, representations, and principles of invariance and equivariance, to learn more effective machine learning models. 
 
-Central to @gdl are symmetries---transformations that that leave an object unchanged. In the context of machine learning, relevant symmetries can arise in various forms: symmetries of the input data (e.g. rotational symmetries in molecular structure); the label function mapping the input to some output (e.g. the image classification function is invariant to the location of the object in the image), the domain our data lives on (e.g. data living on a set is invariant to the permutation of items in the set), or even symmetries in the model's parameterization.
+Central to @gdl are symmetries---transformations that leave an object unchanged. In the context of machine learning, relevant symmetries can arise in various forms: symmetries of the input data (e.g. rotational symmetries in molecular structure); the label function mapping the input to some output (e.g. the image classification function is invariant to the location of the object in the image), the domain our data lives on (e.g. data living on a set is invariant to the permutation of items in the set), or even symmetries in the model's parameterization.
 
 The key insight is that by encoding symmetry within our model architecture, we restrict the space of functions that can be represented to those that respect these symmetries. This makes models more performant, improves generalization, and can make learning more sample/data efficient.
 
@@ -435,7 +436,7 @@ A @gnn consists of sequentially applied message passing layers.
 === Expressivity of Graph Neural Networks
 Graphs $G_1$ and $G_2$ are considered isomorphic if they encode the same adjacency structure under some permutation of their nodes. Although @gnn:pl are powerful graph processing tools, they are unable to solve all tasks on a graph accurately.
 
-A @gnn is able to distinguish two non-isomorphic graphs $G_1$ and $G_2$, if it maps them to differing graph embeddings (in $RR^d$, for some arbitrary dimension $d in NN$) i.e. $bold(h)_(G_1) eq.not bold(h)_(G_2)$. The ability to distinguish non-isomorphic graphs is important as without this capability, solving a task requiring discriminating between them is unachievable. This graph isomorphism problem is also challenging, we no known polynomial-time algorithm known for it yet.
+A @gnn is able to distinguish two non-isomorphic graphs $G_1$ and $G_2$, if it maps them to differing graph embeddings (in $RR^d$, for some arbitrary dimension $d in NN$) i.e. $bold(h)_(G_1) eq.not bold(h)_(G_2)$. The ability to distinguish non-isomorphic graphs is important as without this capability, solving a task requiring discriminating between them is unachievable. This graph isomorphism problem is also challenging, with no known polynomial-time algorithm.
 
 The expressive power of a @gnn is assessed by the set of graphs that they can distinguish (mapping them to different embeddings if, and only if, the graphs are non-isomorphic). Formally, assume that the set of all @gnn:pl is given by the set $PP$, and the set of all graphs is given by the set $GG$. Now, further assume that $P_1, P_2 in GG$ are arbitrary @gnn:pl, and that the set of graphs distinguishable by $P_1$ and $P_2$ are $DD_(P_1), DD_(P_2) subset.eq GG$). We then define the expressive power partial ordering over $PP$, $prec.eq$ , as:
 $
@@ -517,7 +518,7 @@ Through repeated application of the recurrence relation, and simplification via 
 $ bold(dash(K)) = (C dash(B), C dash(A) dash(B), ..., C dash(A)^k dash(B), ...) #h(5em) y = x star bold(dash(K)) $
 // $ y = x star bold(dash(K)) $
 
-Since @s4 models have fixed parameters with respect to the inputs, they cannot perform content-based reasoning, which is essential for language, or genome modelling tasks. To address this, Mamba extends the S4 formulation by incorporating _selectivity_---the ability to select data in an input-dependent manner---helping filter out irrelevant data, and keep relevant information indefinitely, by making the parameters functions of the input. However, this breaks the time- and input-invariance (@lit) that allows fast convolution-based calculation. To compensate, convolution is replaced with a scan/prefix sum operation (@fig:recurrent and @fig:parallel_scan show how the scan/prefix sum algorithm produces the same result as recurrence). 
+Since @s4 models have fixed parameters with respect to the inputs, they cannot perform content-based reasoning, which is essential for language, or genome modelling tasks. To address this, Mamba extends the S4 formulation by incorporating _selectivity_---the ability to select data in an input-dependent manner---helping filter out irrelevant data, and keep relevant information indefinitely, by making the parameters functions of the input. However, this breaks the time- and input-invariance (@lit) property allowing fast convolution-based calculation. To compensate, convolution is replaced with a scan/prefix sum operation (@fig:recurrent and @fig:parallel_scan show how the scan/prefix sum algorithm produces the same result as recurrence). 
 
 Selecting data in an input-dependent manner, combined with the scan/prefix sum algorithm, results in the Mamba _Selective_ State Space Model (@fig:mamba_official).
 
@@ -588,7 +589,7 @@ The first step of generating an overlap graph is gathering the raw read data. Si
 Once the reads are generated, `Hifiasm` @hifiasm-paper, a de novo assembler specifically designed for @pacbio @hifi read data, is used to generate the overlap graph. Note that no traditional graph simplification algorithms like transitive edge removal, dead-end trimming, or bubble removal, are applied. Also, it is important to note that the overlap graph produced is a symmetric overlap graph as the reads can belong to either strand of the @dna. The symmetric overlap graph consists of one graph, and its dual that contains a duplicate set of nodes representing the same reads, but with the edges reversed. This is due to an interesting property during sequencing where reads from the dual @dna strand are sequenced in reverse order along the length of the @dna.
 
 === Overlap graph ground-truth label generation
-We refer to whether an edge belongs to the finally assembly as a boolean _label_, which is the target the @gnn aims to predict. There are two conditions for an edge to be valid (i.e. labeled true): (1) The reads the edge states overlap must be sampled from the same strand of @dna (@eq:same_strand) and have a valid overlap (@eq:valid_overlap), and (2) the edge must not lead to a read that is a dead-end. Formally, the first condition states that for reads $A$ and $B$, with edge $A -> B$:
+We refer to whether an edge belongs to the final assembly as a boolean _label_, which is the target the @gnn aims to predict. There are two conditions for an edge to be valid (i.e. labeled true): (1) The reads the edge states overlap must be sampled from the same strand of @dna (@eq:same_strand) and have a valid overlap (@eq:valid_overlap), and (2) the edge must not lead to a read that is a dead-end. Formally, the first condition states that for reads $A$ and $B$, with edge $A -> B$:
 $
 A_"strand" = B_"strand" "(same strand)"
 $ <eq:same_strand>
@@ -639,7 +640,7 @@ where $X_"strand"$, $X_"start"$, $X_"end"$ refer to the strand, starting, and en
 We start from the edge whose starting read is at the lowest position along the genome and perform a @bfs from it, storing the visited nodes. From this set of visited nodes, another @bfs is performed starting from the node representing the read at the highest genomic position. Edges traversed by both of the @bfs:pl belong to the optimal assembly (called _optimal-edges_). If there are multiple connected components in the overlap graph, the process is repeated. The _optimal-edges_ are labeled as belonging to the final assembly (true)---all other edges are labeled false.
 
 === Overlap graph masking and partitioning
-Masking and partitioning are performed during training only, with the entire graph used for performing inference. Masking is performed as a form a data augmentation to cheaply produce different sets of reads and the corresponding overlap graph. For every training step, $0$--$20%$ of the overlap graph's nodes, and corresponding edges, are removed. This simulates varying levels of read coverage (number of times each base in the genome is sampled on average) up to the original $times #h(0em) 60$.
+Masking and partitioning are performed during training only, with the entire graph used for performing inference. Masking is performed as a form of data augmentation to cheaply produce different sets of reads and the corresponding overlap graph. For every training step, $0$--$20%$ of the overlap graph's nodes, and corresponding edges, are removed. This simulates varying levels of read coverage (number of times each base in the genome is sampled on average) up to the original $times #h(0em) 60$.
 
 Additionally, since the entire overlap graph contains $>100,000$ nodes, and cannot fit onto @gpu memory, `METIS` @metis-paper partitioning is used to divide the overlap graph. Note that inference is performed on the @cpu, which is able to access the system's abundant main memory, and so graph partitioning is not required.
 
@@ -807,7 +808,7 @@ $
 where $bold(W)^"n", bold(W)^"e" in RR^(D times D)$ are parameterized weight matrices. || denotes concatenation.
 
 #modelexplanation[
-  We refer to our custom attention-based formulation, which incorporates edge features, as @gatedge. Although there exist alternative @gat implementations incorporating edge features into the attention calculation, like PyTorch Geometric's @pytorch-geometric GATConv, GATConv does not allow edge to node messaging passing.
+  We refer to our custom attention-based formulation, which incorporates edge features, as @gatedge. Although there exist alternative @gat implementations incorporating edge features into the attention calculation, like PyTorch Geometric's GATConv @pytorch-geometric, GATConv does not allow edge to node message passing.
   
   Furthermore, a key theoretical limitation of the @gcn and @symgatedgcn architectures is that the transformations applied to the different nodes and edges in the neighborhood are the same. @gatedge, like the original @gat architecture it extends, implicitly enables assignment of different importances to nodes (and with @gatedge, edges) of the same neighborhood @gat-paper. This could improve the model's adaptability to various overlap graph artifacts. Additionally, @gatedge remains a computationally efficient architecture.
 ]
@@ -852,7 +853,7 @@ where $t in {1, 2, ..., T}$ refers to the $t$th nucleotide in $r_i$. $top$ is th
 $
   r_i^"encoded" = #smallcaps[Mamba] (bold(W)^"expand" r_i)
 $
-_Note that $r_i^"encoded"$ is a matrix that varies in size with the length of the read._ In order to obtain a fixed length, _whole_ read encoding, we take the last row of this matrix (indexing from 1):
+Note that $r_i^"encoded"$ is a matrix that varies in size with the length of the read. In order to obtain a fixed length, _whole_ read encoding, we take the last row of this matrix (indexing from 1):
 $
   m_i = r_i^"encoded" [n]
 $
@@ -898,7 +899,7 @@ We use the same formulation as @symgatedgcn-mambaedge, but replace the Mamba rea
 === Graph Adaptive Normalization Layer <sec:granola>
 Normalization has been shown to be critical for enhancing the training stability, convergence behavior, and overall performance of neural networks. Conventional normalization techniques such as BatchNorm @batch-norm, InstanceNorm @instancenorm, and LayerNorm @layernorm, have been widely adopted, but are not specifically designed to support graph-structured data. In fact, direct application of these standard normalization techniques can impair the expressive power of @gnn:pl, degrading performance significantly @granola-paper.
 
-Increasing the depth of a @gnn by stacking additional layers theoretically expands the class of functions it can represent, but repeated message passing operations can lead to node embeddings becoming indistinguishable---an effect known as over-smoothing @pairnorm. This observation is also theoretically motivated---graph convolution can be viewed as a type of Laplacian smoothing @laplacian-smoothing, and so its repeated application in @gnn layers leads to embeddings having similar values. Mitigating over-smoothing is the primary motivator for many graph-specific normalization layers (e.g. PairNorm @pairnorm and DiffGroupNorm @diffgroupnorm).
+Increasing the depth of a @gnn by stacking additional layers theoretically expands the class of functions it can represent, but repeated message passing operations can lead to node embeddings becoming indistinguishable---an effect known as over-smoothing @pairnorm. This observation is also theoretically motivated---graph convolution can be viewed as a type of Laplacian smoothing @laplacian-smoothing, and so its repeated application in @gnn layers leads to embeddings having similar values. Mitigating over-smoothing is the primary motivator for many graph-specific normalization layers (e.g. PairNorm @pairnorm, DiffGroupNorm @diffgroupnorm).
 
 Unfortunately, despite numerous efforts to develop graph-based normalization schemes, no method consistently outperforms the alternatives in all tasks and benchmarks. Furthermore, normalization schemes extended from traditional schemes such as BatchNorm and InstanceNorm, often reduce the expressive power of the @gnn @granola-paper.
 
@@ -947,7 +948,7 @@ $
 }) <alg:granola>]
 #place(top + center)[#granola]
 
-Having motivated the need for input-specific affine parameters, we need a method of calculating them from the input graph---this is simply another @gnn. Since commonly used @gnn architectures are at most as powerful as the @wl graph isomorphism heuristic @gin-paper, any normalization layer designed using them will be unable to distinguish all input graphs, and therefore will fail to adapt the normalization parameters correctly to suit the input.
+Having motivated the need for input-specific affine parameters, we need a method of calculating them from the input graph---this is simply another @gnn. Since commonly used @gnn architectures are at most as powerful as the #box[@wl graph isomorphism heuristic @gin-paper], any normalization layer designed using them will be unable to distinguish all input graphs, and therefore will fail to adapt the normalization parameters correctly to suit the input.
 
 More expressive architectures such as $k$-@gnn:pl @kgnn-paper, whose design is motivated by the generalization of 1-@wl to $k$−tuples of nodes ($k$-@wl), are accompanied by unacceptable computation and memory costs (e.g. $cal(O)(|V|^k)$ memory for higher-order @mpnn:pl, where $V$ is the number of nodes in the graph).
 
@@ -971,7 +972,7 @@ where all $W, b$ represent learnable parameters ($W_1 in RR^(D times 3D)$, $W_2 
 ]
 
 == End-to-end neural genome assembly
-In this project we also explore an wholly neural approach to genome assembly, where the @olc algorithm, along with overlap graph, is omitted. Allowing a neural network to define and control the entire assembly pipeline, rather than merely augmenting predefined stages, removes constraints and biases imposed by the traditional @olc framework.
+In this project we also explore a wholly neural approach to genome assembly, where the @olc algorithm, along with overlap graph, is omitted. Allowing a neural network to define and control the entire assembly pipeline, rather than merely augmenting predefined stages, removes constraints and biases imposed by the traditional @olc framework.
 
 Our architecture, @pgan is inspired by @ptrnet:pl @pointer-networks-paper that was designed to solve challenging geometric problems, including planar @tsp, making it a promising starting point for genome assembly. The general idea is that the model receives as input an unordered set of reads, and outputs a permutation of those reads (auto-regressively at test time), corresponding to the assembly.
 
@@ -979,9 +980,9 @@ Although this task superficially resembles a @s2s problem, conventional @s2s mod
 
 @fig:neural-genome-assembly-custom-model illustrates our architecture, which is split into an encoder and decoder. We begin by explaining the encoder. Assume we start with a set of $N$ reads, ${r_i | i in {1, 2, .., N}}$ (in #text(fill: blue.lighten(20%))[blue]), forming an unordered set. These are encoded _individually_, by either Mamba, or an Encoder-only Transformer @transformer-paper (both represented by *R*), to create a read embedding $e_i$ for each read $r_i$ (in #text(fill: orange)[orange]). Note that we also add a special @eos embedding, $e_(N + 1)$.
 
-In the decoder, we perform auto-regressive decoding. We start with the read sequence ordered so far (in #text(fill: purple)[purple]) (prepended with a special @bos token, $r_0$), $S = (r_0, r_a, r_b, ..., r_x)$ (where $a, b, ..., x$ represents some ordering of reads), and pass $S$ through another Mamba model. This produces encoded read sequence embeddings $D = (h_0, h_a, h_b, ..., h_x)$ (in #text(fill: red.lighten(25%))[pink]). These are then passed through a pooling layer that produces a hidden representation of the assembled sequence so far, $d$, by concatenating $"mean"(D)$ with the final embedding $h_x$.
+In the decoder, we perform auto-regressive decoding. We start with the embedding of the read sequence ordered so far (in #text(fill: purple)[purple]) (prepended with a @bos embedding, $e_0$), $S = (e_0, e_a, e_b, ..., e_x)$ (where $a, b, ..., x$ represents some ordering of reads), and pass $S$ through another Mamba/Transformer sequence decoder. This produces encoded read sequence embeddings $D = (h_0, h_a, h_b, ..., h_x)$ (in #text(fill: red.lighten(25%))[pink]), which are passed through a pooling layer producing a hidden representation of the assembled sequence so far, $d$, by concatenating $"mean"(D)$ with the final embedding $h_x$.
 
-Inspired by @ptrnet, the attention mechanism is then used to get attention scores of $d$ over all encoded read embeddings $e_i$. Additionally, we compute an overlap similarity score of each $e_i$ with $d$, and integrate this information into a separate attention head. Attention scores across all heads are then aggregated, with the next read in the sequence (dotted arrow) decided by the $e_i$ with maximal attention.
+Inspired by @ptrnet, the attention mechanism is then used to get attention scores of $d$ over all encoded read embeddings $e_i$. Additionally, we compute an overlap similarity score of each $e_i$ with $d$, and integrate this information into a separate attention head. Attention scores across all heads are then aggregated, with the next read in the sequence (dotted #text(fill: purple)[purple] arrow) decided by the $e_i$ with maximal attention.
 
 Apart from the use of overlap similarity as additional information integrated into a separate attention head, our approach also differs from @ptrnet:pl in the encoder. We respect the unordered-set nature of the input collection of reads, and thus do not apply an @rnn like @ptrnet, as that breaks permutation equivariance of the representations $e_i$ produced.
 
@@ -1010,7 +1011,7 @@ In this section, we present and discuss the results of four experiments. We:
 
 + Examine if @granola can help improve performance, especially during inference where the input overlap graphs are much larger than the partitioned subgraphs used during training.
 
-+ Analyze the Mamba's potential in extracting richer features directly from raw nucleotide-level read data, and improving model performance.
++ Analyze Mamba's potential in extracting richer features directly from raw nucleotide-level read data, and improving model performance.
 
 == Training, validation, and testing datasets <sec:datasets>
 @fig:dataset_summary provides details for the (maternal) chromosomes (and specifically the regions within them) used as the training, validation, and testing datasets. 
@@ -1083,7 +1084,7 @@ We postulate that the underlying reason for this performance parity likely lies 
 
 // Regarding global graph structure, exploring long-range dependency modelling in overlap graphs may be more important that initially thought. For example, by propagating substructure information from one bubble end-point to the other, the ambiguity regarding correct path selection in the bubble could be resolved. Additionally, such long-range information may make substructure detection easier.
 
-One of the key features of @gat is is the implicit ability of the model to assign different importances to nodes of the same neighborhood @gat-paper. We initially hypothesized that different types of graph artifacts would correspond to distinct substructures, requiring the model to selectively focus on different subsets of nodes and edges, playing to the strengths of the @gat architecture. Surprisingly, we empirically find this assumption to either be entirely false, or the weak expressive power of the networks preventing the model from identifying relevant features in the first place.
+One of the key features of @gat is the implicit ability of the model to assign different importances to nodes of the same neighborhood @gat-paper. We initially hypothesized that different types of graph artifacts would correspond to distinct substructures, requiring the model to selectively focus on different subsets of nodes and edges, playing to the strengths of the @gat architecture. Surprisingly, we empirically find this assumption to either be entirely false, or the weak expressive power of the networks preventing the model from identifying relevant features in the first place.
 
 Furthermore, we find evidence that the @gat\-based architectures are over-fitting their training data. The baseline @symgatedgcn architecture convincingly outperforms the alternatives on the chromosome 9 test set (@tab:similar_test_performance shows significantly higher inverse precision, recall, and F1 score). This test set is significantly larger than the training overlap graph ($~3 #h(0em) times$ the size) (@fig:dataset_summary), and thus contains additional diversity in graph artifacts that can reveal over-fitting behavior.
 The increased model capacity brought by the attention mechanism, in comparison to convolution, makes the model vulnerable to over-fitting. We believe that @gatedge's and @symgatedge's observed loss in performance on the test set is due to over-fitting as all three architectures have comparable performance on the smaller, and less diverse, training and validation datasets (@fig:similar_validation_performance).
@@ -1155,7 +1156,7 @@ Since the symmetry mechanism is particularly relevant for genome assembly, which
   caption: [@symgatedgcn trained and validated on overlap graphs generated with additional @ont @ul reads (@symgatedgcn (@ul) in #text(fill: orange)[orange]) outperforms @symgatedgcn trained and validated on overlap graphs generated solely using @pacbio @hifi reads (in #text(fill: blue.darken(25%))[blue]) across both chromosomes 11 and 22. The darker line indicates the mean across $5$ runs, with the highlighted region indicating a $95%$ confidence interval.]
 )]
 
-All three architectures tested, @symgatedgcn, @gatedge, and @symgatedge, offer substantial performance gains when operating on overlap graphs augmented with ultra-long data. For example, on validation chromosome 11, we see that @symgatedgcn achieves higher accuracy (@subfig:better_acc_11), less false negatives (@subfig:better_fn_11) and far fewer false positives (@subfig:better_fp_11) compared to its performance on overlap graphs lacking ultra-long data. We observe a similar trend with validation chromosome 22---substantial decrease in false positives (@subfig:better_fp_22), although the accuracy (@subfig:better_acc_22) and false negatives exhibit limited change, due to already excellent baseline performance (@subfig:better_fn_22).
+All three architectures tested, @symgatedgcn, @gatedge, and @symgatedge, offer substantial performance gains when operating on overlap graphs augmented with ultra-long data. For example, on validation chromosome 11, we see that @symgatedgcn achieves higher accuracy (@subfig:better_acc_11), fewer false negatives (@subfig:better_fn_11) and far fewer false positives (@subfig:better_fp_11) compared to its performance on overlap graphs lacking ultra-long data. We observe a similar trend with validation chromosome 22---substantial decrease in false positives (@subfig:better_fp_22), although the accuracy (@subfig:better_acc_22) and false negatives exhibit limited change, due to already excellent baseline performance (@subfig:better_fn_22).
 
 This success extends to the test set where all three models see a significant uplift to the inverse precision and inverse F1 score, with negligible impact on other metrics such as accuracy. For example, with @symgatedgcn, ultra-long read data helps to improve inverse precision from $41.2%$ to $52.3%$, and the inverse F1 score from $52.5%$ to $60.4%$ (@tab:symgatedgcn_test). The complete suite of data can be found @app:chr-19-ul-granola-test, which shows analogous performance improvements for @gatedge and @symgatedge. These findings provide compelling evidence that all tested @gnn:pl are successfully able to leverage ultra-long data to improve erroneous edge detection in overlap graphs.
 
@@ -1272,10 +1273,6 @@ In addition to this, the performance uplift of @symgatedgcn-randomedge over @sym
 
 However, despite the positive results observed with the introduction of both Mamba and the random edge features, we remain cautious regarding their efficacy. Due to compute and memory limitations, the input overlap graphs were heavily subsampled, and the read profile used to simulate reads was modified to generate shorter reads. This was required to compensate for Mamba's substantial resource requirements. Nevertheless, this promising result holds value for future work.
 
-== Experimenting with end-to-end neural genome assembly
-
-
-
 // Chr21 (trained on 15):
 // SymGatedGCN:
 // acc: (0.984650974597143, 0.00433200250243265), precision: (0.9998194483804524, 7.827066227169826e-05), recall: (0.9847941461694437, 0.004409870891316927), f1: (0.99224582346533, 0.002202133403092189)
@@ -1309,6 +1306,28 @@ However, despite the positive results observed with the introduction of both Mam
   caption: [@symgatedgcn-mambaedge outperforms the baseline @symgatedgcn and @symgatedgcn-randomedge models, achieving higher inverse precision and inverse F1 score #highlighted. The results show the mean and standard deviation across 5 runs, with chromosome 15 used for training, and 21 as the testing dataset for these metrics. Best results in *bold*. $arrow.t$ indicates _higher is better_.]
   ) <tab:mamba-test>
 ]
+
+== Experimenting with end-to-end neural genome assembly
+We demonstrate the feasibility of end-to-end neural genome assembly by showcasing the promising results of our @pgan architecture on a simplified version of the genome assembly problem, where all reads are perfect and of a fixed length. However, this problem is still challenging as the neural network needs to find the correct permutation of reads corresponding to the original reference.
+
+=== Dataset generation
+The _entirety_ of human chromosomes 19, 18, and 21, is utilized for training, validation, and testing respectively. For each chromosome, we prepare the dataset by partitioning it into contiguous regions 10 @kb long---each of these regions forms a minibatch. Then, within each region, we randomly sample reads with perfect accuracy. The reads are then permuted under a random permutation $P$, and the target is to predict the inverse permutation $P^(-1)$, such that $P P^(-1) = I = P^(-1) P$, where $I$ represents the identity permutation. Note that the minibatch reads and permutations are randomized every epoch.
+
+=== Comparing Mamba and Transformer performance
+#place(top + center)[
+  *Mamba outperforms Transformer #linebreak() by avoiding overfitting to the training dataset*
+  #subpar.grid(
+    columns: 2,
+    show-sub-caption: sub-caption-styling,
+    figure(image("graphics/neural-genome-assembly/key=train_loss_train=19_valid=18.png"), caption: [Training Loss (Chromosome 19)]), <fig:mamba-transformer-training>,
+    figure(image("graphics/neural-genome-assembly/key=validation_loss_train=19_valid=18.png"), caption: [Validation Loss (Chromosome 18)]), <fig:mamba-transformer-validation>,
+    caption: [Mamba (in #text(fill: orange)[orange]) performs similarly to Transformer (in #text(fill: blue.darken(25%))[blue]) during training, but vastly outperforms it during validation. The darker line indicates the mean across $5$ runs, with the highlighted region indicating a $95%$ confidence interval.]
+  )
+]
+
+We investigate two options for encoding reads, and decoding read sequences within the @pgan architecture---Mamba and Transformer. Although @fig:mamba-transformer-training shows that both models have comparable performance during training, we see diverging loss from the Transformer during validation (@fig:mamba-transformer-validation), while the Mamba version generalizes significantly better. This result extends to the chromosome 21 test set, where the Mamba-based model has an average of $72.4% (plus.minus 10.6%)$ accuracy, compared to Transformer's $21.8% (plus.minus 10.8%)$, across $5$ runs.
+
+We theorize that this is a result of a lack of a canonical tokenization scheme for @dna that effectively generalizes to unseen, de novo sequences, in contrast to natural language. Consequently, both models are constrained to operate directly on raw nucleotide read data, where the Mamba model is particularly effective. Although there exist @dna tokenizers like DNABERT(2) @dnabert @dnabert-2, and entropy-based tokenization schemes such as the Byte Latent Transformer @byte-latent-transformer, we delegate their exploration to future work, as tokenization is not the focus of this project. Crucially, this result also reinforces our choice of using Mamba in earlier experiments discussed in this dissertation.
 
 
 

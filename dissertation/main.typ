@@ -797,12 +797,12 @@ The standard @gat @gat-paper architecture only focusses on node features, and so
 
 First, updated edge features are calculated identically to @symgatedgcn (@eq:edge_features).
 
-In contrast to the @gat architecture with a single shared attention mechanism, there are now two mechanisms, $a^"n"$ and $a^"e"$, which compute the attention coefficients for nodes and edges respectively ($a^"n", a^"e": RR^D times RR^D times RR^D -> RR$). Each mechanism is implemented via separate, single-layer feed-forward neural networks. The attention coefficients are given as follows:
+In contrast to @gat's single shared attention mechanism, there are now two mechanisms, $a^"n"$ and $a^"e"$, which compute the attention coefficients for nodes and edges respectively ($a^"n", a^"e": RR^D times RR^D times RR^D -> RR$). Each mechanism is implemented via separate, single-layer feed-forward neural networks. The attention coefficients are given as follows:
 $
   c_(i j)^"n" &= a^"n" (h_j^l || e_(j i)^l || h_i^l) #h(5em)
   c_(i j)^"e" &= a^"e" (h_j^l || e_(j i)^l || h_i^l) \
 $
-where $c_(i j)^"n"$ indicates the importance of node $j$'s features to node $i$, and $c_(i j)^"e"$ indicates the importance of the edge $e_(j i): j -> i$ to node $i$. $||$ denotes the concatenation operator along the hidden dimension. These coefficients are then normalized over all $j$ to make them comparable across nodes, via softmax:
+where $c_(i j)^"n"$ indicates the importance of node $j$'s features to node $i$, and $c_(i j)^"e"$ indicates the importance of the edge $e_(j i): j -> i$ to node $i$. $||$ denotes concatenation along the hidden dimension. These coefficients are then normalized over all $j$ to make them comparable across nodes, via softmax:
 $
   alpha_(i j)^"n" &= "softmax"_j (c_(i j)^"n") = (exp (c_(i j)^"n")) / (sum_(k in neighborhood_i) exp (c_(i k)^"n")) \
   alpha_(i j)^"e" &= "softmax"_j (c_(i j)^"e") = (exp (c_(i j)^"e")) / (sum_(k in neighborhood_i) exp (c_(i k)^"e")) \
@@ -817,11 +817,11 @@ where $bold(W)^"n", bold(W)^"e" in RR^(D times D)$ are parameterized weight matr
 #modelexplanation[
   We refer to our custom attention-based formulation, which incorporates edge features, as @gatedge. Although there exist alternative @gat implementations incorporating edge features into the attention calculation, like PyTorch Geometric's GATConv @pytorch-geometric, GATConv does not allow edge to node message passing.
   
-  Furthermore, a key theoretical limitation of the @gcn and @symgatedgcn architectures is that the transformations applied to the different nodes and edges in the neighborhood are the same. @gatedge, like the original @gat architecture it extends, implicitly enables assignment of different importances to nodes (and with @gatedge, edges) of the same neighborhood @gat-paper. This could improve the model's adaptability to various overlap graph artifacts. Additionally, @gatedge remains a computationally efficient architecture.
+  Furthermore, a key theoretical limitation of the @gcn and @symgatedgcn architectures is that the transformations applied to the different nodes and edges in the neighborhood are the same. @gatedge, like the original @gat architecture it extends, implicitly enables assignment of different importances to nodes (and with @gatedge, edges) of the same neighborhood @gat-paper. This could improve the model's adaptability to various overlap graph artifacts.
 ]
 
 === SymGAT+Edge <sec:symgat-edge>
-With the design of this architecture, we aim to combine the symmetry mechanism from @symgatedgcn with the @gatedge architecture mentioned previously. This is done by first calculating the updated edge features $e_(i j)^(l + 1)$ identically to @symgatedgcn (@eq:edge_features).
+With @symgatedge, we aim to combine the symmetry mechanism from @symgatedgcn with the @gatedge architecture mentioned previously. This is done by first calculating the updated edge features $e_(i j)^(l + 1)$ identically to @symgatedgcn (@eq:edge_features).
 
 Next, a copy of the input graph $G = (V, E)$ is made, $G_"rev" = (V, E_"rev")$, such that:
 $ forall i, j in V. thick i -> j in E <==> j -> i in E_"rev" $
@@ -831,19 +831,19 @@ $
 $
 
 #modelexplanation[
-  Integrating the symmetry mechanism from @symgatedgcn into @gatedge, to form @symgatedge, helps to increase expressivity as messages passed along edges cannot be distinguished from messages passed along the reversed direction by the attention mechanism either. The model is just provided with a graph, with no information regarding what constitutes a forward and reverse edge.
+  Integrating the symmetry mechanism from @symgatedgcn into @gatedge, to form @symgatedge, helps increase expressivity as messages passed along edges cannot be distinguished from messages passed along the reversed direction by the attention mechanism either. The model is just provided with a graph, with no information regarding what constitutes a forward and reverse edge.
 ]
 
 === SymGatedGCN+Mamba <sec:symgatedgcn-mamba>
-The standard input features (@sec:standard_input_features) used in prior work on neural genome assembly extract normalized overlap length and similarity from pairs of overlapping reads. However, the models have access to only these summary statistics, not the raw base-level read data, which could enable the model to extract more complex features, for example by capturing some notion of what is biologically plausible.
+The models so far only have access to overlapping reads' summary statistics (normalized overlap length and similarity) via the standard input features (@sec:standard_input_features). Providing the raw base-level read data could enable the model to extract more complex features, for example by capturing some notion of biologically plausibility.
 
-While standard encoder-only Transformers @transformer-paper are the contemporary choice for sequence-to-embedding tasks like this @bert-paper, a fundamental drawback makes them unsuitable---their quadratic complexity with respect to the sequence length. Subquadratic-time attention mechanisms have been unable to match the performance of the original attention mechanism on modalities such as language @mamba. Each read is upto $10s$ of @kb long for @pacbio @hifi reads, and there are $1000$s of reads even in the partitioned overlap graph used during training (note that we cannot partition the graph to an arbitrarily small number of nodes without sustaining major losses in performance as context around the graph artifact is lost).
+While standard encoder-only Transformers @transformer-paper are the contemporary choice for sequence-to-embedding tasks like this @bert-paper, their quadratic complexity with respect to the sequence length is the fundamental drawback making them unsuitable. Subquadratic-time attention mechanisms have been unable to match the performance of the original attention mechanism on modalities such as language @mamba. Each read is upto $10s$ of @kb long for @pacbio @hifi reads, and there are $1000$s of reads even in the partitioned overlap graph used during training (note that we cannot partition the graph to an arbitrarily small number of nodes without significant performance loss as context around the graph artifact is lost).
 
 On the other hand, @rnn architectures such as @lstm @lstm-review have linear complexity, but have traditionally struggled with modelling such long sequences. The key to the efficacy of Transformers, is the self-attention mechanism's ability to effectively route information from across the sequence, regardless of the distance.
 
 As a result, we turn to the Mamba architecture, which with its selectivity mechanism and parallel scan implementation, is able to model complex, long sequences, without the computational cost of Transformers.
 
-Additionally, another issue mitigated by the use of Mamba is that there is no canonical tokenization for a sequence of bases. Operating directly on the base-level sequence is important for de novo sequencing, where we have no knowledge of the underlying genome, due to the absence of a reference. The Mamba model has been previously shown to operate well directly on base-level sequences on tasks involving @dna modelling @mamba.
+Additionally, Mamba also mitigates the issue of the lack of a canonical tokenization for a sequence of bases. Operating directly on the base-level sequence is important for de novo sequencing, where we have no knowledge of the underlying genome, due to the absence of a reference. Mamba has been previously shown to operate well directly on base-level sequences on tasks involving @dna modelling @mamba.
 
 The @symgatedgcn-mamba model uses the standard input features (from @sec:standard_input_features) in addition to the Mamba encoding of the reads as additional node features. Assume we are given an overlap graph $G = (V, E)$. For read $r_i in {"A, T, C, G"}^T$, represented by node $v_i$, the Mamba read encoding node feature $m_i in bb(R)^D$ is generated as follows ($D$ is size of the hidden dimension).
 
@@ -874,11 +874,11 @@ where all $W, b$ represent learnable parameters ($W_1 in RR^(D times 2D)$, $W_2 
 The intermediate node embeddings, and the unmodified edge embeddings $e_(i j)^l$ are then passed to a @symgatedgcn layer, that outputs $h_i^(l + 1)$ and $e_(i j)^(l + 1)$, and acts as the output of @symgatedgcn-mamba.
 
 #modelexplanation[
-  The primary goal of @symgatedgcn-mamba is to explore whether the model can exploit the raw read data to generate new (node) features that are useful in resolving overlap graph artifacts. Mamba was chosen as the read encoding model of choice due to its near-linear time complexity, long-range dependency modelling capabilities, and promising results on adjacent @dna modelling tasks.
+  @symgatedgcn-mamba aims to explore whether the model can exploit raw read data to generate new (node) features that are useful in resolving overlap graph artifacts. Mamba was chosen due to its near-linear time complexity, long-range dependency modelling capabilities, and promising results on adjacent @dna modelling tasks.
 ]
 
 === SymGatedGCN+MambaEdge <sec:symgatedgcn-mamba-edge>
-We use the same Mamba read encoding node feature $m_i in bb(R)^D$ as in @symgatedgcn-mamba, but remove the dependency on standard edge features (@sec:standard_input_features). We no longer form an intermediate node embedding, but instead calculate an intermediate edge embedding $e_(i j) '$:
+We use the same Mamba read encoding node features $m_i in bb(R)^D$ as in @symgatedgcn-mamba, but remove the dependency on standard edge features (@sec:standard_input_features). We no longer form an intermediate node embedding, but instead calculate an intermediate edge embedding $e_(i j) '$:
 $
   e_(i j) ' = W_2 (thin #relu (W_1 (m_i || m_j) + b_1)) + b_2
 $
@@ -964,7 +964,7 @@ More expressive architectures such as $k$-@gnn:pl @kgnn-paper, whose design is m
 @granola facilitates an adaptive normalization layer by allowing its affine parameters $gamma_(b, n, d)^l, beta_(b, n, d)^l in RR$ to be dependent on the input-graph, by calculating them using a maximally expressive, shallow @gnn layer---$"GNN"_"Norm"$. @alg:granola proves a detailed overview of @granola.
 
 #modelexplanation[
-  @granola has the potential to significantly improve the performance on this task as each overlap graph contains a unique set of artifacts (including none at all), so input-adaptivity is important. Additionally, prior work @lovro used BatchNorm/InstanceNorm, which the @granola authors show can lead to a loss in model capacity @granola-paper.
+  @granola's input-adaptivity feature has the potential to improve performance on this task as each overlap graph contains a unique set of artifacts (including none at all). Additionally, prior work @lovro used BatchNorm/InstanceNorm, which the @granola authors show can lead to a loss in model capacity @granola-paper.
 ]
 
 === Complete model architecture
@@ -974,8 +974,8 @@ $
 $
 where all $W, b$ represent learnable parameters ($W_1 in RR^(D times 3D)$, $W_2 in RR^(32 times D)$, $W_3 in RR^(1 times 32)$, $b_1 in RR^D$, $b_2 in RR^32$, and $b_3 in RR$), and $D$ is the hidden dimension. $||$ denotes the concatenation operator. $h_i^"last"$, $h_j^"last"$ are the final-layer node embeddings, and $e_(i j)^"last"$ refers to the final-layer edge embeddings.
 
-#place(top + center)[#v(-1em)
-  #figure(image("graphics/model_architecture.svg", height: 4cm), caption: [Illustration of the encoder-processor-decoder model architecture used. Note that the @gnn layer can be substituted with @symgatedgcn, GAT, or SymGAT.]) <fig:model_architecture>
+#place(top + center)[
+  #figure(image("graphics/model_architecture.svg"), caption: [Illustration of the encoder-processor-decoder model architecture used. Note that the @gnn layer can be substituted with @symgatedgcn, GAT, or SymGAT.]) <fig:model_architecture>
 ]
 
 == End-to-end neural genome assembly
@@ -985,7 +985,7 @@ Our architecture, @pgan is inspired by @ptrnet:pl @pointer-networks-paper that w
 
 Although this task superficially resembles a @s2s problem, conventional @s2s models are unsuitable since the output token "vocabulary" (the indices of the input reads) is dependent on the length of the input. This problem of the number of target classes in each step of the output depending on input length is handled by @ptrnet:pl through the use of the attention mechanism over each element (read) of the input. The element with the maximum attention score is the next token. Note that this approach also permits parallel training/teacher forcing in the same manner as training a decoder-only transformer.
 
-@fig:neural-genome-assembly-custom-model illustrates our architecture, which is split into an encoder and decoder. We begin by explaining the encoder. Assume we start with a set of $N$ reads, ${r_i | i in {1, 2, .., N}}$ (in #text(fill: blue.lighten(20%))[blue]), forming an unordered set. These are encoded _individually_, by either Mamba, or an Encoder-only Transformer @transformer-paper (both represented by *R*), to create a read embedding $e_i$ for each read $r_i$ (in #text(fill: orange)[orange]). Note that we also add a special @eos embedding, $e_(N + 1)$.
+@fig:neural-genome-assembly-custom-model illustrates our architecture, which is split into an encoder (in #text(fill: yellow.darken(15%))[yellow]) and decoder (in #text(fill: blue.darken(15%))[blue]). We begin by explaining the encoder. Assume we start with a set of $N$ reads, #box[${r_i | i in {1, 2, .., N}}$] (in #text(fill: blue.lighten(20%))[blue]), forming an unordered set. These are encoded _individually_, by either Mamba, or an Encoder-only Transformer @transformer-paper (both represented by *R*), to create a read embedding $e_i$ for each read $r_i$ (in #text(fill: orange)[orange]). Note that we also add a special @eos embedding, $e_(N + 1)$.
 
 In the decoder, we perform auto-regressive decoding. We start with the embedding of the read sequence ordered so far (in #text(fill: purple)[purple]) (prepended with a @bos embedding, $e_0$), $S = (e_0, e_a, e_b, ..., e_x)$ (where $a, b, ..., x$ represents some ordering of reads), and pass $S$ through another Mamba/Transformer sequence decoder. This produces encoded read sequence embeddings $D = (h_0, h_a, h_b, ..., h_x)$ (in #text(fill: red.lighten(25%))[pink]), which are passed through a pooling layer producing a hidden representation of the assembled sequence so far, $d$, by concatenating $"mean"(D)$ with the final embedding $h_x$.
 
@@ -994,12 +994,12 @@ Inspired by @ptrnet, the attention mechanism is used to get attention scores of 
 Apart from integrating overlap similarity into a separate attention head, our encoder also differs from @ptrnet. Respecting the unordered-set nature of the input collection of reads, we avoid applying an @rnn like @ptrnet that breaks permutation equivariance of the representations $e_i$.
 
 #place(top + center)[
-  #v(-2em)
   #subpar.grid(
-    columns: (0.65fr, 1fr),
+    columns: (0.85fr, 1fr),
+    gutter: 2em,
     show-sub-caption: sub-caption-styling,
-    figure([#image("graphics/ptr-net.png") #v(0.5cm)], caption: [@ptrnet]), <fig:ptr-net>,
-    figure(image("graphics/neural-genome-assembly.svg", height: 6cm), caption: [@pgan]), <fig:neural-genome-assembly-custom-model>,
+    figure([#image("graphics/ptr-net.png") #v(0.65cm)], caption: [@ptrnet]), <fig:ptr-net>,
+    figure(image("graphics/neural-genome-assembly.svg", height: 7cm), caption: [@pgan]), <fig:neural-genome-assembly-custom-model>,
     caption: [@pgan differs from @ptrnet is two key ways. First, we ensure to preserve the permutation equivariant nature of the encoder by not using an @rnn, and instead encoding each read individually. Second, we encode additional overlap information into the attention mechanism by exploiting attention heads.]
   )
 ]
@@ -1023,9 +1023,9 @@ In this section, we present and discuss the results of five experiments. We:
 + Survey the feasibility of end-to-end neural genome assembly, by testing @pgan on a simplified genome assembly task.
 
 == Training, validation, and testing datasets <sec:datasets>
-@fig:dataset_summary provides details for the (maternal) chromosomes (and specifically the regions within them) used as the training, validation, and testing datasets. 
+@fig:dataset_summary provides details for the (maternal) chromosomes (and specifically the regions within them) used for training, validation, and testing. 
 
-The real-life overlap graphs for chromosomes chosen for both training and evaluation often consist of complex tangles, and are thus the most challenging to assemble. An acrocentric chromosome is one where the centromere, the region of a chromosome that holds sister chromatids together, is not located centrally on the chromosome, but towards one end. We utilize both non-acrocentric, and acrocentric chromosomes, as acrocentric chromosomes contain @rdna arrays @rdna-acrocentric harboring long tandem repeats that lead to distinct graph artifacts.
+The real-life overlap graphs for chromosomes chosen, for both training and evaluation, often consist of complex tangles, and are thus the most challenging to assemble. An acrocentric chromosome is one where the centromere, the region of a chromosome that holds sister chromatids together, is not located centrally on the chromosome, but towards one end. We utilize both non-acrocentric, and acrocentric chromosomes, as acrocentric chromosomes contain @rdna arrays @rdna-acrocentric harboring long tandem repeats that lead to distinct graph artifacts.
 
 Furthermore, the centromeric region of each of these chromosomes is extracted for generating reads, where most assembly complexity arises @chm13-acrocentric. By training on only a small portion of the chromosomes present in the genome, we showcase the positive generalization capabilities of the @gnn\-based assembly paradigm.
 
@@ -1071,7 +1071,7 @@ Additionally, we also utilize a number of commonly used metrics to assess the qu
 - *Number of indels*: the mean number of times where the assembly has either a base insertion or deletion compared to the reference, per $100$ @kb. _Lower is better_.
 
 == Performance of alternative GNN layers <sec:performance_alt_gnn_layers>
-Alternative @gnn layers fail to significantly and consistently outperform the baseline @symgatedgcn model on validation overlap graphs built solely using @pacbio @hifi long-reads. We see from @fig:similar_validation_performance that all three models: @symgatedgcn, @gatedge, and @symgatedge exhibit comparable performance, with overlapping $95%$ confidence intervals. All models achieve accuracy $>80%$, with a false positive rate of $~30%$, and a false negative rate of $~10%$, across both validation chromosomes 11 and 22.
+Alternative @gnn layers fail to significantly and consistently outperform the baseline @symgatedgcn on validation overlap graphs built solely using @pacbio @hifi long-reads. We see from @fig:similar_validation_performance that all three models: @symgatedgcn, @gatedge, and @symgatedge exhibit comparable performance, with overlapping $95%$ confidence intervals. All models achieve accuracy $>80%$, with a false positive rate of $~30%$, and a false negative rate of $~10%$, across both validation chromosomes 11 and 22.
 
 We postulate that the underlying reason for this performance parity likely lies in the shared expressivity limitations of these architectures. None of the architectures exceed the graph distinguishing power of the (directed) 1-@wl test, and so share the same expressivity upper bound. Consequently, all models tested exhibit the same limitations regarding detection of local subgraph structures.
 
@@ -1093,9 +1093,9 @@ We postulate that the underlying reason for this performance parity likely lies 
 
 // Regarding global graph structure, exploring long-range dependency modelling in overlap graphs may be more important that initially thought. For example, by propagating substructure information from one bubble end-point to the other, the ambiguity regarding correct path selection in the bubble could be resolved. Additionally, such long-range information may make substructure detection easier.
 
-One of the key features of @gat is the implicit ability of the model to assign different importances to nodes of the same neighborhood @gat-paper. We initially hypothesized that different types of graph artifacts would correspond to distinct substructures, requiring the model to selectively focus on different subsets of nodes and edges, playing to the strengths of the @gat architecture. Surprisingly, we empirically find this assumption to either be entirely false, or the weak expressive power of the networks preventing the model from identifying relevant features in the first place.
+One of @gat's key features is the implicit ability to assign different importances to nodes of the same neighborhood @gat-paper. We initially hypothesized that different types of graph artifacts would correspond to distinct substructures, requiring the model to selectively focus on different subsets of nodes and edges, playing to the strengths of the @gat architecture. Surprisingly, we empirically find this assumption to either be entirely false, or the weak expressive power of the networks preventing the model from identifying relevant features in the first place.
 
-Furthermore, we find evidence that the @gat\-based architectures are over-fitting their training data. The baseline @symgatedgcn architecture convincingly outperforms the alternatives on the chromosome 9 test set (@tab:similar_test_performance shows significantly higher inverse precision, recall, and F1 score). This test set is significantly larger than the training overlap graph ($~3 #h(0em) times$ the size) (@fig:dataset_summary), and thus contains additional diversity in graph artifacts that can reveal over-fitting behavior.
+Furthermore, we find evidence that the @gat\-based architectures are over-fitting their training data. The baseline @symgatedgcn convincingly outperforms the alternatives on the chromosome 9 test set (@tab:similar_test_performance shows significantly higher inverse precision, recall, and F1 score). This test set is significantly larger than the training overlap graph ($~3 #h(0em) times$ the size) (@fig:dataset_summary), and thus contains additional diversity in graph artifacts that can reveal over-fitting behavior.
 The increased model capacity brought by the attention mechanism, in comparison to convolution, makes the model vulnerable to over-fitting. We believe that @gatedge's and @symgatedge's observed loss in performance on the test set is due to over-fitting as all three architectures have comparable performance on the smaller, and less diverse, training and validation datasets (@fig:similar_validation_performance).
 
 Besides the previously discussed issues, another peculiarity we observe is that @gatedge and @symgatedge exhibit almost identical performance on both the validation (@fig:similar_validation_performance) and test (@tab:similar_test_performance) sets, when we expect @symgatedge to perform significantly better. The symmetry mechanism incorporates message passing in both the forward and reverse direction of the edges, in a manner that permits the model to distinguish the directionality of the information flow (which would not be possible via message passing on undirected edges). This symmetry mechanism, originally from the @dirgnn framework @dir-gnn-paper, provably makes the network equivalent in power to the _directed_ @wl test---strictly more expressive than standard @mpnn:pl.
@@ -1354,7 +1354,9 @@ This chapter summaries the experiment results, and proposes directions for futur
 In summary, this project was successful in meeting all of its original aims. We now present each goal, the contributions made towards that goal, and insights gained in the process.
 
 #let aim_achieved = it => [
+  #v(2em)
   #box(fill: green.lighten(90%), inset: 1em, stroke: green, radius: 1em, width: 100%)[#it]
+  #v(1em)
 ]
 
 #aim_achieved[
@@ -1387,6 +1389,8 @@ Mamba was used to translate raw base-level reads into fixed-length embeddings. T
 ]
 
 We introduced a novel architecture, @pgan, which successfully demonstrated the feasibility of end-to-end neural genome assembly in a simplified (yet still challenging) scenario where reads are perfectly accurate. Two variants of the architecture were evaluated---one utilizing Mamba, and the other Transformer. The Mamba-based model performed significantly better, which we hypothesize is due to its ability to operate more effectively on raw base-level data, in the absence of any canonical tokenization scheme for de novo @dna sequences.
+
+#pagebreak()
 
 == Future work
 This project reveals several compelling directions for future work. The first direction is a more concrete analysis of the importance of highly expressive @gnn:pl for layout in genome assembly. Even though higher expressivity architectures like $k$-@gnn:pl are impractical for general use, observing their performance on this task would provide an objective baseline for the comparing the use of more computationally efficient, expressive @gnn architectures, and reveal the extent to which expressiveness is critical for this task. 

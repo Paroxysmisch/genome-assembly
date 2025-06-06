@@ -7,3 +7,6 @@
 [submodule "mamba_pytorch"]
 	path = mamba_pytorch
 	url = git@github.com:alxndrTL/mamba.py.git
+[submodule "neural-genome-assembly"]
+	path = neural-genome-assembly
+	url = git@github.com:Paroxysmisch/neural-genome-assembly.git

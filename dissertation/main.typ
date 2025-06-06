@@ -15,8 +15,16 @@
 #set heading(numbering: "1")
 #set page(background: [#v(30%) #image("graphics/chr19.png", width: 75%, height: 45%, fit: "contain")])
 
-#align(right)[
-  #text(size: 1.5em)[Yash Shah]
+#let anonymize = false
+
+#if not anonymize [
+  #align(right)[
+    #text(size: 1.5em)[Yash Shah]
+  ]
+] else [
+  #align(right)[
+    #text(size: 1.5em)[2496V]
+  ]
 ]
 
 #v(5%)
@@ -28,7 +36,7 @@
   #set par(spacing: 0.75em)
   Computer Science Tripos, Part III
 
-  Gonville & Caius College
+  #if not anonymize [Gonville & Caius College]
 
   June 2025
 ]
@@ -75,11 +83,17 @@ Main chapters word count: #total-words
 
 #title[Declaration]
 
-I, Yash Shah of Gonville & Caius College, being a candidate for Part III of the Computer Science Tripos, hereby declare that this report and the work described in it are my own work, unaided except as may be specified below, and that the report does not contain material that has already been used to any substantial extent for a comparable purpose. In preparation of this report, I adhered to the Department of Computer Science and Technology AI Policy. I am content for my report to be made available to the students and staff of the University.
-
-Signed: Yash Shah
-
-Date: 6 June 2025
+#if not anonymize [
+  I, Yash Shah of Gonville & Caius College, being a candidate for Part III of the Computer Science Tripos, hereby declare that this report and the work described in it are my own work, unaided except as may be specified below, and that the report does not contain material that has already been used to any substantial extent for a comparable purpose. In preparation of this report, I adhered to the Department of Computer Science and Technology AI Policy. I am content for my report to be made available to the students and staff of the University.
+  
+  Signed: Yash Shah
+  
+  Date: 6 June 2025
+] else [
+  I, 2496V, being a candidate for Part III of the Computer Science Tripos, hereby declare that this report and the work described in it are my own work, unaided except as may be specified below, and that the report does not contain material that has already been used to any substantial extent for a comparable purpose. In preparation of this report, I adhered to the Department of Computer Science and Technology AI Policy. I am content for my report to be made available to the students and staff of the University.
+  
+  Date: 6 June 2025
+]
 
 #show: make-glossary
 #import "glossary.typ": entry-list
@@ -88,17 +102,19 @@ Date: 6 June 2025
 
 #pagebreak()
 
+#if not anonymize [
+  #title[Acknowledgements]
+  
+  I would like to thank my supervisors Dobrik Georgiev, Lovro Vrček, Martin Schmitz, Rishabh Jain, and Pietro Liò for their immense support and advice throughout this project. Without them, this project would not have been possible.
+  
+  I would also like to thank my Directors of Studies Timothy Jones and Russell Moore for supporting me throughout my degree.
+  
+  #pagebreak()
+]
+
 #title[Abstract]
 
 Genome assembly is a cornerstone for computation biology, with an accurate reconstruction of an organism's genome being crucial to understanding its biology and evolution. This dissertation explores methods to improve the layout phase in the Overlap-Layout-Consensus genome assembly algorithm with the application of Graph Neural Networks. Conventional methods to clean and simplify overlap graphs utilize a collection of algorithms and heuristics that are insufficient to fully resolve all graph artifacts, ultimately relying on labor-intensive manual graph inspection. Graph Neural Networks have recently been shown to be a promising replacement to the traditional heuristic-oriented approach, helping improve assembly quality with increased contiguity and genome coverage. This project seeks to advance this neural assembly paradigm by exploring more advanced Graph Neural Network architectures, investigating graph-adaptive normalization, as well as automated feature extraction from raw sequencing data with the Mamba Selective State Space Model. Additionally, the advent of ultra-long sequencing technology offers new opportunities for resolving particularly complex genomic regions, such as long tandem repeats. This project integrates ultra-long reads with contemporary sequencing technology, yielding improved genome coverage, whilst maintaining assembly quality. Lastly, a proof of concept of an end-to-end neural assembly paradigm, where the neural network is not bounded to merely augmenting predefined assembly stages is also presented. This removes the constraints and biases imposed by the Overlap-Layout-Consensus framework. 
-
-#pagebreak()
-
-#title[Acknowledgements]
-
-I would like to thank my supervisors Dobrik Georgiev, Lovro Vrček, Martin Schmitz, and Pietro Liò for their immense support and advice throughout this project. Without them, this project would not have been possible.
-
-I would also like to thank my Directors of Studies Timothy Jones and Russell Moore for supporting me throughout my degree.
 
 #pagebreak()
 
@@ -280,7 +296,7 @@ The key contributions of this project are as follows:
 
 + Incorporating much richer features by utilizing the raw base-level read data directly, resulting in the @symgatedgcn-mamba and @symgatedgcn-mambaedge models. (@sec:symgatedgcn-mamba, @sec:symgatedgcn-mamba-edge, and @sec:mamba-potential-feature-extraction).
 
-+ Creating a proof-of-concept for purely neural genome assembly that does not rely on overlap graphs, or the @olc algorithm.
++ Creating a proof-of-concept for end-to-end neural genome assembly that does not rely on overlap graphs, or the @olc algorithm.
 
 // Motivation
 //   - Applications
@@ -910,7 +926,7 @@ Increasing the depth of a @gnn by stacking additional layers theoretically expan
 
 Unfortunately, despite numerous efforts to develop graph-based normalization schemes, no method consistently outperforms the alternatives in all tasks and benchmarks. Furthermore, normalization schemes extended from traditional schemes such as BatchNorm and InstanceNorm, often reduce the expressive power of the @gnn @granola-paper.
 
-The @granola @granola-paper authors postulate that there are two main reasons why these alternative schemes do not provide an unambiguous performance improvement across domains. Firstly, many methods use shared affine normalization parameters across all graphs, failing to adapt to input graph-specific characteristics. Secondly, special regard should be given to the expressive power of the normalization layer itself to distinguish non-isomorphic graphs, and then correctly tailor affine parameters to suit the input.
+The @granola @granola-paper authors hypothesize that there are two key reasons for alternative schemes not providing consistent performance improvements across domains. Firstly, many methods use shared affine normalization parameters across all graphs, failing to adapt to input graph-specific characteristics. Secondly, special regard should be given to the expressive power of the normalization layer itself to distinguish non-isomorphic graphs, and then correctly tailor affine parameters to suit the input.
 
 We begin by providing more details regarding the first point. Let $G = (bold(A), bold(X))$ denote a graph with $N in NN$ nodes, with adjacency matrix $bold(A) in RR^(N times N)$, and node feature matrix $bold(X) in RR^(N times D)$, where $D$ is the hidden embedding dimension. The pre-normalized node features for the $b$-th graph in a batch (batch size $B$), after the application of the $(l-1)$th @gnn layer is given by $tilde(bold(H))_b^l$:
 $
@@ -1523,7 +1539,7 @@ Both @pacbio @hifi and @ont @ul reads were simulated from the above reference ge
     Learning Rate: 0.0001```],
     [Dataset generation],
     [```yaml
-    Each chromosome is partitioned into regions 'Genomic region length' long, with reads of 'Read length' simulated from within this region
+    Each chromosome is partitioned into regions `Genomic region length` long, with reads of `Read length` simulated from within this region
     Genomic region length: 10_000 # bases
     Read length: 1_000 # bases
     ```],

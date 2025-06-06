@@ -989,7 +989,7 @@ Although this task superficially resembles a @s2s problem, conventional @s2s mod
 
 In the decoder, we perform auto-regressive decoding. We start with the embedding of the read sequence ordered so far (in #text(fill: purple)[purple]) (prepended with a @bos embedding, $e_0$), $S = (e_0, e_a, e_b, ..., e_x)$ (where $a, b, ..., x$ represents some ordering of reads), and pass $S$ through another Mamba/Transformer sequence decoder. This produces encoded read sequence embeddings $D = (h_0, h_a, h_b, ..., h_x)$ (in #text(fill: red.lighten(25%))[pink]), which are passed through a pooling layer producing a hidden representation of the assembled sequence so far, $d$, by concatenating $"mean"(D)$ with the final embedding $h_x$.
 
-Inspired by @ptrnet, the attention mechanism is used to get attention scores of $d$ over all encoded read embeddings $e_i$. For each $d$, we have $H$ vectors $(alpha_0, ..., alpha_N)^top$, where $alpha_i$ corresponds to the attention score of $e_i$ to $d$, $H$ is the number of attention heads, and $top$ means transpose. Additionally, we compute an overlap similarity score of each $e_i$ with $d$, $o_i^d$, and integrate this information into a separate attention head as vector $(o_0^d, ..., o_N^d)$. Attention scores across all heads are then aggregated, with the next read in the sequence (dotted #text(fill: purple)[purple] arrow) decided by the $e_i$ receiving maximal attention.
+Inspired by @ptrnet, the attention mechanism is used to get attention scores of $d$ over all encoded read embeddings $e_i$. For each $d$, we have $H$ vectors $(alpha_0, ..., alpha_N)^top$, where $alpha_i$ corresponds to the attention score of $e_i$ to $d$, $H$ is the number of attention heads, and $top$ means transpose. Additionally, we compute an overlap similarity score, $o_i^d$, of each $e_i$ with $d$, and integrate this information into a separate attention head as vector $(o_0^d, ..., o_N^d)$. Attention scores across all heads are then aggregated, with the next read in the sequence (dotted #text(fill: purple)[purple] arrow) decided by the $e_i$ receiving maximal attention.
 
 Apart from integrating overlap similarity into a separate attention head, our encoder also differs from @ptrnet. Respecting the unordered-set nature of the input collection of reads, we avoid applying an @rnn like @ptrnet that breaks permutation equivariance of the representations $e_i$.
 
@@ -1000,7 +1000,7 @@ Apart from integrating overlap similarity into a separate attention head, our en
     show-sub-caption: sub-caption-styling,
     figure([#image("graphics/ptr-net.png") #v(0.65cm)], caption: [@ptrnet]), <fig:ptr-net>,
     figure(image("graphics/neural-genome-assembly.svg", height: 7cm), caption: [@pgan]), <fig:neural-genome-assembly-custom-model>,
-    caption: [@pgan differs from @ptrnet is two key ways. First, we ensure to preserve the permutation equivariant nature of the encoder by not using an @rnn, and instead encoding each read individually. Second, we encode additional overlap information into the attention mechanism by exploiting attention heads.]
+    caption: [@pgan differs from @ptrnet in two key ways. First, we ensure to preserve the permutation equivariant nature of the encoder by not using an @rnn, and instead encoding each read individually. Second, we encode additional overlap information into the attention mechanism by exploiting attention heads.]
   )
 ]
 
@@ -1023,7 +1023,7 @@ In this section, we present and discuss the results of five experiments. We:
 + Survey the feasibility of end-to-end neural genome assembly, by testing @pgan on a simplified genome assembly task.
 
 == Training, validation, and testing datasets <sec:datasets>
-@fig:dataset_summary provides details for the (maternal) chromosomes (and specifically the regions within them) used for training, validation, and testing. 
+@fig:dataset_summary provides details for the (maternal) chromosomes (and specifically the regions within them) used for training, validation, and testing (experiment hyperparameters in @app:layout-hyperparameters). 
 
 The real-life overlap graphs for chromosomes chosen, for both training and evaluation, often consist of complex tangles, and are thus the most challenging to assemble. An acrocentric chromosome is one where the centromere, the region of a chromosome that holds sister chromatids together, is not located centrally on the chromosome, but towards one end. We utilize both non-acrocentric, and acrocentric chromosomes, as acrocentric chromosomes contain @rdna arrays @rdna-acrocentric harboring long tandem repeats that lead to distinct graph artifacts.
 
@@ -1066,7 +1066,7 @@ Additionally, we also utilize a number of commonly used metrics to assess the qu
 - *Number of contigs*: allows understanding how fragmented the genome assembly is. _Lower is better_.
 - *Longest contig length*: long contigs indicate lower fragmentation too. _Higher is better_.
 - *Genome fraction*: the percentage of the reference genome reconstructed by the assembly. _Higher is better_.
-- *NG50*: this contiguity metric is computed by first sorting contigs by length (longest to shortest), and then taking the cumulative sum of those lengths, until the sum is $>50%$ of the reference genome length. The length of the contig at the $50%$ threshold is the result of this metric. _Higher is better_.
+- *NG50*: this contiguity metric is computed by first sorting contigs by length (longest to shortest), and then taking the cumulative sum of those lengths, until the sum is #box[$>50%$] of the reference genome length. The length of the contig at the $50%$ threshold is the result of this metric. _Higher is better_.
 - *Number of mismatches*: the mean number of times where the base on the reference is different to that in the assembly, per $100$ @kb. _Lower is better_.
 - *Number of indels*: the mean number of times where the assembly has either a base insertion or deletion compared to the reference, per $100$ @kb. _Lower is better_.
 
@@ -1095,10 +1095,10 @@ We postulate that the underlying reason for this performance parity likely lies 
 
 One of @gat's key features is the implicit ability to assign different importances to nodes of the same neighborhood @gat-paper. We initially hypothesized that different types of graph artifacts would correspond to distinct substructures, requiring the model to selectively focus on different subsets of nodes and edges, playing to the strengths of the @gat architecture. Surprisingly, we empirically find this assumption to either be entirely false, or the weak expressive power of the networks preventing the model from identifying relevant features in the first place.
 
-Furthermore, we find evidence that the @gat\-based architectures are over-fitting their training data. The baseline @symgatedgcn convincingly outperforms the alternatives on the chromosome 9 test set (@tab:similar_test_performance shows significantly higher inverse precision, recall, and F1 score). This test set is significantly larger than the training overlap graph ($~3 #h(0em) times$ the size) (@fig:dataset_summary), and thus contains additional diversity in graph artifacts that can reveal over-fitting behavior.
+Furthermore, we find evidence that the @gat\-based architectures are over-fitting their training data. The baseline @symgatedgcn convincingly outperforms the alternatives on the chromosome 9 test set (@tab:similar_test_performance shows significantly higher inverse precision, recall, and F1 score). This test set is significantly larger than the training overlap graph (#box[$~3 #h(0em) times$] the size) (@fig:dataset_summary), and thus contains additional diversity in graph artifacts that can reveal over-fitting behavior.
 The increased model capacity brought by the attention mechanism, in comparison to convolution, makes the model vulnerable to over-fitting. We believe that @gatedge's and @symgatedge's observed loss in performance on the test set is due to over-fitting as all three architectures have comparable performance on the smaller, and less diverse, training and validation datasets (@fig:similar_validation_performance).
 
-Besides the previously discussed issues, another peculiarity we observe is that @gatedge and @symgatedge exhibit almost identical performance on both the validation (@fig:similar_validation_performance) and test (@tab:similar_test_performance) sets, when we expect @symgatedge to perform significantly better. The symmetry mechanism incorporates message passing in both the forward and reverse direction of the edges, in a manner that permits the model to distinguish the directionality of the information flow (which would not be possible via message passing on undirected edges). This symmetry mechanism, originally from the @dirgnn framework @dir-gnn-paper, provably makes the network equivalent in power to the _directed_ @wl test---strictly more expressive than standard @mpnn:pl.
+Another peculiarity we observe is that @gatedge and @symgatedge exhibit almost identical performance on both the validation (@fig:similar_validation_performance) and test (@tab:similar_test_performance) sets, when we expect @symgatedge to perform significantly better. The symmetry mechanism incorporates message passing in both the forward and reverse direction of the edges, in a manner that permits the model to distinguish the directionality of the information flow (which would not be possible via message passing on undirected edges). This symmetry mechanism, originally from the @dirgnn framework @dir-gnn-paper, provably makes the network equivalent in power to the _directed_ @wl test---strictly more expressive than standard @mpnn:pl.
 
 Since the symmetry mechanism is particularly relevant for genome assembly, which requires finding a directed path through the overlap graph, and prior work @lovro has demonstrated the efficacy of the symmetry mechanism, we find these results unexpected. This phenomenon likely points to another more fundamental bottleneck limiting the performance of the @gat\-based architectures.
 
@@ -1324,7 +1324,7 @@ However, despite the positive results observed with the introduction of both Mam
 We demonstrate the feasibility of end-to-end neural genome assembly by showcasing the promising results of our @pgan architecture on a simplified version of the genome assembly problem, where all reads are perfect and of a fixed length. However, this problem is still challenging as the neural network needs to find the correct permutation of reads corresponding to the original reference.
 
 === Dataset generation
-The _entirety_ of human chromosomes 19, 18, and 21, is utilized for training, validation, and testing respectively. For each chromosome, we prepare the dataset by partitioning it into contiguous regions 10 @kb long---each of these regions forms a minibatch. Then, within each region, we randomly sample reads with perfect accuracy. The reads are then permuted under a random permutation $P$, and the target is to predict the inverse permutation $P^(-1)$, such that $P P^(-1) = I = P^(-1) P$, where $I$ represents the identity permutation. Note that the minibatch reads and permutations are randomized every epoch.
+The _entirety_ of human chromosomes 19, 18, and 21, is utilized for training, validation, and testing respectively (experiment hyperparameters in @app:end-to-end-hyperparameters). For each chromosome, we prepare the dataset by partitioning it into contiguous regions 10 @kb long---each region forming a minibatch. Then, within each region, we randomly sample reads with perfect accuracy. The reads are then permuted under a random permutation $P$, and the target is to predict the inverse permutation $P^(-1)$, such that #box[$P P^(-1) = I = P^(-1) P$], where $I$ represents the identity permutation. Note that the minibatch reads and permutations are randomized every epoch.
 
 === Comparing Mamba and Transformer performance
 #place(top + center)[#v(-1em)
@@ -1443,7 +1443,7 @@ Lastly, building on the promising results from the end-to-end neural genome asse
 
 #[
 = Experiment setup
-== Experiment hyperparameters
+== Hyperparameters for layout experiments <app:layout-hyperparameters>
 #let fmt_value = value => text(fill: rgb("B60158"), font: "DejaVu Sans Mono", size: 0.9em)[#value]
 
 #[
@@ -1500,10 +1500,55 @@ Lastly, building on the promising results from the end-to-end neural genome asse
   )
 ]
 
-== Dataset generation
+== Dataset generation for layout experiments
 Data for all chromosomes was sourced from the `CHM13v2` @t2t human genome assembly (`BioProject PRJNA559484` @chm13-acrocentric) from the #underline[#link("https://www.ncbi.nlm.nih.gov/datasets/genome/GCF_009914755.1/", [National Library of Medicine])]. Although the human genome is diploid, this assembly is haploid, as it was derived from a hydatidiform mole.
 
 Both @pacbio @hifi and @ont @ul reads were simulated from the above reference genome using `PBSIM3` @pbsim3, with `Hifiasm` @hifiasm-paper used for the assembly of all overlap graphs (including those integrating ultra-long reads @double-graph). The data generation pipeline used a modified version of GNNome @lovrolong.
+#pagebreak()
+
+== Hyperparameters for end-to-end neural genome assembly experiments <app:end-to-end-hyperparameters>
+#[
+  #set table(
+    fill: (x, y) => if calc.rem(y, 2) == 1 {
+        gray.lighten(65%)
+      }
+  )
+  #table(
+    columns: (0.5fr, 1fr),
+    align: left,
+    table.header([Hyperparameter], [Value]),
+    [Optimizer],
+    [```yaml 
+    Adam
+    Learning Rate: 0.0001```],
+    [Dataset generation],
+    [```yaml
+    Each chromosome is partitioned into regions 'Genomic region length' long, with reads of 'Read length' simulated from within this region
+    Genomic region length: 10_000 # bases
+    Read length: 1_000 # bases
+    ```],
+    [Batch Size],
+    [```yaml
+    (3 * Genomic region length) / read length 
+    Num. reads: 30
+    ```],
+    [Number of epochs],
+    [```yaml
+    Ensure training till convergence
+    Epochs: 40
+    ```],
+    [Loss function],
+    [```yaml 
+    Cross Entropy with Logits
+    ```
+    ],
+    [Seed],
+    [```yaml
+    All experiments were repeated 5 times
+    Seeds: [0, 1, 2, 3, 4]
+    ```]
+  )
+]
 #pagebreak()
 
 = Additional algorithms <app:algorithms>
